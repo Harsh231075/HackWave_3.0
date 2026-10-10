@@ -1,4 +1,4 @@
-# GoGPT — AI-Powered Adaptive Productivity Workspace
+# Orlo — AI-Powered Adaptive Productivity Workspace
 ## Phase 1 Implementation Plan & Architecture Blueprint
 ### HackWave 3.0 • Problem Statement 4: Intent-to-Interface
 
@@ -7,7 +7,7 @@
 ## 1. Executive Summary & Scope Boundaries
 
 ### 🎯 Objective
-Build a complete, modern, responsive, production-quality static frontend prototype for **GoGPT**. This establishes the comprehensive visual, architectural, and component foundation required before integrating AI inference or backend data layers in subsequent phases.
+Build a complete, modern, responsive, production-quality static frontend prototype for **Orlo**. This establishes the comprehensive visual, architectural, and component foundation required before integrating AI inference or backend data layers in subsequent phases.
 
 ### ⚠️ Strict Phase 1 Boundaries (What is In vs. Out)
 | In Scope (Phase 1) | Out of Scope (Deferred to Future Phases) |
@@ -196,7 +196,7 @@ Every component will be fully implemented, self-contained, typed, and support re
 - **Insight Callouts:** Summary bullet points on peak productivity hours and bottleneck categories.
 
 ### Page 8: Adaptive Workspace Showcase (PS 4 Star Deliverable)
-This dedicated showcase visualizes how GoGPT adapts its entire interface layout according to distinct user intentions using the `WorkspaceRenderer`:
+This dedicated showcase visualizes how Orlo adapts its entire interface layout according to distinct user intentions using the `WorkspaceRenderer`:
 - **Top Toolbar:** `WorkspaceToolbar` featuring an interactive **Dev Mode Switcher** to test all three configurations:
   1. **Mode A — Daily Planning Workspace:**
      - Surfaces: `DailyTimeline` + `TimeBlockCard` list + Priority `TaskList` + `RecommendationCard`.

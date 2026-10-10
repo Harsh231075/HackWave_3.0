@@ -1,6 +1,6 @@
-# Build GoGPT Around Goals Across Professions
+# Build Orlo Around Goals Across Professions
 
-**Keep React, TypeScript, and Vite, but improve GoGPT from a collection of productivity pages into a shared workspace that supports different professions through configurable role packs.** Your Phase 1 prompt is strong on visual coverage and reusable components; it is weaker on teaching and studying workflows, meaningful interactions, and preservation of work when layouts change. Build a generalized engine, then validate it with one initial audience rather than promising equal depth for every profession immediately. University students managing coursework and group projects are a practical starting recommendation, with teacher and professional examples demonstrating extensibility. The competitive field already includes automatic planning, contextual agents, and prompt-generated dashboards: **Taskade and ClickUp deserve particularly close comparison**, alongside Motion, Notion, and education specialists. Your differentiation should be tested around useful same-canvas adaptation, understandable explanations, and preserved user work. This review reflects official-source research checked October 10, 2026; it is a selected competitor snapshot, not an exhaustive market survey or runtime-tested product comparison. It assesses your supplied specification and makes no code changes.
+**Keep React, TypeScript, and Vite, but improve Orlo from a collection of productivity pages into a shared workspace that supports different professions through configurable role packs.** Your Phase 1 prompt is strong on visual coverage and reusable components; it is weaker on teaching and studying workflows, meaningful interactions, and preservation of work when layouts change. Build a generalized engine, then validate it with one initial audience rather than promising equal depth for every profession immediately. University students managing coursework and group projects are a practical starting recommendation, with teacher and professional examples demonstrating extensibility. The competitive field already includes automatic planning, contextual agents, and prompt-generated dashboards: **Taskade and ClickUp deserve particularly close comparison**, alongside Motion, Notion, and education specialists. Your differentiation should be tested around useful same-canvas adaptation, understandable explanations, and preserved user work. This review reflects official-source research checked October 10, 2026; it is a selected competitor snapshot, not an exhaustive market survey or runtime-tested product comparison. It assesses your supplied specification and makes no code changes.
 
 ## Generalize the engine while making each profession useful
 
@@ -39,9 +39,9 @@ The prompt also needs a coherent demo date and timezone. A clearly labeled fixed
 
 ## Existing products already cover much of generic AI productivity
 
-The closest comparison depends on which promise GoGPT emphasizes. Motion and Reclaim optimize schedules; Notion, ClickUp, and Microsoft combine context with AI-assisted work; Taskade generates apps and workflows; education specialists handle teaching and learning. These categories describe documented capabilities, not an independent ranking of product quality.
+The closest comparison depends on which promise Orlo emphasizes. Motion and Reclaim optimize schedules; Notion, ClickUp, and Microsoft combine context with AI-assisted work; Taskade generates apps and workflows; education specialists handle teaching and learning. These categories describe documented capabilities, not an independent ranking of product quality.
 
-| Product | Current documented overlap | Implication for GoGPT |
+| Product | Current documented overlap | Implication for Orlo |
 |---|---|---|
 | Taskade | Prompts create live apps, dashboards, agents, and workflows backed by workspace data | Compare composition and usable actions directly; it is a near-direct competitor ([Taskade](https://www.taskade.com/)) |
 | ClickUp Brain | Interactive/shareable dashboards, slides and prototypes from work data; persistent preferences and workflows from prompts | Do not claim competitors only generate text; measure continuity and task usefulness ([ClickUp documentation](https://help.clickup.com/hc/en-us/articles/12578085238039-What-is-ClickUp-Brain-AI)) |
@@ -50,7 +50,7 @@ The closest comparison depends on which promise GoGPT emphasizes. Motion and Rec
 | Notion Agents | Uses workspace context and connected tools for personal and recurring team workflows | Source-backed preparation and retained context face strong competition ([Notion Agents](https://www.notion.com/product/agents)) |
 | Microsoft 365 Copilot | Agents include Analyst, Researcher, Visual Creator, and Learning Coach | Professional and student workflows overlap; availability depends on subscription and administration ([Microsoft documentation](https://support.microsoft.com/en-us/microsoft-365-copilot/agents-built-by-microsoft)) |
 | MagicSchool | Teacher lesson plans, worksheets, quizzes, rubrics; student research, feedback, and guided assistance | Teacher/student value needs domain-specific interactions ([MagicSchool tools](https://www.magicschool.ai/magic-tools)) |
-| Khanmigo | Teaching assistance and guided tutoring, including preparation tools | Adjacent competitor when GoGPT expands beyond planning into learning ([Khanmigo](https://www.khanmigo.ai/)) |
+| Khanmigo | Teaching assistance and guided tutoring, including preparation tools | Adjacent competitor when Orlo expands beyond planning into learning ([Khanmigo](https://www.khanmigo.ai/)) |
 
 **“AI command bar plus tasks and charts” is insufficient differentiation.** Taskade and ClickUp already make generating interactive work surfaces a competitive area. The sources do not establish whether every competitor continuously reorganizes an existing canvas while preserving all unsaved work. Therefore, “we are the first adaptive UI” or “nobody preserves context” would be unsupported. Treat explainable same-canvas adaptation with preserved drafts, filters, and pinned context as a product hypothesis to demonstrate and compare.
 
@@ -60,7 +60,7 @@ For a future head-to-head evaluation, use the same task and starting records: as
 
 The verified YC examples span mature productivity competitors and newer adjacent products. **Motion and Taskade are direct comparisons; Gumloop, Studdy, Frizzle, and Nessie provide adjacent lessons.** Batch affiliations below come from official YC company profiles. Their descriptions reflect current source positioning and should not be confused with launch-day scope.
 
-| Company | Verified YC batch | What it is building | Relationship to GoGPT |
+| Company | Verified YC batch | What it is building | Relationship to Orlo |
 |---|---|---|---|
 | Motion | Winter 2020 | Work management spanning projects, tasks, calendar, documents, notes, reports, and AI workflows | Direct planning/productivity competitor ([YC](https://www.ycombinator.com/companies/motion), [product](https://www.usemotion.com/)) |
 | Taskade | Summer 2019 | Prompt-created apps, dashboards, agents, and automated workflows | Direct/near-direct interface and workflow competitor ([YC](https://www.ycombinator.com/companies/taskade), [product](https://www.taskade.com/)) |
@@ -69,7 +69,7 @@ The verified YC examples span mature productivity competitors and newer adjacent
 | Frizzle | Summer 2025 | Assignment grading, feedback, misconception detection, and instructional dashboards | Adjacent teacher assessment product ([YC](https://www.ycombinator.com/companies/frizzle), [product](https://www.frizzle.com/)) |
 | Nessie | Fall 2025 | Shared memory from AI sessions, meetings, notes, and agent traces | Adjacent persistent-context infrastructure ([YC](https://www.ycombinator.com/companies/nessie), [product](https://nessielabs.com/)) |
 
-These companies suggest different product priorities. Taskade makes editable, working outcomes a necessary comparison. Motion makes planning quality more important than attractive scheduling screens. Frizzle illustrates the specificity of teaching workflows; a review queue benefits from supporting evidence and useful feedback actions. Nessie illustrates that context retention is becoming a product category of its own. None of these observations proves an exclusive moat for GoGPT.
+These companies suggest different product priorities. Taskade makes editable, working outcomes a necessary comparison. Motion makes planning quality more important than attractive scheduling screens. Frizzle illustrates the specificity of teaching workflows; a review queue benefits from supporting evidence and useful feedback actions. Nessie illustrates that context retention is becoming a product category of its own. None of these observations proves an exclusive moat for Orlo.
 
 Studdy’s company-linked website did not fetch during research, so its description here relies on its YC profile. Lindy and Mindgrasp were not verified as YC companies and are excluded from the verified list. The educational company named Flint also had an unresolved profile/name collision in the research; it is excluded rather than assigned an uncertain batch.
 
@@ -87,6 +87,6 @@ For later phases, build functional persistence and stable data-access interfaces
 
 ## Conclusion
 
-The most useful next decision is the first repeatable workflow GoGPT will help someone finish, rather than the number of professions it will advertise. A student-focused first release with credible teacher and professional previews can demonstrate generality while keeping the product testable. Interviews and observed sessions should determine whether that initial audience stays the right choice.
+The most useful next decision is the first repeatable workflow Orlo will help someone finish, rather than the number of professions it will advertise. A student-focused first release with credible teacher and professional previews can demonstrate generality while keeping the product testable. Interviews and observed sessions should determine whether that initial audience stays the right choice.
 
 Build the continuity contract into Phase 1: what remains when goals change, what users can edit, and why components appear. If those behaviors work before AI arrives, the later model integration can improve selection and composition without forcing a redesign of the application’s core experience.

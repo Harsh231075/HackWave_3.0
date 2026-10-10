@@ -4,7 +4,7 @@ import { useWorkspace } from '@/state/WorkspaceProvider'
 import type { View } from '@/lib/workspace/config'
 
 export function Brand() {
-  return <span className="goal-brand"><Sparkles size={20} /> GoGPT</span>
+  return <span className="goal-brand"><Sparkles size={20} /> Orlo</span>
 }
 
 export function AppShell({ children }: { view: View; onNavigate: (view: View) => void; children: ReactNode }) {
