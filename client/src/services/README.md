@@ -87,4 +87,40 @@ Meeting agendas use `meeting-agenda:${meetingId}`. Saved drafts persist; transie
 
 The command workflow uses `/api/intent` before composition. Clarification answers require matching offered context and current catalog IDs; date answers use labeled date inputs. Cancel/reset/new requests prevent stale results from applying. Supported pins missing from composition remain scoped; unsupported pinned widget types are labeled as showing all workspace records. Pins themselves remain session-only.
 
-The fixed demo clock is 2026-10-12 in Asia/Kolkata. Model calls are server-side and use the existing configured provider. Usage/overdue goals retain general generation behavior until their scoped workflows are implemented. No new external integration or authenticated data source is introduced.
+The fixed demo clock is 2026-10-12 in Asia/Kolkata. Model calls are server-side and use the existing configured provider. Meeting, usage and overdue goals use their respective scoped retrieval/composition workflows. No new external integration or authenticated data source is introduced.
+
+## Project overdue reviews
+
+- `overdueReviewService.load(intent, referenceDate)` validates an overdue intent and retrieves only explicit, non-conflicting project→task/resource relationships. Completed, today/future and out-of-range tasks are excluded. Results are deterministic, and missing/invalid/valid-empty results remain distinct.
+- `overdueCompositionService.compose(request, { signal })` sends the `kind: "overdue"` contract to `/api/workspace/compose`. Only five registered widget types are allowed; context and one tasks component are mandatory. Evidence must exist in the current selection. The hook revalidates after generation to reject stale sources.
+- `focusSchedulingService.findSlots({ taskId, date, intent })` returns an ActionResult with actual-duration slots; `schedule({ taskId, date, start, intent, expectedDuration })` revalidates before creating an idempotent focus event through eventService. Every calendar event and unlinked meeting is busy time. Invalid saved scheduling data is unavailable.
+- `layoutService.saveOverdue(session)` writes a version-2 scoped session with intent, cutoff, validated composition and local task refinements. Version-1 general and version-2 meeting sessions remain readable. Reload recomputes current records rather than restoring stale task snapshots.
+- `createRecordStore` supplies stable external-store snapshots for both domain edits and collection changes. Overdue filters are separate from dedicated task-page filters and can only narrow the bound selection. Pins remain session-only; incompatible pinned widgets are labeled as all-workspace records.
+
+The meeting compose request retains its existing wire shape. Overdue requests use the explicit `kind` discriminator; both are validated by the same endpoint. No backend database, authentication or external integration was introduced.
+
+## Usage measurements and investigation
+
+- `usageDataService.loadCatalog()` returns validated clients and owned projects. `usageObservationService` and `usageReleaseService` expose collection CRUD with schema/ownership checks; measurements reject duplicate project/date/segment grains.
+- `usageInvestigationService.load({ clientId, projectId?, dateRange?, segment? })` selects observations/releases from browserDatabase. Missing entities, malformed collections, and valid empty results remain distinct. Date ranges are inclusive and bounded to 366 days. Collections are bounded to 10,000 observations and 1,000 releases.
+- `loadIntent(intent, segment?)` adapts a validated usage intent to the same retrieval logic; constraints.segment supplies the segment when an explicit override is absent.
+- Results contain chart series, endpoint and equal-length period comparisons, coverage, source observations/releases and deterministic explanations. Client-wide aggregation requires measurements for each selected project; absent project/day/segment data is `null`, not zero. A missing endpoint or zero baseline never produces a fabricated percentage.
+- UsageExplorer subscribes to collection changes through `createRecordStore`, so local data edits immediately refresh charts and explanations without relying on task/event mutations. Widgets contain no fixed client, date, segment, measurement or release conclusion.
+
+Synthetic Northstar/Westbridge values live only in `data/usageDemo.ts`, added to the existing seed collections. Source labels distinguish synthetic from manual records. Existing domain records, malformed storage and intentionally empty usage collections are preserved.
+
+### Scoped usage workspace
+
+- `usageWorkspaceService.load(intent)` combines filtered observations/releases with explicit, non-conflicting project→task/resource links, communications inside the requested dates and current open project issues. Issues have no date field; they are supporting project context, not period evidence.
+- `usageCompositionService.compose(request, { signal })` sends the validated `kind: 'usage'` snapshot and only the matching investigation draft. Composition permits eight registered widget types, requires context/usage once, and validates evidence against supplied records.
+- Usage follow-ups include `scopeChanges` (clientId/projectId/dateRange/segment). Application logic preserves undeclared fields, handles segment clearing and updates project-client ownership before full intent validation.
+- `layoutService.saveUsage(session)` stores version-2 intent/composition, isolated task filters and an evidence fingerprint, not record/metric snapshots. Reload restores previous usage composition for follow-ups and recomputes data. Valid empty selections retain the usage layout.
+- UsageScopeProvider subscribes to domain and collection changes. Bound controls cannot silently switch to another client/project; scope changes go through the command window. The independent UsageExplorer still provides dependent selectors.
+- Equal-period averages compare the first and last floor(days/2) days; odd middle days are excluded. Missing coverage makes a period average unavailable, and zero baselines never produce a percentage. Endpoint comparisons are separately labeled.
+- Investigation drafts use `usage-investigation:<clientId>:<projectId-or-all>`; they never overwrite meeting agendas. Supported pins inherit current usage scope; original pin bindings and persistent pins remain pending.
+
+### Meeting task filters
+
+MeetingScopeProvider applies the saved meeting session’s taskFilters directly to retrieved meeting-linked tasks using the demo clock. Dedicated/global filters are neither read nor updated. Context, agenda, resources and evidence continue using the complete preparation snapshot.
+
+Version-2 meeting sessions now include validated taskFilters; missing filters in older sessions default to emptyFilters without rewriting storage. Explicit invalid values/dates are rejected, preserving raw data. saveMeeting accepts MeetingLayoutInput for older callers, while loadSession returns normalized MeetingLayout. Filters persist on reload and successful same-meeting follow-ups; switching meetings or returning after a different goal starts fresh. Local changes do not remount the canvas or clear draft buffers. Save failures retain the in-memory selection and display a persistence notice.

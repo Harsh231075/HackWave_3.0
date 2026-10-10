@@ -1,3 +1,4 @@
+import { emptyFilters, filterTasks } from '../src/domain/workspace.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBrowserDatabase } from '../src/services/browserDatabase.ts'
@@ -6,7 +7,7 @@ import { createAdaptiveDataService } from '../src/services/adaptiveDataService.t
 import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
 import { intentRequestSchema, validateIntentResolution } from '../src/domain/intent.ts'
 import { validateMeetingComposition, serializeMeetingComposition, type ComposeRequest } from '../src/domain/adaptiveData.ts'
-import { createLayoutService, layoutStorageKey } from '../src/services/layoutService.ts'
+import { createLayoutService, layoutStorageKey, meetingLayoutSchema, retainMeetingTaskFilters } from '../src/services/layoutService.ts'
 import { createTaskService } from '../src/services/taskService.ts'
 import { createDraftService } from '../src/services/draftService.ts'
 
@@ -112,8 +113,8 @@ test('layout persists version-2 meeting scope, reads legacy data, and preserves 
   const { storage, values } = setup(); const layout = createLayoutService(storage, response => response.startsWith('root ='))
   const input = compositionInput(), composition = plan(), response = serializeMeetingComposition(composition)
   const session = { version: 2 as const, kind: 'meeting' as const, meetingId: input.preparation.meeting.id, intent: input.intent, composition, response }
-  assert.equal(layout.saveMeeting(session).status, 'saved'); assert.deepEqual(layout.loadSession(), { status: 'found', value: session })
-  assert.equal(layout.saveMeeting({ ...session, meetingId: 'wrong' }).status, 'invalid'); assert.deepEqual(layout.loadSession(), { status: 'found', value: session })
+  assert.equal(layout.saveMeeting(session).status, 'saved'); assert.deepEqual(layout.loadSession(), { status: 'found', value: { ...session, taskFilters: { query: '', status: 'all', priority: 'all', sort: 'due', from: '', to: '' } } })
+  assert.equal(layout.saveMeeting({ ...session, meetingId: 'wrong' }).status, 'invalid'); assert.deepEqual(layout.loadSession(), { status: 'found', value: { ...session, taskFilters: { query: '', status: 'all', priority: 'all', sort: 'due', from: '', to: '' } } })
   layout.save('root = Card([])'); assert.equal(layout.load().status, 'found')
   values.set(layoutStorageKey, '{broken'); assert.equal(layout.loadSession().status, 'invalid'); assert.equal(values.get(layoutStorageKey), '{broken')
 })
@@ -142,4 +143,71 @@ test('preparation store refreshes collection-only edits with stable cached snaps
   const stop = store.subscribe(() => {})
   const resubscribed = store.getSnapshot(); assert.equal(resubscribed.status === 'found' && resubscribed.value.client.name, 'Changed while unsubscribed')
   stop()
+})
+
+test('meeting filters narrow linked tasks independently of global filters and react to shared edits', () => {
+  const { database, service } = setup()
+  database.dispatch({ type: 'filters', patch: { query: 'unrelated', status: 'completed', priority: 'urgent', from: '2027-01-01', to: '2027-01-02' } })
+  const globalFilters = { ...database.getState().filters }
+  const load = () => { const result = service.loadPreparation('northstar-meeting'); assert.ok(result.status === 'found'); return result.value.tasks }
+  const all = filterTasks(load(), emptyFilters(), '2026-10-12')
+  assert.equal(all.length, 3)
+  assert.ok(all.every(t => ['task-3', 'task-4', 'task-5'].includes(t.id)))
+  assert.equal(filterTasks(load(), { ...emptyFilters(), query: 'task-4' }, '2026-10-12').length, 1)
+  const tasks = createTaskService(database, () => '2026-10-12')
+  tasks.update('task-4', { status: 'blocked', priority: 'urgent', due: '2026-10-10' })
+  const narrowed = { ...emptyFilters(), status: 'blocked', priority: 'urgent', from: '2026-10-09', to: '2026-10-11', sort: 'priority' as const }
+  assert.deepEqual(filterTasks(load(), narrowed, '2026-10-12').map(t => t.id), ['task-4'])
+  assert.deepEqual(filterTasks(load(), { ...emptyFilters(), status: 'overdue' }, '2026-10-12').map(t => t.id), ['task-4'])
+  tasks.toggle('task-4')
+  assert.equal(filterTasks(load(), narrowed, '2026-10-12').length, 0)
+  database.dispatch({ type: 'undo' })
+  assert.equal(filterTasks(load(), narrowed, '2026-10-12').length, 1)
+  tasks.delete('task-4')
+  assert.equal(filterTasks(load(), emptyFilters(), '2026-10-12').length, 2)
+  database.dispatch({ type: 'undo' })
+  assert.equal(filterTasks(load(), emptyFilters(), '2026-10-12').length, 3)
+  assert.deepEqual(database.getState().filters, globalFilters)
+})
+test('legacy meeting filters default on read without rewriting saved data; refinements survive reload', () => {
+  const { storage, values } = setup(), layout = createLayoutService(storage, () => true)
+  const input = compositionInput(), composition = plan()
+  const legacy = { version: 2 as const, kind: 'meeting' as const, meetingId: input.preparation.meeting.id, intent: input.intent, composition, response: serializeMeetingComposition(composition) }
+  values.set(layoutStorageKey, JSON.stringify(legacy))
+  const raw = values.get(layoutStorageKey)
+  const loaded = layout.loadSession()
+  assert.ok(loaded.status === 'found' && loaded.value.version === 2 && loaded.value.kind === 'meeting')
+  assert.deepEqual(loaded.value.taskFilters, emptyFilters())
+  assert.equal(values.get(layoutStorageKey), raw)
+  const session = { ...loaded.value, taskFilters: { ...emptyFilters(), query: 'task', status: 'blocked', priority: 'high', sort: 'priority' as const, from: '2026-10-01', to: '2026-10-15' } }
+  assert.equal(layout.saveMeeting(session).status, 'saved')
+  assert.deepEqual(createLayoutService(storage, () => true).loadSession(), { status: 'found', value: session })
+})
+test('explicit malformed meeting filters are rejected and their raw storage is preserved', () => {
+  const { storage, values } = setup(), layout = createLayoutService(storage, () => true)
+  const input = compositionInput(), composition = plan()
+  const session = { version: 2, kind: 'meeting', meetingId: input.preparation.meeting.id, intent: input.intent, composition, response: serializeMeetingComposition(composition) }
+  for (const taskFilters of [null, {}, { ...emptyFilters(), status: 'unknown' }, { ...emptyFilters(), priority: 'unknown' }, { ...emptyFilters(), from: '2026-02-30' }, { ...emptyFilters(), from: '2026-10-15', to: '2026-10-01' }]) {
+    const raw = JSON.stringify({ ...session, taskFilters })
+    values.set(layoutStorageKey, raw)
+    assert.equal(layout.loadSession().status, 'invalid')
+    assert.equal(values.get(layoutStorageKey), raw)
+  }
+})
+test('meeting filter continuity retains only the active matching meeting', () => {
+  const input = compositionInput(), composition = plan()
+  const next = meetingLayoutSchema.parse({ version: 2, kind: 'meeting', meetingId: input.preparation.meeting.id, intent: input.intent, composition, response: serializeMeetingComposition(composition) })
+  const current = { ...next, taskFilters: { ...emptyFilters(), query: 'blocker', status: 'blocked' } }
+  const retained = retainMeetingTaskFilters(current, next)
+  assert.deepEqual(retained.taskFilters, current.taskFilters)
+  assert.notEqual(retained.taskFilters, current.taskFilters)
+  assert.deepEqual(retainMeetingTaskFilters({ ...current, meetingId: 'another-meeting' }, next).taskFilters, emptyFilters())
+  assert.deepEqual(retainMeetingTaskFilters(null, next).taskFilters, emptyFilters())
+})
+test('blocked layout storage reports unavailable without affecting meeting filter selection', () => {
+  const storage = createBrowserStorage(() => { throw new Error('blocked') }), layout = createLayoutService(storage, () => true)
+  const input = compositionInput(), composition = plan()
+  const session = meetingLayoutSchema.parse({ version: 2, kind: 'meeting', meetingId: input.preparation.meeting.id, intent: input.intent, composition, response: serializeMeetingComposition(composition), taskFilters: { ...emptyFilters(), query: 'task-3' } })
+  assert.equal(layout.saveMeeting(session).status, 'unavailable')
+  assert.equal(filterTasks(input.preparation.tasks, session.taskFilters, '2026-10-12').length, 1)
 })

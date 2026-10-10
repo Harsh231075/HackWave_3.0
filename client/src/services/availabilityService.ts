@@ -1,7 +1,8 @@
+import type { Event } from '../domain/types.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import { eventError, minutes } from '../domain/workspace.ts'
-export function createAvailabilityService(database: BrowserDatabase) {
-  const isAvailable = ({ date, start, end }: { date: string; start: string; end: string }) => !eventError({ id: 'slot-preview', title: 'Slot', date, start, end, category: 'meeting', participants: [], agenda: '' }, database.getState().events)
+export function createAvailabilityService(database: BrowserDatabase, extraBusy: () => Event[] = () => []) {
+  const isAvailable = ({ date, start, end }: { date: string; start: string; end: string }) => !eventError({ id: 'slot-preview', title: 'Slot', date, start, end, category: 'meeting', participants: [], agenda: '' }, [...database.getState().events, ...extraBusy()])
   return {
     isAvailable,
     findSlots({ date, duration = 60, from = '09:00', to = '18:00', step = 30 }: { date: string; duration?: number; from?: string; to?: string; step?: number }) {

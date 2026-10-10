@@ -1,4 +1,4 @@
-import type { LayoutSession, MeetingLayout } from './layoutService.ts'
+import type { LayoutSession, MeetingLayoutInput } from './layoutService.ts'
 import type { DomainSnapshot, Event, Resource, Task } from '../domain/types.ts'
 
 export type LoadResult<T> = { status: 'found'; value: T } | { status: 'missing' | 'invalid' | 'unavailable' }
@@ -11,7 +11,7 @@ export interface StorageAdapter {
   remove(key: string): SaveResult
 }
 export interface WorkspaceService { load(): LoadResult<DomainSnapshot>; save(snapshot: DomainSnapshot): SaveResult }
-export interface LayoutService { load(): LoadResult<string>; loadSession(): LoadResult<LayoutSession>; save(response: string): SaveResult; saveMeeting(session: MeetingLayout): SaveResult; clear(): SaveResult }
+export interface LayoutService { load(): LoadResult<string>; loadSession(): LoadResult<LayoutSession>; save(response: string): SaveResult; saveMeeting(session: MeetingLayoutInput): SaveResult; saveUsage(session: import('./layoutService.ts').UsageLayout): SaveResult; saveOverdue(session: import('./layoutService.ts').OverdueLayout): SaveResult; clear(): SaveResult }
 export type TaskView = 'list' | 'kanban'
 export type CalendarView = 'month' | 'week' | 'day' | 'agenda'
 export type CalendarCategory = 'all' | Event['category']

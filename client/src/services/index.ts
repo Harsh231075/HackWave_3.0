@@ -1,3 +1,11 @@
+import { createUsageWorkspaceService } from './usageWorkspaceService'
+import { createUsageCompositionService } from './usageCompositionService'
+import { USAGE_DEMO } from '../data/usageDemo'
+import { createUsageDataService } from './usageDataService'
+import { createUsageInvestigationService } from './usageInvestigationService'
+import { createOverdueReviewService } from './overdueReviewService'
+import { createOverdueCompositionService } from './overdueCompositionService'
+import { createFocusSchedulingService } from './focusSchedulingService'
 import { createIntentService } from './intentService'
 import { createMeetingCompositionService } from './meetingCompositionService'
 import { createHttpClient } from './api/httpClient'
@@ -26,7 +34,7 @@ import { createPreferencesService } from './preferencesService'
 import { createGenerationService } from './generationService'
 import { createResourceService } from './resourceService'
 const storage = createBrowserStorage()
-export const browserDatabase = createBrowserDatabase(storage, { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: INITIAL_DRAFTS, dismissed: [], activity: ['Your workspace is ready for the week', 'Demo resources added to your workspace'] }, { ...ADAPTIVE_DEMO, resources: RESOURCES })
+export const browserDatabase = createBrowserDatabase(storage, { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: INITIAL_DRAFTS, dismissed: [], activity: ['Your workspace is ready for the week', 'Demo resources added to your workspace'] }, { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES })
 export const workspaceService = {
   load: () => { const { tasks, events, drafts, dismissed, activity } = browserDatabase.getState(); return { status: 'found' as const, value: structuredClone({ tasks, events, drafts, dismissed, activity }) } },
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
@@ -81,3 +89,15 @@ export const meetingPreparationService = { load: adaptiveDataService.loadPrepara
 
 export const intentService = createIntentService((input, options) => createHttpClient().requestJson('/api/intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: options?.signal }))
 export const meetingCompositionService = createMeetingCompositionService()
+
+export const overdueReviewService = createOverdueReviewService(browserDatabase)
+export const overdueCompositionService = createOverdueCompositionService()
+export const focusSchedulingService = createFocusSchedulingService(browserDatabase, () => DEMO_DATE)
+
+export const usageDataService = createUsageDataService(browserDatabase)
+export const usageObservationService = usageDataService.observations
+export const usageReleaseService = usageDataService.releases
+export const usageInvestigationService = createUsageInvestigationService(browserDatabase)
+
+export const usageWorkspaceService = createUsageWorkspaceService(browserDatabase)
+export const usageCompositionService = createUsageCompositionService()

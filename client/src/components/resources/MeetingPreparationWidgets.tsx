@@ -1,3 +1,4 @@
+import { useUsageScope } from '@/state/UsageScopeContext'
 import { useEffect, useState } from 'react'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -27,13 +28,15 @@ export function SelectedMeeting() {
   return <div className="space-y-4"><div><h3 className="font-medium">{meeting.title}</h3><p className="text-sm text-muted-foreground">{meeting.date} · {meeting.start}–{meeting.end}</p><p className="text-sm">{meeting.participants.join(', ')}</p></div>{previousMeeting && <div className="rounded-md bg-muted p-3"><h4 className="text-sm font-medium">Previous meeting · {previousMeeting.date}</h4><p className="mt-2 whitespace-pre-wrap text-sm">{previousMeeting.agenda}</p></div>}</div>
 }
 export function MeetingRecordList({ kind }: { kind: 'communications' | 'issues' }) {
-  const scope = useMeetingScope()
+  const usage = useUsageScope()
+  const meeting = useMeetingScope()
+  const scope = usage ? { data: { ...usage.data.snapshot, client: usage.data.client } } : meeting
   const [selected, setSelected] = useState<string>()
   useEscapeDismiss(!!selected, () => setSelected(undefined))
   if (!scope) return <p className="text-sm text-muted-foreground">Choose a meeting to view these records.</p>
   const records = scope.data[kind]
   const record = records.find(item => item.id === selected)
-  return <><div className="space-y-2">{!records.length && <p className="text-sm text-muted-foreground">No {kind} for this meeting.</p>}{records.map(item => <button className="w-full rounded-md border p-3 text-left hover:bg-muted" key={item.id} onClick={() => setSelected(item.id)}><span className="block text-sm font-medium">{'subject' in item ? item.subject : item.title}</span><span className="text-xs text-muted-foreground">{'sender' in item ? `${item.sender} · ${item.date}` : `${item.owner} · ${item.status}`}</span></button>)}</div><Dialog open={!!record} onOpenChange={open => { if (!open) setSelected(undefined) }}><DialogContent onKeyDownCapture={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSelected(undefined) } }}><DialogHeader><DialogTitle>{record && ('subject' in record ? record.subject : record.title)}</DialogTitle><DialogDescription>Synthetic source · {scope.data.client.name}</DialogDescription></DialogHeader><p className="whitespace-pre-wrap text-sm">{record && ('body' in record ? record.body : record.description)}</p></DialogContent></Dialog></>
+  return <><div className="space-y-2">{!records.length && <p className="text-sm text-muted-foreground">No matching {kind}.</p>}{records.map(item => <button className="w-full rounded-md border p-3 text-left hover:bg-muted" key={item.id} onClick={() => setSelected(item.id)}><span className="block text-sm font-medium">{'subject' in item ? item.subject : item.title}</span><span className="text-xs text-muted-foreground">{'sender' in item ? `${item.sender} · ${item.date}` : `${item.owner} · ${item.status}`}</span></button>)}</div><Dialog open={!!record} onOpenChange={open => { if (!open) setSelected(undefined) }}><DialogContent onKeyDownCapture={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSelected(undefined) } }}><DialogHeader><DialogTitle>{record && ('subject' in record ? record.subject : record.title)}</DialogTitle><DialogDescription>Synthetic source · {scope.data.client.name}</DialogDescription></DialogHeader><p className="whitespace-pre-wrap text-sm">{record && ('body' in record ? record.body : record.description)}</p></DialogContent></Dialog></>
 }
 export const Communications = () => <MeetingRecordList kind="communications" />
 export const Issues = () => <MeetingRecordList kind="issues" />

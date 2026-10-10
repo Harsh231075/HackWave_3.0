@@ -1,0 +1,53 @@
+import { z } from 'zod'
+import { clientSchema, adaptiveProjectSchema, adaptiveTaskSchema, adaptiveResourceSchema, communicationSchema, issueSchema, relationshipSchema } from './adaptiveData.ts'
+import { resolvedIntentSchema } from './intent.ts'
+import { usageObservationSchema, usageReleaseSchema, usageQuerySchema } from './usage.ts'
+export const usageWidgetTypes = ['context', 'usage', 'metrics', 'tasks', 'resources', 'communications', 'issues', 'outline'] as const
+export const usageSnapshotSchema = z.strictObject({
+  query: usageQuerySchema, client: clientSchema, projects: adaptiveProjectSchema.array().max(1000),
+  observations: usageObservationSchema.array().max(10000), releases: usageReleaseSchema.array().max(1000),
+  tasks: adaptiveTaskSchema.array().max(1000), resources: adaptiveResourceSchema.array().max(1000),
+  communications: communicationSchema.array().max(1000), issues: issueSchema.array().max(1000), relationships: relationshipSchema.array().max(10000),
+}).superRefine((data, ctx) => {
+  const projects = new Set(data.projects.map(p => p.id))
+  if (data.client.id !== data.query.clientId || data.projects.some(p => p.clientId !== data.client.id || (data.query.projectId && p.id !== data.query.projectId)) || (data.query.projectId && !projects.has(data.query.projectId))) ctx.addIssue({ code: 'custom', message: 'Usage ownership must agree.' })
+  for (const key of ['observations', 'releases', 'communications', 'issues'] as const) {
+    const records = data[key]
+    if (new Set(records.map(r => r.id)).size !== records.length) ctx.addIssue({ code: 'custom', message: 'Duplicate usage evidence.' })
+    for (const record of records) if (record.clientId !== data.client.id || !projects.has(record.projectId) || (data.query.dateRange && ('date' in record && (record.date < data.query.dateRange.from || record.date > data.query.dateRange.to)))) ctx.addIssue({ code: 'custom', message: 'Evidence outside usage scope.' })
+  }
+  if (data.observations.some(r => data.query.segment && r.segment !== data.query.segment) || data.releases.some(r => data.query.segment && r.segments.length && !r.segments.includes(data.query.segment))) ctx.addIssue({ code: 'custom', message: 'Evidence outside selected segment.' })
+  if (data.relationships.some(r => r.sourceKind !== 'project' || !projects.has(r.sourceId) || r.type !== 'related')) ctx.addIssue({ code: 'custom', message: 'Invalid usage relationships.' })
+  for (const [kind, records] of [['task', data.tasks], ['resource', data.resources]] as const) for (const record of records) if (!data.relationships.some(r => r.targetKind === kind && r.targetId === record.id)) ctx.addIssue({ code: 'custom', message: 'Usage work requires explicit relationships.' })
+})
+export type UsageSnapshot = z.infer<typeof usageSnapshotSchema>
+const evidence = z.strictObject({ kind: z.enum(['client', 'project', 'observation', 'release', 'task', 'resource', 'communication', 'issue']), id: z.string().min(1) })
+export const usageCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(usageWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidence.array().min(1).max(20) })).min(2).max(8) }).superRefine((plan, ctx) => {
+  const types = plan.widgets.map(w => w.type)
+  if (new Set(types).size !== types.length || !types.includes('context') || !types.includes('usage')) ctx.addIssue({ code: 'custom', message: 'Include context and usage exactly once.' })
+})
+export type UsageComposition = z.infer<typeof usageCompositionSchema>
+export const usageComposeRequestSchema = z.strictObject({ version: z.literal(1), kind: z.literal('usage'), requestId: z.string().min(1), intent: resolvedIntentSchema, snapshot: usageSnapshotSchema, draft: z.string().max(5000), previousComposition: usageCompositionSchema.optional() }).superRefine((input, ctx) => {
+  const { intent, snapshot: { query } } = input
+  if (intent.goalType !== 'usage_investigation' || intent.clientId !== query.clientId || intent.projectId !== query.projectId || intent.dateRange.from !== query.dateRange?.from || intent.dateRange.to !== query.dateRange?.to || intent.constraints?.segment !== query.segment) ctx.addIssue({ code: 'custom', message: 'Usage snapshot must match resolved intent.' })
+})
+export type UsageComposeRequest = z.infer<typeof usageComposeRequestSchema>
+export function usageEvidenceRecords(data: UsageSnapshot) {
+  return [{ kind: 'client', record: data.client }, ...data.projects.map(record => ({ kind: 'project', record })), ...data.observations.map(record => ({ kind: 'observation', record })), ...data.releases.map(record => ({ kind: 'release', record })), ...data.tasks.map(record => ({ kind: 'task', record })), ...data.resources.map(record => ({ kind: 'resource', record })), ...data.communications.map(record => ({ kind: 'communication', record })), ...data.issues.map(record => ({ kind: 'issue', record }))]
+}
+export function validateUsageComposition(value: unknown, request: UsageComposeRequest) {
+  const input = usageComposeRequestSchema.safeParse(request)
+  const ids = new Set(input.success ? usageEvidenceRecords(input.data.snapshot).map(r => r.kind + ':' + r.record.id) : [])
+  return usageCompositionSchema.superRefine((plan, ctx) => {
+    if (!input.success || plan.requestId !== request.requestId) ctx.addIssue({ code: 'custom', message: 'Usage identity or scope mismatch.' })
+    for (const widget of plan.widgets) for (const ref of widget.evidence) if (!ids.has(ref.kind + ':' + ref.id)) ctx.addIssue({ code: 'custom', message: 'Unknown usage evidence.' })
+  }).safeParse(value)
+}
+export const serializeUsageComposition = (plan: UsageComposition) => 'root = Card([Workspace([' + plan.widgets.map(w => 'WorkspaceWidget(' + JSON.stringify(w.type) + ', ' + JSON.stringify(w.span) + ')').join(', ') + '])])'
+export const usageDraftKey = (intent: { clientId?: string; projectId?: string }) => 'usage-investigation:' + intent.clientId + ':' + (intent.projectId ?? 'all')
+export function usageSnapshotFingerprint(snapshot: UsageSnapshot) {
+  let hash = 2166136261
+  const text = JSON.stringify(snapshot)
+  for (let index = 0; index < text.length; index++) hash = Math.imul(hash ^ text.charCodeAt(index), 16777619)
+  return (hash >>> 0).toString(16)
+}

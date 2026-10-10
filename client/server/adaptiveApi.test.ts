@@ -95,3 +95,27 @@ test('HTTP service adapters send the same payload and return validated responses
   assert.deepEqual(await intent.resolve(request, { signal: controller.signal }), resolved)
   assert.deepEqual(await createMeetingCompositionService(transport).compose(compose, { signal: controller.signal }), composition)
 })
+
+test('overdue compose endpoint accepts the alternate contract and rejects cross-project evidence', async () => {
+  const { compose } = fixtures()
+  const request = { version: 1, kind: 'overdue', requestId: 'r', intent: { goalType: 'overdue_review', projectId: 'atlas', clientId: 'northstar', dateRange: { from: '0001-01-01', to: '2026-10-11' } }, review: { project: compose.preparation.project, client: compose.preparation.client, referenceDate: '2026-10-12', dateRange: { from: '0001-01-01', to: '2026-10-11' }, tasks: [], resources: [], relationships: [], reasons: {} } }
+  const plan = { version: 1, requestId: 'r', widgets: ['context', 'tasks'].map(type => ({ type, span: 'full', reason: 'Atlas overdue review has no outstanding tasks.', evidence: [{ kind: 'project', id: 'atlas' }] })) }
+  await mockOutput(plan, async () => { assert.equal((await endpoint('compose', request)).status, 200); assert.equal((await endpoint('compose', { ...request, intent: { ...request.intent, projectId: 'launch' } })).status, 400) })
+  await mockOutput({ ...plan, widgets: plan.widgets.map(w => ({ ...w, evidence: [{ kind: 'project', id: 'launch' }] })) }, async () => assert.equal((await endpoint('compose', request)).status, 502))
+})
+
+test('usage compose endpoint validates scoped measurements and rejects fabricated evidence', async () => {
+  const { createUsageWorkspaceService } = await import('../src/services/usageWorkspaceService.ts')
+  const { USAGE_DEMO } = await import('../src/data/usageDemo.ts')
+  const database = createBrowserDatabase(createBrowserStorage(() => { throw new Error('Memory only') }), { tasks: [], events: [], drafts: {}, dismissed: [], activity: [] }, { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: [] })
+  const intent = { goalType: 'usage_investigation' as const, clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } }
+  const data = createUsageWorkspaceService(database).load(intent)
+  assert.ok(data.status === 'found')
+  const input = { version: 1, kind: 'usage', requestId: 'usage-api', intent, snapshot: data.value.snapshot, draft: '' }
+  const output = { version: 1, requestId: 'usage-api', widgets: ['context', 'usage'].map(type => ({ type, span: 'full', reason: 'Selected measurements for this project.', evidence: [{ kind: 'project', id: 'atlas' }] })) }
+  await mockOutput(output, async () => {
+    assert.equal((await endpoint('compose', input)).status, 200)
+    assert.equal((await endpoint('compose', { ...input, intent: { ...intent, constraints: { segment: 'desktop' } } })).status, 400)
+  })
+  await mockOutput({ ...output, widgets: output.widgets.map(w => ({ ...w, evidence: [{ kind: 'observation', id: 'invented' }] })) }, async () => assert.equal((await endpoint('compose', input)).status, 502))
+})

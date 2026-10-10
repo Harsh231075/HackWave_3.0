@@ -69,7 +69,7 @@ export function createAdaptiveDataService(database: BrowserDatabase) {
     return !!target && target.id !== sourceMeeting.id && target.clientId === sourceMeeting.clientId && target.projectId === sourceMeeting.projectId && target.date < sourceMeeting.date
   })
   return {
-    clients, projects, meetings, communications, issues, relationships,
+    snapshot, clients, projects, meetings, communications, issues, relationships,
     loadCandidates(): LoadResult<IntentCandidates> {
       const data = snapshot()
       if (!data) return { status: 'invalid' }

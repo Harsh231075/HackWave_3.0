@@ -561,7 +561,7 @@
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
         "chart: Historical charts are labeled illustrative; time allocation is calculated from today’s actual demo sessions.",
         "activity: Local edits appear here to make changes understandable. This is a demo activity log, not live notifications.",
-        "usage: Synthetic mobile and desktop records support comparison. Release timing is evidence to investigate, not a causal conclusion.",
+        "usage: Usage measurements and releases come from browserDatabase and are filtered by client, project, dates and segment. Comparisons are calculated from selected records; missing data is not zero and release timing does not establish causation.",
         "communications: Recent communications linked to the selected meeting and project.",
         "issues: Open issues linked to the selected meeting and project."
       ]

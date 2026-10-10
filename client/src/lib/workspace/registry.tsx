@@ -25,6 +25,6 @@ export const registry: Record<WidgetType, WidgetDefinition> = {
   availability: { title: 'Availability', reason: 'Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.', icon: Clock3, component: AvailabilityPanel },
   chart: { title: 'Progress', reason: 'Historical charts are labeled illustrative; time allocation is calculated from today’s actual demo sessions.', icon: BarChart3, component: ProductivityChart },
   activity: { title: 'Activity', reason: 'Local edits appear here to make changes understandable. This is a demo activity log, not live notifications.', icon: Activity, component: RecentActivity },
-  usage: { title: 'Usage', reason: 'Synthetic mobile and desktop records support comparison. Release timing is evidence to investigate, not a causal conclusion.', icon: BarChart3, component: UsageExplorer },
+  usage: { title: 'Usage', reason: 'Usage measurements and releases come from browserDatabase and are filtered by client, project, dates and segment. Comparisons are calculated from selected records; missing data is not zero and release timing does not establish causation.', icon: BarChart3, component: UsageExplorer },
 }
 export function widgetTitle(id: WidgetType) { return registry[id].title }

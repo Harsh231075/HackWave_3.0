@@ -12,9 +12,22 @@ Orlo starts with a generic dashboard at `/`. Ctrl+K (Cmd+K on macOS) opens the c
 - Structured intent resolution through `/api/intent`, including entity/date clarification.
 - Two synthetic clients (Northstar and Westbridge), projects, upcoming/previous meetings, communications, issues, and explicit task/resource links.
 - Meeting-specific preparation with AI-selected widget order/spans, validated source references, and separate editable agendas.
+- Project-scoped overdue reviews, isolated local refinements, matching metrics, and available-slot focus scheduling with explicit confirmation.
+- Service-backed usage explorer with client/project/date/segment filters, calculated endpoint comparisons, measurement coverage, release records, and editable persisted source collections.
 - Last valid canvas retained on provider errors, invalid output, cancellation, and unsupported goals.
 
-The meeting workflow is scoped to actual supplied records. Usage investigation and overdue review currently continue through the existing general generation path after intent resolution; their complete scoped workflows remain future work. AI interpretation requires configured model credentials. Automated checks use mocked providers and do not certify live-model accuracy.
+The meeting workflow is scoped to actual supplied records. Usage investigation retrieves owned measurements and related work, validates composition, preserves scope across follow-ups and restores saved layouts. AI interpretation requires configured model credentials. Automated checks use mocked providers and do not certify live-model accuracy.
+
+## Try overdue review
+
+1. Press Ctrl+K/Cmd+K and enter **“Review overdue Atlas work.”**
+2. Only Atlas’s overdue onboarding task appears; tasks due today, completed work, and Launch tasks are excluded.
+3. Enter **“Only blocked tasks”**, then **“Show all overdue tasks”** to refine the same project and cutoff.
+4. Edit the blocker to Pending, then choose **Schedule focus** in Recovery suggestions. Select a date and an available slot; confirm the task, duration, and exact time.
+5. Complete or move the due date of a task to remove it from the review. Undo restores the record. Refresh preserves the review and local task filters, including valid empty results.
+6. Enter **“Review overdue Launch work”** to switch project and client. “Review overdue work” can ask which project.
+
+Scheduling checks the entire local calendar and unlinked meeting metadata, with 30-minute starts between 09:00 and 18:00 and the task’s actual duration. Blocked tasks require editing first. Focus events use stable task IDs, remain undoable, and never complete tasks automatically. Owner names can be searched; there is no owner-ID directory yet. Layout reset preserves tasks, events and meeting agendas.
 
 ## Try meeting preparation
 
@@ -107,3 +120,21 @@ Meeting milestone validation recorded for this implementation:
 This verifies the meeting milestone, not the full three-task PS 4 demonstration.
 
 See [PLAN.md](./PLAN.md) for the roadmap and [services documentation](./client/src/services/README.md) for factory interfaces and local storage behavior.
+
+Structured intent/composition responses default to 768 output tokens. Set `MODEL_STRUCTURED_MAX_TOKENS` (256–8192) in server environment settings if your provider supports a larger budget or returns truncated layouts. Provider errors preserve the current canvas.
+
+## Verify usage data cleanup
+
+Open `/workspace/usage` (or select Usage in `/dev/components`). Choose a client, then a project; project choices depend on the client. Segment choices come from stored measurements, and inclusive From/Through filters apply when both dates are supplied. Chart values, accessible summaries, endpoint comparisons and source tables all use the selected records. Missing observations stay unknown, zero baselines have no percentage, and release timing is not presented as causal proof.
+
+`usageObservationService` and `usageReleaseService` provide local CRUD through browserDatabase. Records are one measurement per project/date/segment and require consistent client/project ownership. Source collections seed only when missing; existing edits and empty collections survive reload. Comparisons show labeled endpoints and equal-length early/late period averages within the selected dates; odd middle days are excluded and incomplete coverage prevents a percentage. AI usage investigation is connected to resolved intent, linked project work and saved sessions.
+
+## Verify adaptive usage investigation
+
+On `/`, press Ctrl K (Cmd K on macOS) and enter: “Investigate Northstar Atlas usage from October 5 to October 11, 2026.” The configured model chooses a validated layout with scoped usage records. Follow with “Focus only on mobile usage”; the application retains the client, project and dates. “Show all segments” clears the segment constraint.
+
+Optional investigation notes use a separate client/project draft; save it and reload to verify persistence. Linked tasks remain editable through shared task services, with separate usage-view filters. Chart figures and equal-period comparison metrics recompute from browserDatabase records. Source inspection shows supporting records; release timing never proves causation. Unavailable storage, invalid evidence or source edits during generation preserve the existing canvas.
+
+The full continuous three-goal and accessibility evaluation remains tracked in PLAN.md.
+
+Scoped usage validation: 100 automated tests passed; production build/TypeScript and lint passed (existing warnings remain). Mocked browser checks include a continuous meeting → usage → overdue → meeting sequence with retained edits and a pin. The configured Groq usage flow passed intent/composition, reload and segment inheritance; a quota-limited request succeeded after the verification harness retried.

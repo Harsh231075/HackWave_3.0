@@ -12,7 +12,7 @@ export const intentGoalTypeSchema = z.enum(['meeting_preparation', 'usage_invest
 const entityFields = { meetingId: identifier.optional(), clientId: identifier.optional(), projectId: identifier.optional() }
 export const intentConstraintsSchema = z.strictObject({
   ownerId: identifier.optional(), status: z.enum(['pending', 'blocked', 'completed']).optional(),
-  priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
+  priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(), segment: identifier.max(160).optional(),
 })
 export const partialIntentSchema = z.strictObject({
   goalType: intentGoalTypeSchema.optional(), ...entityFields,
@@ -30,6 +30,7 @@ const clientCandidateSchema = z.strictObject({ id: identifier, label: identifier
 const projectCandidateSchema = z.strictObject({ id: identifier, label: identifier, clientId: identifier.optional() })
 const meetingCandidateSchema = z.strictObject({ id: identifier, label: identifier, date: intentDateSchema, clientId: identifier.optional(), projectId: identifier.optional() })
 export const intentCandidatesSchema = z.strictObject({
+  usageScopes: z.array(z.strictObject({ clientId: identifier, projectId: identifier, segments: identifier.array().max(100), dateRange: intentDateRangeSchema.nullable() })).max(1000).optional(),
   clients: z.array(clientCandidateSchema), projects: z.array(projectCandidateSchema), meetings: z.array(meetingCandidateSchema),
 }).superRefine((catalog, ctx) => {
   for (const kind of ['clients', 'projects', 'meetings'] as const) {
@@ -40,6 +41,7 @@ export const intentCandidatesSchema = z.strictObject({
   for (const [index, project] of catalog.projects.entries()) {
     if (project.clientId && !clients.has(project.clientId)) ctx.addIssue({ code: 'custom', path: ['projects', index, 'clientId'], message: 'Unknown client.' })
   }
+  for (const scope of catalog.usageScopes ?? []) if (!clients.has(scope.clientId) || projects.get(scope.projectId)?.clientId !== scope.clientId || new Set(scope.segments).size !== scope.segments.length) ctx.addIssue({ code: 'custom', message: 'Invalid usage catalog ownership or segments.' })
   for (const [index, meeting] of catalog.meetings.entries()) {
     if (meeting.clientId && !clients.has(meeting.clientId)) ctx.addIssue({ code: 'custom', path: ['meetings', index, 'clientId'], message: 'Unknown client.' })
     if (meeting.projectId && !projects.has(meeting.projectId)) ctx.addIssue({ code: 'custom', path: ['meetings', index, 'projectId'], message: 'Unknown project.' })
@@ -59,7 +61,7 @@ export const clarificationContextSchema = z.strictObject({
 const requestShape = z.strictObject({
   version: z.literal(1), requestId: identifier, goal,
   referenceDate: intentDateSchema, timezone, candidates: intentCandidatesSchema,
-  previousIntent: resolvedIntentSchema.optional(), clarificationAnswer: clarificationAnswerSchema.optional(), clarificationContext: clarificationContextSchema.optional(),
+  followUpOf: identifier.optional(), previousIntent: resolvedIntentSchema.optional(), clarificationAnswer: clarificationAnswerSchema.optional(), clarificationContext: clarificationContextSchema.optional(),
 })
 export type IntentCandidates = z.infer<typeof intentCandidatesSchema>
 export type ResolvedIntent = z.infer<typeof resolvedIntentSchema>
@@ -78,12 +80,17 @@ function referenceIssues(intent: PartialIntent, catalog: IntentCandidates): Arra
   if (intent.clientId && meetingClient && intent.clientId !== meetingClient) add('clientId', 'Client contradicts the selected meeting.')
   if (intent.clientId && project?.clientId && intent.clientId !== project.clientId) add('clientId', 'Client contradicts the selected project.')
   if (meetingClient && project?.clientId && meetingClient !== project.clientId) add('projectId', 'Project contradicts the meeting client.')
+  if (intent.goalType === 'usage_investigation' && intent.constraints?.segment && catalog.usageScopes) {
+    const scopes = catalog.usageScopes.filter(s => s.clientId === intent.clientId && (!intent.projectId || s.projectId === intent.projectId))
+    if (!scopes.some(s => s.segments.includes(intent.constraints!.segment!))) add('constraints', 'Unknown usage segment for this scope.')
+  }
   return issues
 }
 function candidatesFor(field: z.infer<typeof entityFieldSchema>, catalog: IntentCandidates) {
-  return catalog[{ meetingId: 'meetings', clientId: 'clients', projectId: 'projects' }[field] as keyof IntentCandidates]
+  return catalog[{ meetingId: 'meetings', clientId: 'clients', projectId: 'projects' }[field] as 'meetings' | 'clients' | 'projects']
 }
 export const intentRequestSchema = requestShape.superRefine((request, ctx) => {
+  if (request.followUpOf && !request.previousIntent) ctx.addIssue({ code: 'custom', message: 'A follow-up requires previous intent.' })
   if (request.previousIntent) for (const issue of referenceIssues(request.previousIntent, request.candidates)) ctx.addIssue({ code: 'custom', ...issue, path: ['previousIntent', ...issue.path] })
   const answer = request.clarificationAnswer
   if (answer && answer.field !== 'dateRange' && !candidatesFor(answer.field, request.candidates).some(item => item.id === answer.selectedId)) ctx.addIssue({ code: 'custom', path: ['clarificationAnswer', 'selectedId'], message: 'Unknown clarification candidate.' })
@@ -112,7 +119,7 @@ const clarificationSchema = z.strictObject({
   if (new Set(response.choices.map(item => item.id)).size !== response.choices.length) ctx.addIssue({ code: 'custom', path: ['choices'], message: 'Choices must be distinct.' })
 })
 export const intentResolutionSchema = z.discriminatedUnion('status', [
-  z.strictObject({ ...responseFields, status: z.literal('resolved'), intent: resolvedIntentSchema }),
+  z.strictObject({ ...responseFields, status: z.literal('resolved'), intent: resolvedIntentSchema, scopeChanges: z.enum(['clientId', 'projectId', 'dateRange', 'segment']).array().max(4).optional() }),
   clarificationSchema,
   z.strictObject({ ...responseFields, status: z.literal('unsupported'), reason: identifier }),
 ])
@@ -124,6 +131,7 @@ export function validateIntentResolution(response: unknown, request: IntentReque
     if (result.requestId !== request.requestId) ctx.addIssue({ code: 'custom', path: ['requestId'], message: 'Response belongs to another request.' })
     if (result.originalGoal !== request.goal) ctx.addIssue({ code: 'custom', path: ['originalGoal'], message: 'Response goal differs from the request.' })
     if (result.status === 'unsupported') return
+    if (result.status === 'resolved' && result.intent.goalType === 'usage_investigation' && request.previousIntent?.goalType === 'usage_investigation' && request.followUpOf && !request.clarificationAnswer && !result.scopeChanges) ctx.addIssue({ code: 'custom', message: 'Usage follow-ups require explicit scope changes.' })
     if (result.status === 'resolved' && request.clarificationAnswer) {
       const answer = request.clarificationAnswer
       if (answer.field === 'dateRange' ? JSON.stringify(result.intent.dateRange) !== JSON.stringify(answer.dateRange) : result.intent[answer.field] !== answer.selectedId) ctx.addIssue({ code: 'custom', message: 'Resolution must respect the clarification answer.' })

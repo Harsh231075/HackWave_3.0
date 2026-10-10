@@ -1,3 +1,7 @@
+import { useUsageScope } from '@/state/UsageScopeContext'
+import { usageWidgetTypes } from '@/domain/usageComposition'
+import { useOverdueScope } from '@/state/OverdueScopeContext'
+import { overdueWidgetTypes } from '@/domain/overdueReview'
 import { meetingWidgetTypes } from '@/domain/adaptiveData'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { UnscopedWidget } from '@/state/MeetingScope'
@@ -15,10 +19,13 @@ const WorkspaceWidget = defineComponent({
   props: z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) }),
   description: 'An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records.',
   component: function WorkspaceWidgetView({ props }) {
-    const scope = useMeetingScope()
+    const meeting = useMeetingScope()
+    const overdue = useOverdueScope()
+    const usage = useUsageScope()
+    const scope = usage ?? overdue ?? meeting
     const Widget = registry[props.id].component
     const supported = !scope || scope.composition.widgets.some(widget => widget.type === props.id)
-    const content = props.id === 'metrics' ? <Widget /> : <WidgetFrame id={props.id}><Widget /></WidgetFrame>
+    const content = props.id === 'metrics' && !overdue && !usage ? <Widget /> : <WidgetFrame id={props.id}><Widget /></WidgetFrame>
     return <div className={`workspace-cell span-${props.span}`}>
       {supported ? content : <UnscopedWidget><p className="mb-2 text-xs text-muted-foreground">Pinned · all workspace records</p>{content}</UnscopedWidget>}
     </div>
@@ -29,14 +36,17 @@ const Workspace = defineComponent({
   props: z.object({ children: z.array(WorkspaceWidget.ref).min(1).max(14) }),
   description: 'The productivity canvas root. Arrange only approved WorkspaceWidget children; never invent records or task counts.',
   component: function WorkspaceView({ props, renderNode }) {
-    const scope = useMeetingScope()
+    const meeting = useMeetingScope()
+    const overdue = useOverdueScope()
+    const usage = useUsageScope()
+    const scope = usage ?? overdue ?? meeting
     const { state } = useWorkspace()
     const present = scope?.composition.widgets.map(widget => widget.type) ?? []
     const retained = scope ? state.pins.filter(id => widgetTypes.includes(id as typeof widgetTypes[number]) && !present.includes(id as typeof present[number])) : []
     return <div className="workspace-grid">{renderNode(props.children)}{retained.map(id => {
       const widgetId = id as typeof widgetTypes[number]
       const Widget = registry[widgetId].component
-      return <div key={id} className="workspace-cell span-full">{meetingWidgetTypes.includes(widgetId as typeof meetingWidgetTypes[number]) ? <WidgetFrame id={widgetId}><Widget /></WidgetFrame> : <UnscopedWidget><p className="mb-2 text-xs text-muted-foreground">Pinned · all workspace records</p><WidgetFrame id={widgetId}><Widget /></WidgetFrame></UnscopedWidget>}</div>
+      return <div key={id} className="workspace-cell span-full">{(usage ? (usageWidgetTypes as readonly string[]).includes(widgetId) : overdue ? (overdueWidgetTypes as readonly string[]).includes(widgetId) : meetingWidgetTypes.includes(widgetId as typeof meetingWidgetTypes[number])) ? <WidgetFrame id={widgetId}><Widget /></WidgetFrame> : <UnscopedWidget><p className="mb-2 text-xs text-muted-foreground">Pinned · all workspace records</p><WidgetFrame id={widgetId}><Widget /></WidgetFrame></UnscopedWidget>}</div>
     })}</div>
   },
 })

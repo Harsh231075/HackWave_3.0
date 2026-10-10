@@ -1,14 +1,31 @@
+import type { Filters } from '../domain/types.ts'
+import { emptyFilters } from '../domain/workspace.ts'
+import { usageCompositionSchema, serializeUsageComposition } from '../domain/usageComposition.ts'
+import { overdueCompositionSchema, serializeOverdueComposition } from '../domain/overdueReview.ts'
 import { z } from 'zod'
 import type { StorageAdapter, LoadResult, SaveResult, LayoutService } from './contracts.ts'
 import { meetingCompositionSchema, serializeMeetingComposition } from '../domain/adaptiveData.ts'
 import { resolvedIntentSchema } from '../domain/intent.ts'
 export const layoutStorageKey = 'gogpt-app-layout-v1'
 const legacySchema = z.strictObject({ version: z.literal(1), response: z.string().min(1) })
-export const meetingLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('meeting'), meetingId: z.string().min(1), intent: resolvedIntentSchema, composition: meetingCompositionSchema, response: z.string().min(1) })
+export const meetingTaskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
+  query: z.string(), status: z.enum(['all', 'pending', 'blocked', 'completed', 'overdue']),
+  priority: z.enum(['all', 'urgent', 'high', 'medium', 'low']), sort: z.enum(['due', 'priority']),
+  from: z.union([z.literal(''), z.iso.date()]), to: z.union([z.literal(''), z.iso.date()]),
+}).refine(filters => !filters.from || !filters.to || filters.from <= filters.to, 'Task filter dates must be ordered.')
+export const meetingLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('meeting'), taskFilters: meetingTaskFiltersSchema.default(emptyFilters), meetingId: z.string().min(1), intent: resolvedIntentSchema, composition: meetingCompositionSchema, response: z.string().min(1) })
   .refine(session => session.intent.goalType === 'meeting_preparation' && session.intent.meetingId === session.meetingId && session.response === serializeMeetingComposition(session.composition), 'Saved scope and composition must agree.')
-const sessionSchema = z.union([legacySchema, z.strictObject({ version: z.literal(2), kind: z.literal('general'), response: z.string().min(1) }), meetingLayoutSchema])
+export const overdueLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('overdue'), projectId: z.string().min(1), referenceDate: z.iso.date(), intent: resolvedIntentSchema, composition: overdueCompositionSchema, response: z.string().min(1), filters: z.strictObject({ query: z.string(), status: z.string(), priority: z.string(), sort: z.enum(['due', 'priority']), from: z.string(), to: z.string() }) }).refine(s => s.intent.goalType === 'overdue_review' && s.intent.projectId === s.projectId && s.response === serializeOverdueComposition(s.composition), 'Saved overdue scope must agree.')
+export type OverdueLayout = z.infer<typeof overdueLayoutSchema>
+export const usageLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('usage'), taskFilters: z.strictObject({ query: z.string(), status: z.string(), priority: z.string(), sort: z.enum(['due', 'priority']), from: z.string(), to: z.string() }), snapshotFingerprint: z.string().min(1), intent: resolvedIntentSchema, composition: usageCompositionSchema, response: z.string().min(1) }).refine(s => s.intent.goalType === 'usage_investigation' && s.response === serializeUsageComposition(s.composition), 'Saved usage scope must agree.')
+export type UsageLayout = z.infer<typeof usageLayoutSchema>
+const sessionSchema = z.union([legacySchema, z.strictObject({ version: z.literal(2), kind: z.literal('general'), response: z.string().min(1) }), meetingLayoutSchema, overdueLayoutSchema, usageLayoutSchema])
 export type LayoutSession = z.infer<typeof sessionSchema>
 export type MeetingLayout = z.infer<typeof meetingLayoutSchema>
+export type MeetingLayoutInput = z.input<typeof meetingLayoutSchema>
+export function retainMeetingTaskFilters(current: MeetingLayout | null, next: MeetingLayout): MeetingLayout {
+  return { ...next, taskFilters: current?.meetingId === next.meetingId ? { ...current.taskFilters } : emptyFilters() }
+}
 export function createLayoutService(storage: StorageAdapter, validate: (response: string) => boolean): LayoutService {
   const valid = (response: string) => { try { return validate(response) } catch { return false } }
   const loadSession = (): LoadResult<LayoutSession> => {
@@ -24,10 +41,12 @@ export function createLayoutService(storage: StorageAdapter, validate: (response
       const parsed = legacySchema.safeParse({ version: 1, response })
       return parsed.success && valid(response) ? storage.writeJson(layoutStorageKey, parsed.data) : { status: 'invalid' }
     },
-    saveMeeting(session: MeetingLayout): SaveResult {
+    saveMeeting(session: MeetingLayoutInput): SaveResult {
       const parsed = meetingLayoutSchema.safeParse(session)
       return parsed.success && valid(parsed.data.response) ? storage.writeJson(layoutStorageKey, parsed.data) : { status: 'invalid' }
     },
+    saveOverdue(session: OverdueLayout): SaveResult { const parsed = overdueLayoutSchema.safeParse(session); return parsed.success && valid(parsed.data.response) ? storage.writeJson(layoutStorageKey, parsed.data) : { status: 'invalid' } },
+    saveUsage(session: UsageLayout): SaveResult { const parsed = usageLayoutSchema.safeParse(session); return parsed.success && valid(parsed.data.response) ? storage.writeJson(layoutStorageKey, parsed.data) : { status: 'invalid' } },
     clear: () => storage.remove(layoutStorageKey),
   }
 }

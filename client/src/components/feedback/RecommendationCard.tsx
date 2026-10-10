@@ -1,3 +1,5 @@
+import { useOverdueScope } from '@/state/OverdueScopeContext'
+import { OverdueRecovery } from '@/components/tasks/OverdueWidgets'
 import { activityService } from '@/services'
 import { useState } from 'react'
 import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
@@ -9,6 +11,10 @@ import { eventError } from '@/domain/workspace'
 import type { Event } from '@/domain/types'
 
 export function RecommendationCard() {
+  const scope = useOverdueScope()
+  return scope ? <OverdueRecovery /> : <GeneralRecommendationCard />
+}
+function GeneralRecommendationCard() {
   const { state, addFocusTime, dismissRecommendation, notify } = useWorkspace()
   const [confirm, setConfirm] = useState(false)
   const task = state.tasks.filter(task => task.status !== 'completed').sort((a, b) => a.due.localeCompare(b.due))[0]

@@ -15,9 +15,11 @@ export async function modelText(env: NodeJS.ProcessEnv, instructions: string, in
   if (!config.key) throw new ProviderError(503, `${config.keyName} is not configured. Add it to client/.env.local and restart the server.`)
   if (!config.model) throw new ProviderError(503, `Set the model name for your chosen provider (${config.provider}) in client/.env.local.`)
   const chat = config.format === 'chat'
-  const body = chat ? { model: config.model, messages: [{ role: 'system', content: instructions }, ...input], temperature: structured ? 0 : 0.6, max_tokens: 2048, stream: false,
+  const configuredBudget = Number(env.MODEL_STRUCTURED_MAX_TOKENS ?? 768)
+  const structuredBudget = Number.isInteger(configuredBudget) && configuredBudget >= 256 && configuredBudget <= 8192 ? configuredBudget : 768
+  const body = chat ? { model: config.model, messages: [{ role: 'system', content: instructions }, ...input], temperature: structured ? 0 : 0.6, max_tokens: structured ? structuredBudget : 2048, stream: false,
     ...(structured && ['groq', 'ollama'].includes(config.provider) ? { response_format: { type: 'json_object' } } : {}) } :
-    { model: config.model, instructions, input, store: false, stream: false, ...(structured && config.provider === 'openai' ? { text: { format: { type: 'json_object' } } } : {}) }
+    { model: config.model, instructions, input, store: false, stream: false, ...(structured ? { max_output_tokens: structuredBudget } : {}), ...(structured && config.provider === 'openai' ? { text: { format: { type: 'json_object' } } } : {}) }
   const response = await fetch(`${config.base.replace(/\/$/, '')}/${chat ? 'chat/completions' : 'responses'}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.key}` }, body: JSON.stringify(body), signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
   })

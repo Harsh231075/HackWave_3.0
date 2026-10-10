@@ -12,6 +12,13 @@ export function createEventService(database: BrowserDatabase, createId: () => st
   }
   return {
     getById, save,
+    createWithId(id: string, input: Omit<Event, 'id'>): ActionResult<Event> {
+      if (getById(id)) return { ok: false, message: 'This event already exists.' }
+      const result = prepareEvent(input, database.getState(), () => id)
+      if (!result.ok) return result
+      database.dispatch(result.value.action)
+      return { ok: true, value: structuredClone(result.value.record) }
+    },
     list: ({ from, to, category }: EventFilters = {}) => structuredClone(database.getState().events.filter(event => (!from || event.date >= from) && (!to || event.date <= to) && (!category || event.category === category)).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))),
     create: (input: Omit<Event, 'id'>) => save(input),
     update(id: string, patch: Partial<Omit<Event, 'id'>>) { const event = getById(id); return event ? save({ ...event, ...patch, id }) : { ok: false as const, message: 'This event is no longer available.' } },
