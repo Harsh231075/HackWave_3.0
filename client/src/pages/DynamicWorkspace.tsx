@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeaderActions } from '@/components/shell/PageHeaderActions'
-import { createParser, Renderer } from '@openuidev/react-lang'
+import { Renderer } from '@openuidev/react-lang'
 import { ArrowUp, Command, LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react'
 import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
-import { clearLayout, readLayout, saveLayout } from '@/lib/workspace/layoutPersistence'
+import { layoutService } from '@/services'
+import { useWorkspaceGeneration } from '@/hooks/useWorkspaceGeneration'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { PRESETS } from '@/lib/workspace/config'
 import { useWorkspace } from '@/state/WorkspaceProvider'
@@ -13,28 +14,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const defaultWorkspace = `root = Card([Workspace([${PRESETS.home.widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.id)}, ${JSON.stringify(widget.span)})`).join(', ')}])])`
-const parser = createParser(productivityLibrary.toJSONSchema(), productivityLibrary.root)
-
-function repairOpenUI(code: string): string {
-  return code
-    .replace(/^```[^\n]*\n?/gm, '')
-    .replace(/```\s*$/gm, '')
-    .replace(/FormControl\(([^,]+),\s*([^,\)]+(?:\([^\)]*\))?),\s*\{[^}]*\}\)/g, 'FormControl($1, $2)')
-    .replace(/Button\(([^,]+,[^,]+,[^,\)]+),\s*"(?:small|medium|large|extra-small)"\)/g, 'Button($1)')
-    .trim()
-}
-
-function validLayout(response: string): boolean {
-  try {
-    const parsed = parser.parse(response)
-    return !!parsed.root && !parsed.meta.errors.length && !parsed.meta.incomplete && !parsed.meta.unresolved.length && !parsed.queryStatements.length && !parsed.mutationStatements.length
-  } catch { return false }
-}
-const browserStorage = () => window.localStorage
 function restoreLayout() {
-  const saved = readLayout(browserStorage, validLayout)
+  const saved = layoutService.load()
   return {
-    response: saved.status === 'saved' ? saved.response : defaultWorkspace,
+    response: saved.status === 'found' ? saved.value : defaultWorkspace,
     notice: saved.status === 'invalid' ? 'Saved layout is unavailable. Showing the default dashboard.' : saved.status === 'unavailable' ? 'Device storage is unavailable. Showing the default dashboard.' : '',
   }
 }
@@ -47,9 +30,7 @@ export function DynamicWorkspace() {
   const [persistenceNotice, setPersistenceNotice] = useState(restored.notice)
   const [revision, setRevision] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState('')
-  const request = useRef<AbortController | null>(null)
+  const { pending, error, setError, generate: generateLayout, cancel: cancelRequest } = useWorkspaceGeneration()
   const canvas = useRef<HTMLElement | null>(null)
   const [componentState, setComponentState] = useState<Record<string, unknown>>({})
   useEffect(() => {
@@ -60,17 +41,12 @@ export function DynamicWorkspace() {
       }
     }
     window.addEventListener('keydown', handle)
-    return () => { window.removeEventListener('keydown', handle); request.current?.abort() }
+    return () => { window.removeEventListener('keydown', handle) }
   }, [])
 
-  function cancelRequest() {
-    request.current?.abort()
-    request.current = null
-    setPending(false)
-  }
   function resetLayout() {
     cancelRequest()
-    const cleared = clearLayout(browserStorage)
+    const cleared = layoutService.clear().status === 'saved'
     setResponse(defaultWorkspace); setComponentState({}); setRevision(value => value + 1)
     setGoal(''); setError(''); setCommandOpen(false)
     setPersistenceNotice(cleared ? '' : 'Layout reset for now. Device storage could not be cleared; the previous layout may return after reload.')
@@ -80,29 +56,14 @@ export function DynamicWorkspace() {
   async function generate(event: FormEvent) {
     event.preventDefault()
     if (!goal.trim() || pending) return
-    request.current?.abort()
-    const controller = new AbortController()
-    request.current = controller
-    setPending(true); setError('')
-    try {
-      const result = await fetch('/api/generate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ goal: goal.trim(), previousUI: response, context: { demoDate: DEMO_DATE, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: state.pins, componentState } }),
-      })
-      const body = await result.json()
-      if (controller.signal.aborted || request.current !== controller) return
-      if (!result.ok) throw new Error(body.error?.message ?? 'Unable to build your workspace. Try again.')
-      if (typeof body.response !== 'string') throw new Error('The model returned an empty workspace. Try again.')
-      const sanitized = repairOpenUI(body.response)
-      if (!validLayout(sanitized)) throw new Error('The generated layout could not be validated. Try describing your goal more precisely.')
-      const saved = saveLayout(browserStorage, sanitized)
-      setPersistenceNotice(saved ? '' : 'Layout updated, but device storage is unavailable. It may not survive reload.')
-      setResponse(sanitized); setGoal(''); setCommandOpen(false)
-      requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
-    } catch (failure) {
-      if (!controller.signal.aborted && request.current === controller) setError(failure instanceof Error ? failure.message : 'Unable to build your workspace.')
-    } finally { if (request.current === controller) { request.current = null; setPending(false) } }
+    const sanitized = await generateLayout({ goal: goal.trim(), previousUI: response, context: { demoDate: DEMO_DATE, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: state.pins, componentState } })
+    if (sanitized === null) return
+    const saved = layoutService.save(sanitized)
+    setPersistenceNotice(saved.status === 'saved' ? '' : 'Layout updated, but device storage is unavailable. It may not survive reload.')
+    setResponse(sanitized); setGoal(''); setCommandOpen(false)
+    requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
   }
+
   const form = () => <form onSubmit={generate} className="goal-form">
     <div className="goal-input-row"><OrloLogo size={20} /><label htmlFor={'command-goal'} className="sr-only">Describe the workspace you need</label><input id={'command-goal'} autoFocus value={goal} onChange={event => setGoal(event.target.value)} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div>
     {pending && <div className="goal-progress" role="status">Building your workspace… <button type="button" onClick={cancelRequest}>Cancel</button></div>}

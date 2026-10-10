@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
+import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
 import { WorkspaceProvider } from '@/state/WorkspaceProvider'
 import { AppPage } from '@/pages/AppPage'
 import { DynamicWorkspace } from '@/pages/DynamicWorkspace'
@@ -9,7 +10,7 @@ import { ComponentGallery } from '@/pages/ComponentGallery'
 function App() {
   return (
     <BrowserRouter>
-      <WorkspaceProvider>
+      <WorkspaceProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route element={<WorkspaceLayout />}>
@@ -20,7 +21,7 @@ function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </WorkspaceProvider>
+      </DisplayPreferencesProvider></WorkspaceProvider>
     </BrowserRouter>
   )
 }

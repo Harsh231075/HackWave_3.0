@@ -1,3 +1,4 @@
+import { availabilityService, eventService } from '@/services'
 import { useContext, useState } from 'react'
 import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { WidgetPageActionsContext } from '@/lib/workspace/WidgetHeaderContext'
@@ -10,11 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DataState, StatusBadge, type DisplayState } from '@/components/feedback/common'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { DEMO_DATE, DEMO_TIME } from '@/data/demo'
-import { eventError, minutes } from '@/domain/workspace'
+import { minutes } from '@/domain/workspace'
 import type { Event } from '@/domain/types'
 
 export function MeetingForm({ open, onClose, date, start = '13:30', event: initial }: { open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
-  const { state, dispatch, notify } = useWorkspace()
+  const { saveEvent, notify } = useWorkspace()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [day, setDay] = useState(initial?.date ?? date)
   const [begin, setBegin] = useState(initial?.start ?? start)
@@ -25,10 +26,9 @@ export function MeetingForm({ open, onClose, date, start = '13:30', event: initi
   const [error, setError] = useState('')
   return <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{initial ? 'Edit session' : 'Schedule a session'}</DialogTitle><DialogDescription>Changes are saved on this device.</DialogDescription></DialogHeader><form className="flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:[gap:0.35rem] [&_label]:text-[length:0.84rem] [&_label]:font-medium [&_select]:bg-(--background) [&_select]:[border:1px_solid_var(--border)] [&_select]:rounded-[var(--radius)] [&_select]:[padding:0.5rem_0.75rem] [&_select]:text-[length:0.88rem] [&_select]:text-(--foreground) [&_input]:bg-(--background) [&_input]:[border:1px_solid_var(--border)] [&_input]:rounded-[var(--radius)] [&_input]:[padding:0.5rem_0.75rem] [&_input]:text-[length:0.88rem] [&_input]:text-(--foreground) [&_textarea]:bg-(--background) [&_textarea]:[border:1px_solid_var(--border)] [&_textarea]:rounded-[var(--radius)] [&_textarea]:[padding:0.5rem_0.75rem] [&_textarea]:text-[length:0.88rem] [&_textarea]:text-(--foreground)" onSubmit={e => {
     e.preventDefault()
-    const event: Event = { id: initial?.id ?? crypto.randomUUID(), title: title.trim(), date: day, start: begin, end, category, participants: participants.split(',').map(name => name.trim()).filter(Boolean), agenda }
-    const validation = eventError(event, state.events)
-    if (validation) { setError(validation); return }
-    dispatch({ type: 'event', event }); notify('Event saved.'); onClose()
+    const result = saveEvent({ id: initial?.id, title, date: day, start: begin, end, category, participants: participants.split(','), agenda })
+    if (!result.ok) { setError(result.message); return }
+    notify('Event saved.'); onClose()
   }}><label>Session title<Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Research check-in" maxLength={120} required autoFocus /></label><div className="grid grid-cols-2 [gap:0.85rem]"><label>Date<Input type="date" value={day} onChange={e => setDay(e.target.value)} required /></label><label>Type<select value={category} onChange={e => setCategory(e.target.value as Event['category'])}><option value="meeting">Meeting</option><option value="focus">Focus session</option><option value="class">Class / learning</option><option value="break">Break</option></select></label><label>Start time<Input type="time" value={begin} onChange={e => setBegin(e.target.value)} required /></label><label>End time<Input type="time" value={end} onChange={e => setEnd(e.target.value)} required /></label></div><label>Participants<Input value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={300} /></label><label>Agenda / description<Textarea value={agenda} onChange={e => setAgenda(e.target.value)} placeholder="What would you like to cover?" rows={3} maxLength={3000} /></label>{error && <p role="alert" className="[color:#ef4444] text-[length:0.8rem] font-medium">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">{initial ? 'Save changes' : 'Schedule session'}</Button></DialogFooter></form></DialogContent></Dialog>
 }
 
@@ -38,29 +38,29 @@ export function MeetingCard({ event, onSelect }: { event: Event; onSelect: () =>
 
 export function MeetingDetails({ event, onClose }: { event?: Event; onClose: () => void }) {
   const [editing, setEditing] = useState(false)
-  const { dispatch, notify } = useWorkspace()
+  const { deleteEvent, notify } = useWorkspace()
   if (!event) return null
   if (editing) return <MeetingForm key={event.id} open date={event.date} event={event} onClose={() => { setEditing(false); onClose() }} />
-  return <Dialog open onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{event.title}</DialogTitle><DialogDescription>{format(parseISO(event.date), 'EEEE, MMMM d')} · {event.start}–{event.end}</DialogDescription></DialogHeader><StatusBadge tone="high">{event.category}</StatusBadge><p className="detail-line"><Users size={16} /> {event.participants.join(', ') || 'Personal session'}</p><div className="detail-notes"><h3>Agenda</h3><p>{event.agenda || 'No agenda yet. Add one by editing this session.'}</p></div><p className="text-[length:0.78rem] text-(--muted-foreground)">Times use your device’s local timezone.</p><DialogFooter><Button variant="destructive" onClick={() => { dispatch({ type: 'delete-event', id: event.id }); notify('Event deleted. Use Undo to restore it.'); onClose() }}>Delete event</Button><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit session</Button></DialogFooter></DialogContent></Dialog>
+  return <Dialog open onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{event.title}</DialogTitle><DialogDescription>{format(parseISO(event.date), 'EEEE, MMMM d')} · {event.start}–{event.end}</DialogDescription></DialogHeader><StatusBadge tone="high">{event.category}</StatusBadge><p className="detail-line"><Users size={16} /> {event.participants.join(', ') || 'Personal session'}</p><div className="detail-notes"><h3>Agenda</h3><p>{event.agenda || 'No agenda yet. Add one by editing this session.'}</p></div><p className="text-[length:0.78rem] text-(--muted-foreground)">Times use your device’s local timezone.</p><DialogFooter><Button variant="destructive" onClick={() => { const result = deleteEvent(event.id); if (!result.ok) { notify(result.message); return } notify('Event deleted. Use Undo to restore it.'); onClose() }}>Delete event</Button><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit session</Button></DialogFooter></DialogContent></Dialog>
 }
 
 export function MeetingList({ displayState }: { displayState?: DisplayState }) {
   const { state, selectedDate } = useWorkspace()
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string>()
-  const events = state.events.filter(event => (event.category === 'meeting' || event.category === 'class') && event.date >= DEMO_DATE).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
+  const events = eventService.list({ from: DEMO_DATE }).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
   return <><WidgetActions><span className="text-[length:0.78rem] text-(--muted-foreground)">{events.length} upcoming sessions</span><Button variant="outline" size="sm" onClick={() => setOpen(true)}><Plus size={14} /> Schedule</Button></WidgetActions><DataState state={displayState ?? (events.length ? 'ready' : 'empty')}><div className="flex flex-col [gap:0.65rem]">{events.map(event => <MeetingCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}</div></DataState><MeetingForm key={`${open}-${selectedDate}`} open={open} onClose={() => setOpen(false)} date={selectedDate} /><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }
 
 export { CalendarView } from './CalendarView'
 
 export function AvailabilityPanel() {
-  const { state, selectedDate, selectDate } = useWorkspace()
+  const { selectedDate, selectDate } = useWorkspace()
   const [slot, setSlot] = useState<string>()
   const [open, setOpen] = useState(false)
   const times = Array.from({ length: 17 }, (_, index) => `${String(9 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`)
   const endFor = (start: string) => `${String(Number(start.slice(0, 2)) + 1).padStart(2, '0')}:${start.slice(3)}`
-  const busy = (start: string) => !!eventError({ id: 'slot-preview', title: 'Slot', date: selectedDate, start, end: endFor(start), category: 'meeting', participants: [], agenda: '' }, state.events)
+  const busy = (start: string) => !availabilityService.isAvailable({ date: selectedDate, start, end: endFor(start) })
   return <div className="flex flex-col [gap:0.85rem]"><p className="text-[length:0.78rem] text-(--muted-foreground)">One-hour slots · local time</p><label className="sr-only" htmlFor="availability-date">Availability date</label><Input id="availability-date" type="date" value={selectedDate} onChange={e => { if (e.target.value) { selectDate(e.target.value); setSlot(undefined) } }} /><div className="grid grid-cols-2 [gap:0.65rem]">{times.map(time => <button key={time} className={`flex flex-col items-start [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [transition:all_0.15s] [&:not(:disabled):hover]:bg-(--surface-hover) [&:not(:disabled):hover]:border-(--ring) [&.selected]:bg-(--accent) [&.selected]:border-(--primary) [&.selected]:text-(--primary) disabled:opacity-50 disabled:bg-(--muted) disabled:cursor-not-allowed [&_span]:font-semibold [&_span]:text-[length:0.95rem] [&_span]:mt-1 [&_small]:text-[length:0.74rem] [&_small]:text-(--muted-foreground) ${slot === time ? 'selected' : ''}`} disabled={busy(time)} aria-pressed={slot === time} onClick={() => setSlot(time)}><Clock3 size={14} /><span>{time}</span><small>{busy(time) ? 'Busy' : 'Available'}</small></button>)}</div>{slot && busy(slot) && <p className="[color:#ef4444] text-[length:0.8rem] font-medium" role="alert">This slot is now occupied. Choose another time.</p>}<div className="flex items-center [gap:0.4rem] text-[length:0.8rem] text-(--muted-foreground)"><span className="[width:7px] [height:7px] rounded-full [background:#10b981] inline-block mr-2 shadow-[0_0_6px_#10b981]" /><p>Open time is calculated from the sessions in your calendar.</p></div><Button className="w-full" disabled={!slot || busy(slot)} onClick={() => setOpen(true)}>Use selected time</Button><MeetingForm key={`${open}-${slot}-${selectedDate}`} open={open} onClose={() => { setOpen(false); setSlot(undefined) }} date={selectedDate} start={slot} /></div>
 }
 
@@ -72,7 +72,7 @@ export function DailyTimeline() {
   const pageActions = useContext(WidgetPageActionsContext)
   const { state, selectedDate, selectDate } = useWorkspace()
   const [selected, setSelected] = useState<string>()
-  const events = state.events.filter(event => event.date === selectedDate).sort((a, b) => a.start.localeCompare(b.start))
+  const events = eventService.list({ from: selectedDate, to: selectedDate })
   const planned = events.reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
   const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span></>
   return <>{pageActions ? <WidgetActions>{controls}</WidgetActions> : <div className="flex justify-between items-center mb-3 text-[length:0.84rem]">{controls}</div>}<div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {

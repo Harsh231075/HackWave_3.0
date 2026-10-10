@@ -1,6 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clearLayout, layoutStorageKey, readLayout, saveLayout, type LayoutStorage } from '../src/lib/workspace/layoutPersistence.ts'
+import { createLayoutService, layoutStorageKey } from '../src/services/layoutService.ts'
+import { createBrowserStorage, type StorageSource } from '../src/services/local/browserStorage.ts'
+type LayoutStorage = ReturnType<StorageSource>
+const readLayout = (source: StorageSource, validate: (value: string) => boolean) => createLayoutService(createBrowserStorage(source), validate).load()
+const saveLayout = (source: StorageSource, response: string) => createLayoutService(createBrowserStorage(source), value => value === response).save(response).status === 'saved'
+const clearLayout = (source: StorageSource) => createLayoutService(createBrowserStorage(source), () => true).clear().status === 'saved'
 
 const response = 'root = Card([Workspace([WorkspaceWidget("tasks", "full")])])'
 const validate = (value: string) => value === response
@@ -19,7 +24,7 @@ test('layout persistence round-trips only the layout and preserves workspace rec
   assert.deepEqual(readLayout(source, validate), { status: 'missing' })
   assert.equal(saveLayout(source, response), true)
   assert.deepEqual(JSON.parse(data.get(layoutStorageKey)!), { version: 1, response })
-  assert.deepEqual(readLayout(source, validate), { status: 'saved', response })
+  assert.deepEqual(readLayout(source, validate), { status: 'found', value: response })
   assert.equal(clearLayout(source), true)
   assert.deepEqual(readLayout(source, validate), { status: 'missing' })
   assert.equal(data.get('gogpt-workspace-v1'), 'existing-records')
@@ -61,4 +66,12 @@ test('invalid values cannot overwrite the previous saved layout', () => {
   const original = data.get(layoutStorageKey)
   assert.equal(saveLayout(source, ''), false)
   assert.equal(data.get(layoutStorageKey), original)
+})
+
+test('layout service rejects invalid responses before overwriting a saved layout', () => {
+  const { source, data } = memoryStorage()
+  const service = createLayoutService(createBrowserStorage(source), validate)
+  assert.equal(service.save(response).status, 'saved')
+  assert.equal(service.save('invalid').status, 'invalid')
+  assert.equal(JSON.parse(data.get(layoutStorageKey)!).response, response)
 })

@@ -1,3 +1,4 @@
+import { analyticsService } from '@/services'
 import { useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { CheckCheck, Clock3, ListTodo, TriangleAlert, TrendingUp } from 'lucide-react'
@@ -12,7 +13,7 @@ export function MetricCard({ title, value, description, icon: Icon, tone = 'neut
 export function Metrics() {
   const { state } = useWorkspace()
   const tasks = state.tasks
-  const completed = tasks.filter(task => task.status === 'completed').length
+  const completed = analyticsService.getTaskSummary().completed
   const overdue = tasks.filter(task => task.status !== 'completed' && task.due < DEMO_DATE).length
   const focus = state.events.filter(event => event.date === DEMO_DATE && event.category === 'focus').reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
   return <div className="grid grid-cols-4 gap-5 w-full [@media(width<=900px)]:grid-cols-2 [@media(width<=480px)]:grid-cols-1"><MetricCard title="Open tasks" value={tasks.length - completed} description="A clear list of what’s next" icon={ListTodo} /><MetricCard title="Completed" value={completed} description={`${Math.round(completed / Math.max(tasks.length, 1) * 100)}% of demo tasks complete`} icon={CheckCheck} tone="success" /><MetricCard title="Needs attention" value={overdue} description="Overdue tasks to revisit" icon={TriangleAlert} tone="warning" /><MetricCard title="Focus time" value={`${(focus / 60).toFixed(1)}h`} description="Protected on today’s calendar" icon={Clock3} /></div>

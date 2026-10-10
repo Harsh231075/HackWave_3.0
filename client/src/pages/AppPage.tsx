@@ -16,7 +16,7 @@ const modes = [
 
 
 export function AppPage() {
-  const { state, dispatch } = useWorkspace()
+  const { state, undo } = useWorkspace()
   const params = useParams<{ view: string; mode: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -36,7 +36,7 @@ export function AppPage() {
     <PageHeaderActions active={view === 'workspace' || layoutHistory.length > 0 || state.history.length > 0}><div className="minimal-page-actions">
       {view === 'workspace' && <select aria-label="Workspace layout" value={mode} onChange={event => changeLayout('workspace', event.target.value)}>{modes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>}
       {layoutHistory.length > 0 && <Button variant="ghost" size="sm" onClick={() => { navigate(layoutHistory.at(-1)!); setLayoutHistory(history => history.slice(0, -1)) }}>Undo layout</Button>}
-      {state.history.length > 0 && <Button variant="ghost" size="icon-sm" aria-label="Undo last edit" title="Undo last edit" onClick={() => dispatch({ type: 'undo' })}><Undo2 size={16} /></Button>}
+      {state.history.length > 0 && <Button variant="ghost" size="icon-sm" aria-label="Undo last edit" title="Undo last edit" onClick={() => undo()}><Undo2 size={16} /></Button>}
     </div></PageHeaderActions>
     <WorkspaceRenderer config={config} pageActionWidget={view === 'tasks' || view === 'priorities' ? 'tasks' : view === 'calendar' ? 'calendar' : view === 'meetings' ? 'meetings' : view === 'planner' ? 'timeline' : undefined} />
   </AppShell>
