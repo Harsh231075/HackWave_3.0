@@ -9,7 +9,7 @@ import type { WidgetType } from './config'
 
 export type WidgetDefinition = { title: string; reason: string; icon: typeof ListTodo; component: ComponentType }
 export const registry: Record<WidgetType, WidgetDefinition> = {
-  metrics: { title: 'Summary', reason: 'Counts come from the tasks and focus sessions in your selected context.', icon: LayoutGrid, component: Metrics },
+  metrics: { title: 'Summary', reason: 'Counts come from the tasks and focus sessions in your workspace.', icon: LayoutGrid, component: Metrics },
   tasks: { title: 'Tasks', reason: 'Open, blocked, and completed tasks share the same records across the workspace. Filter by deadline or owner to narrow your next step.', icon: ListTodo, component: TaskList },
   timeline: { title: 'Timeline', reason: 'Scheduled sessions show where your time is committed and where there is room for focus.', icon: Clock3, component: DailyTimeline },
   meetings: { title: 'Meetings', reason: 'Upcoming meetings and classes are included so preparation can happen before the session.', icon: Users, component: MeetingList },

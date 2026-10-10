@@ -14,7 +14,7 @@ export function RecommendationCard() {
   const task = state.tasks.filter(task => task.status !== 'completed').sort((a, b) => a.due.localeCompare(b.due))[0]
   if (!task) return <DataState state="empty" empty="All caught up. There’s no outstanding work to recommend."><span /></DataState>
   const id = `recommendation-${task.id}`
-  const event: Event = { id, title: `Focus: ${task.title}`, date: DEMO_DATE, start: '13:30', end: '14:30', category: 'focus', participants: [], agenda: `Work on ${task.title}. Context: ${task.context}.` }
+  const event: Event = { id, title: `Focus: ${task.title}`, date: DEMO_DATE, start: '13:30', end: '14:30', category: 'focus', participants: [], agenda: `Work on ${task.title}.` }
   const accepted = state.events.some(item => item.id === id)
   const conflict = eventError(event, state.events)
   if (state.dismissed.includes(id)) return <div className="flex flex-col items-center justify-center gap-2 [padding:2.5rem_1rem] text-center text-(--muted-foreground) text-[length:0.88rem]"><CheckCircle2 size={22} /><p>Recommendation dismissed.</p><small>Use Undo edit to bring it back.</small></div>

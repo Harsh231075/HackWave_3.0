@@ -35,7 +35,7 @@ Workspace records retain `gogpt-workspace-v1`. Layout retains `gogpt-app-layout-
 | Preferences | `load`, `save` | List/Kanban and calendar display settings |
 | Generation | `generate` | Existing generation endpoint; shared records passed as context |
 | Profiles | `list`, `getById`, `create`, `update`, `delete`, `getProfile`, `updateProfile` | Local names, optional email, timezone |
-| Projects | `list`, `getById`, `create`, `update`, `delete` | Local metadata; existing task context fields are unchanged |
+| Projects | `list`, `getById`, `create`, `update`, `delete` | Local project metadata; tasks have no context field |
 | Notifications | `list`, `getById`, `create`, `update`, `delete`, `markRead`, `getSettings`, `updateSettings` | Local messages and settings; no reminder delivery engine |
 | Auth | `getSession`, `selectLocalProfile`, `signIn`, `signOut` | Browser-only profile selection; real sign-in returns unavailable |
 | Calendar integrations | `listConnections`, `saveConnection`, `disconnect`, `connect`, `sync` | Disconnected local metadata; external connection/sync returns unavailable |

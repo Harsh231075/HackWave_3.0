@@ -57,7 +57,7 @@ test('resource lookups filter by context and protect seed records', () => {
 })
 test('task and event commands preserve IDs, reject missing/invalid records, and retain conflicts and undo', () => {
   let state = initial()
-  const task = prepareTask({ title: ' Work ', description: '', context: 'project', owner: ' Maya ', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' }, state, () => 'task')
+  const task = prepareTask({ title: ' Work ', description: '', owner: ' Maya ', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' }, state, () => 'task')
   assert.equal(task.ok, true)
   if (!task.ok) return
   state = workspaceReducer(state, task.value.action)
@@ -108,7 +108,7 @@ test('generation distinguishes HTTP, response, network, and cancellation errors'
 
 test('focus recommendations retain their stable ID and respect blockers and conflicts', () => {
   const state = initial()
-  state.tasks.push({ id: 'task', title: 'Work', description: '', context: 'project', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' })
+  state.tasks.push({ id: 'task', title: 'Work', description: '', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' })
   const result = prepareFocusTime('task', '2026-10-12', state)
   assert.equal(result.ok, true)
   if (result.ok) {
@@ -120,4 +120,18 @@ test('focus recommendations retain their stable ID and respect blockers and conf
   assert.equal(prepareFocusTime('missing', '2026-10-12', state).ok, false)
   state.tasks[0].status = 'blocked'
   assert.equal(prepareFocusTime('task', '2026-10-12', state).ok, false)
+})
+
+test('legacy tasks load without context and future saves omit the removed field', () => {
+  const { storage, data } = memory()
+  const service = createWorkspaceService(storage)
+  const snapshot = { ...initial(), tasks: [{ id: 'legacy', title: 'Keep task', description: '', context: 'Old project', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' }] }
+  data.set(workspaceStorageKey, JSON.stringify(snapshot))
+  const loaded = service.load()
+  assert.equal(loaded.status, 'found')
+  if (loaded.status !== 'found') return
+  assert.equal(loaded.value.tasks[0].id, 'legacy')
+  assert.equal('context' in loaded.value.tasks[0], false)
+  assert.equal(service.save(loaded.value).status, 'saved')
+  assert.equal('context' in JSON.parse(data.get(workspaceStorageKey)!).tasks[0], false)
 })

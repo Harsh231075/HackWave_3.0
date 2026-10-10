@@ -25,7 +25,7 @@ function setup() {
   const database = createBrowserDatabase(storage, seed)
   return { data, storage, database }
 }
-const input = { title: 'Plan project', description: 'Research', context: 'project', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium' as const, status: 'pending' as const }
+const input = { title: 'Plan project', description: 'Research', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium' as const, status: 'pending' as const }
 test('all domain services share one database, subscriptions, persistence, filters, and undo', () => {
   const { database, storage } = setup()
   let updates = 0
@@ -34,7 +34,7 @@ test('all domain services share one database, subscriptions, persistence, filter
   assert.equal(tasks.create(input).ok, true)
   const copy = tasks.list(); copy[0].title = 'Mutated'
   assert.equal(tasks.getById('task')?.title, input.title)
-  assert.equal(tasks.list({ context: 'other' }).length, 0)
+  assert.equal(tasks.list({ query: 'not matching' }).length, 0)
   const analytics = createAnalyticsService(database)
   assert.equal(analytics.getTaskSummary().open, 1)
   const events = createEventService(database, () => 'event')

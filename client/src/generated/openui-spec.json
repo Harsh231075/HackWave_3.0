@@ -549,7 +549,7 @@
         "WorkspaceWidget"
       ],
       "notes": [
-        "metrics: Counts come from the tasks and focus sessions in your selected context.",
+        "metrics: Counts come from the tasks and focus sessions in your workspace.",
         "tasks: Open, blocked, and completed tasks share the same records across the workspace. Filter by deadline or owner to narrow your next step.",
         "timeline: Scheduled sessions show where your time is committed and where there is room for focus.",
         "meetings: Upcoming meetings and classes are included so preparation can happen before the session.",
