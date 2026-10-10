@@ -1,5 +1,5 @@
 # Intent-to-Interface: Adaptive AI Workspace
-### 🚀 HackWave 3.0 — Problem Statement 4 (Human-Centered AI)
+### HackWave 3.0 — Problem Statement 4 (Human-Centered AI)
 
 > **"Don't make humans adapt to software. Make software adapt to human intent."**
 
