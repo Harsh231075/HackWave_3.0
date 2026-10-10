@@ -10,7 +10,7 @@ class WidgetBoundary extends Component<{ children: ReactNode }, { failed: boolea
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
   componentDidCatch(error: Error, info: ErrorInfo) { console.error('Workspace widget failed', error, info.componentStack) }
-  render() { return this.state.failed ? <p className="field-error p-5" role="alert">This widget couldn’t render. Switch views or reload the demo to try again.</p> : this.props.children }
+  render() { return this.state.failed ? <p className="[color:#ef4444] text-[length:0.8rem] font-medium p-5" role="alert">This widget couldn’t render. Switch views or reload the demo to try again.</p> : this.props.children }
 }
 export function WidgetFrame({ id, children }: { id: WidgetType; children: ReactNode }) {
   const { state, dispatch } = useWorkspace()
@@ -18,7 +18,7 @@ export function WidgetFrame({ id, children }: { id: WidgetType; children: ReactN
   const definition = registry[id]
   const Icon = definition.icon
   const pinned = state.pins[state.role].includes(id)
-  return <section className={`widget widget-${id}`} aria-label={widgetTitle(id, state.role)}><header className="widget-header"><h2><Icon size={16} />{widgetTitle(id, state.role)}</h2><div><Button variant="ghost" size="icon-sm" aria-label={`Why show ${widgetTitle(id, state.role)}?`} aria-expanded={why} onClick={() => setWhy(!why)}><Info size={14} /></Button><Button variant="ghost" size="icon-sm" className={pinned ? 'is-pinned' : ''} aria-label={`${pinned ? 'Unpin' : 'Pin'} ${widgetTitle(id, state.role)}`} aria-pressed={pinned} onClick={() => dispatch({ type: 'pin', role: state.role, id })}>{pinned ? <PinOff size={14} /> : <Pin size={14} />}</Button></div></header>{why && <div className="widget-explanation"><strong>Why shown · static preset</strong><p>{definition.reason}</p></div>}<WidgetBoundary>{children}</WidgetBoundary></section>
+  return <section className={`bg-(--card) [border:1px_solid_var(--border)] rounded-[var(--radius)] shadow-[var(--shadow-sm)] flex flex-col p-5 h-full widget-${id}`} aria-label={widgetTitle(id, state.role)}><header className="flex justify-between items-center mb-4 pb-3 [border-bottom:1px_solid_var(--border)] [&_h2]:text-[length:1.05rem] [&_h2]:font-semibold [&_h2]:inline-flex [&_h2]:items-center [&_h2]:[gap:0.55rem] [&_h2_svg]:text-(--primary) [&_div]:flex [&_div]:items-center [&_div]:gap-1"><h2><Icon size={16} />{widgetTitle(id, state.role)}</h2><div><Button variant="ghost" size="icon-sm" aria-label={`Why show ${widgetTitle(id, state.role)}?`} aria-expanded={why} onClick={() => setWhy(!why)}><Info size={14} /></Button><Button variant="ghost" size="icon-sm" className={pinned ? 'text-(--primary)! bg-(--accent)!' : ''} aria-label={`${pinned ? 'Unpin' : 'Pin'} ${widgetTitle(id, state.role)}`} aria-pressed={pinned} onClick={() => dispatch({ type: 'pin', role: state.role, id })}>{pinned ? <PinOff size={14} /> : <Pin size={14} />}</Button></div></header>{why && <div className="bg-(--muted) [border:1px_solid_var(--border)] rounded-[var(--radius)] [padding:0.65rem_0.85rem] mb-4 text-[length:0.82rem] [&_strong]:block [&_strong]:text-[length:0.75rem] [&_strong]:text-(--primary) [&_strong]:[margin-bottom:0.2rem] [&_p]:text-(--muted-foreground)"><strong>Why shown · static preset</strong><p>{definition.reason}</p></div>}<WidgetBoundary>{children}</WidgetBoundary></section>
 }
 export function WorkspaceRenderer({ config }: { config: unknown }) {
   const { state } = useWorkspace()
@@ -29,8 +29,8 @@ export function WorkspaceRenderer({ config }: { config: unknown }) {
   for (const pinned of state.pins[state.role]) {
     if (widgetTypes.includes(pinned as WidgetType) && !widgets.some(widget => widget.id === pinned)) widgets.push({ id: pinned as WidgetType, span: pinned === 'metrics' || pinned === 'board' ? 'full' : 'narrow' })
   }
-  return <div className="workspace-grid">{widgets.map(widget => {
+  return <div className="grid grid-cols-12 gap-6">{widgets.map(widget => {
     const Widget = registry[widget.id].component
-    return <motion.div key={widget.id} className={`workspace-cell span-${widget.span}`} initial={reducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.16 }}>{widget.id === 'metrics' ? <Widget /> : <WidgetFrame id={widget.id}><Widget /></WidgetFrame>}</motion.div>
+    return <motion.div key={widget.id} className={`[&.span-full]:col-span-12 [&.span-wide]:col-span-7 [&.span-narrow]:col-span-5 [@media(width<=1024px)]:[&.span-wide]:col-span-12 [@media(width<=1024px)]:[&.span-narrow]:col-span-12 span-${widget.span}`} initial={reducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.16 }}>{widget.id === 'metrics' ? <Widget /> : <WidgetFrame id={widget.id}><Widget /></WidgetFrame>}</motion.div>
   })}</div>
 }
