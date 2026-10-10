@@ -22,6 +22,7 @@ export function eventError(event: Event, events: Event[]): string | null {
 export type Action =
   | { type: 'filters'; patch: Partial<Filters> }
   | { type: 'task'; task: Task } | { type: 'toggle'; id: string }
+  | { type: 'delete-event'; id: string }
   | { type: 'event'; event: Event } | { type: 'draft'; key: string; value: string }
   | { type: 'dismiss'; id: string } | { type: 'pin'; id: string }
   | { type: 'undo' } | { type: 'reset'; state: WorkspaceState }
@@ -50,6 +51,11 @@ export function workspaceReducer(state: WorkspaceState, action: Action): Workspa
     if (eventError(action.event, state.events)) return state
     next = { ...next, events: [...state.events.filter(event => event.id !== action.event.id), action.event] }
     message = `Scheduled “${action.event.title}”`
+  }
+  if (action.type === 'delete-event') {
+    const target = state.events.find(event => event.id === action.id)
+    if (!target) return state
+    next = { ...next, events: state.events.filter(event => event.id !== action.id) }; message = `Deleted “${target.title}”`
   }
   if (action.type === 'draft') { next = { ...next, drafts: { ...state.drafts, [action.key]: action.value } }; message = 'Saved your preparation outline' }
   if (action.type === 'dismiss') { next = { ...next, dismissed: [...state.dismissed, action.id] }; message = 'Dismissed a recommendation' }

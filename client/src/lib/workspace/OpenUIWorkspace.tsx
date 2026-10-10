@@ -10,7 +10,7 @@ import { useWorkspace } from '@/state/WorkspaceProvider'
 const WorkspaceWidget = defineComponent({
   name: 'WorkspaceWidget',
   props: z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) }),
-  description: 'An existing productivity widget. Use unique IDs; metrics and board normally span full. Widgets read and edit shared workspace records.',
+  description: 'An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records.',
   component: ({ props }) => {
     const Widget = registry[props.id].component
     return <div className={`workspace-cell span-${props.span}`}>
@@ -56,7 +56,7 @@ export function OpenUIWorkspace({ config }: { config: unknown }) {
     const result = z.enum(widgetTypes).safeParse(pinned)
     if (!result.success) continue
     const id = result.data
-    if (!widgets.some(widget => widget.id === id)) widgets.push({ id, span: id === 'metrics' || id === 'board' ? 'full' : 'narrow' })
+    if (!widgets.some(widget => widget.id === id)) widgets.push({ id, span: id === 'metrics' ? 'full' : 'narrow' })
   }
   const response = `root = Workspace([${widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.id)}, ${JSON.stringify(widget.span)})`).join(', ')}])`
   return <Renderer library={productivityLibrary} response={response} isStreaming={false} />

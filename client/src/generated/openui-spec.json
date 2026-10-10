@@ -338,8 +338,8 @@
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
-      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"board\" | \"recommendation\" | \"outline\" | \"resources\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\", span: \"wide\" | \"narrow\" | \"full\")",
-      "description": "An existing productivity widget. Use unique IDs; metrics and board normally span full. Widgets read and edit shared workspace records."
+      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\", span: \"wide\" | \"narrow\" | \"full\")",
+      "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
     },
     "Workspace": {
       "signature": "Workspace(children: WorkspaceWidget[])",
@@ -553,12 +553,11 @@
         "tasks: Open, blocked, and completed tasks share the same records across the workspace. Filter by deadline or owner to narrow your next step.",
         "timeline: Scheduled sessions show where your time is committed and where there is room for focus.",
         "meetings: Upcoming meetings and classes are included so preparation can happen before the session.",
-        "board: Outstanding tasks are grouped by explicit priority. Blocked tasks show where coordination is needed.",
         "recommendation: This static recommendation uses the earliest outstanding task and checks the suggested time against your calendar.",
         "outline: An editable outline turns preparation into work you can keep. Drafts are saved in your shared workspace.",
         "resources: These linked demo materials support the selected context. Open a source to inspect its actual contents.",
         "context: Context, courses or projects, and linked resources orient the preparation workspace.",
-        "calendar: Sessions and task deadlines use the same records as the planner and task list, making scheduling conflicts visible.",
+        "calendar: Month, week, day, and agenda views share event records and deadlines. Includes quick creation, event editing, deletion with undo, category filters, and an optional availability panel. Use this single calendar widget instead of adding duplicate meetings or availability widgets for a calendar goal.",
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
         "chart: Historical charts are labeled illustrative; time allocation is calculated from today’s actual demo sessions.",
         "activity: Local edits appear here to make changes understandable. This is a demo activity log, not live notifications.",
@@ -4804,7 +4803,6 @@
               "tasks",
               "timeline",
               "meetings",
-              "board",
               "recommendation",
               "outline",
               "resources",
@@ -4830,7 +4828,7 @@
           "span"
         ],
         "additionalProperties": false,
-        "description": "An existing productivity widget. Use unique IDs; metrics and board normally span full. Widgets read and edit shared workspace records."
+        "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
       }
     }
   }

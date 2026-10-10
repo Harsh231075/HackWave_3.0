@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AppShell } from '@/components/shell/AppShell'
@@ -12,9 +13,10 @@ const modes = [
   { id: 'recovery', label: 'Recovery' }, { id: 'preparation', label: 'Preparation' },
   { id: 'usage', label: 'Usage' },
 ]
-const titles: Record<View, string> = { overview: 'Overview', tasks: 'Tasks', calendar: 'Calendar', meetings: 'Meetings', planner: 'Planner', priorities: 'Priorities', insights: 'Insights', workspace: 'Workspace' }
+
 
 export function AppPage() {
+  const { headerActions } = useOutletContext<{ headerActions: HTMLDivElement | null }>()
   const { state, dispatch } = useWorkspace()
   const params = useParams<{ view: string; mode: string }>()
   const navigate = useNavigate()
@@ -32,11 +34,11 @@ export function AppPage() {
     navigate(next)
   }
   return <AppShell view={view} onNavigate={changeLayout}>
-    <header className="minimal-page-heading"><h1>{titles[view]}</h1><div className="minimal-page-actions">
+    {headerActions && createPortal(<div className="minimal-page-actions">
       {view === 'workspace' && <select aria-label="Workspace layout" value={mode} onChange={event => changeLayout('workspace', event.target.value)}>{modes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>}
       {layoutHistory.length > 0 && <Button variant="ghost" size="sm" onClick={() => { navigate(layoutHistory.at(-1)!); setLayoutHistory(history => history.slice(0, -1)) }}>Undo layout</Button>}
       {state.history.length > 0 && <Button variant="ghost" size="icon-sm" aria-label="Undo last edit" title="Undo last edit" onClick={() => dispatch({ type: 'undo' })}><Undo2 size={16} /></Button>}
-    </div></header>
+    </div>, headerActions)}
     <WorkspaceRenderer config={config} />
   </AppShell>
 }

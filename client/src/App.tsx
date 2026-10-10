@@ -14,6 +14,7 @@ function App() {
           <Route path="/" element={<Navigate to="/app" replace />} />
           <Route element={<WorkspaceLayout />}>
           <Route path="/app" element={<DynamicWorkspace />} />
+          <Route path="/app/insights" element={<Navigate to="/app" replace />} />
           <Route path="/app/:view/:mode?" element={<AppPage />} />
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/dev/components" element={<ComponentGallery />} />

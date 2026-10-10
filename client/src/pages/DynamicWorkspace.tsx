@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { useOutletContext } from 'react-router-dom'
 import { createParser, Renderer } from '@openuidev/react-lang'
 import { ArrowUp, Command, LoaderCircle, Sparkles } from 'lucide-react'
 import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
+import { PRESETS } from '@/lib/workspace/config'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { DEMO_DATE } from '@/data/demo'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
+const defaultWorkspace = `root = Card([Workspace([${PRESETS.home.widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.id)}, ${JSON.stringify(widget.span)})`).join(', ')}])])`
 const parser = createParser(productivityLibrary.toJSONSchema(), productivityLibrary.root)
 
 export function DynamicWorkspace() {
+  const { headerActions } = useOutletContext<{ headerActions: HTMLDivElement | null }>()
   const { state, draftBuffers } = useWorkspace()
   const [goal, setGoal] = useState('')
-  const [response, setResponse] = useState<string | null>(null)
+  const [response, setResponse] = useState(defaultWorkspace)
   const [commandOpen, setCommandOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
@@ -23,13 +28,12 @@ export function DynamicWorkspace() {
     const handle = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        if (response) setCommandOpen(value => !value)
-        else document.getElementById('workspace-goal')?.focus()
+        setCommandOpen(value => !value)
       }
     }
     window.addEventListener('keydown', handle)
     return () => { window.removeEventListener('keydown', handle); request.current?.abort() }
-  }, [response])
+  }, [])
 
   async function generate(event: FormEvent) {
     event.preventDefault()
@@ -54,18 +58,15 @@ export function DynamicWorkspace() {
       if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : 'Unable to build your workspace.')
     } finally { if (request.current === controller) { request.current = null; setPending(false) } }
   }
-  const form = (overlay = false) => <form onSubmit={generate} className="goal-form">
-    <div className="goal-input-row"><Sparkles size={20} aria-hidden="true" /><label htmlFor={overlay ? 'command-goal' : 'workspace-goal'} className="sr-only">Describe the workspace you need</label><input id={overlay ? 'command-goal' : 'workspace-goal'} autoFocus value={goal} onChange={event => setGoal(event.target.value)} placeholder={response ? 'What would you like to change?' : 'Describe your goal…'} maxLength={4000} disabled={pending} /><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div>
+  const form = () => <form onSubmit={generate} className="goal-form">
+    <div className="goal-input-row"><Sparkles size={20} aria-hidden="true" /><label htmlFor={'command-goal'} className="sr-only">Describe the workspace you need</label><input id={'command-goal'} autoFocus value={goal} onChange={event => setGoal(event.target.value)} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div>
     {pending && <div className="goal-progress" role="status">Building your workspace… <button type="button" onClick={() => { request.current?.abort(); setPending(false) }}>Cancel</button></div>}
     {error && <p className="goal-error" role="alert">{error}</p>}
   </form>
 
   return <div className="dynamic-canvas-page">
-    {response && <header className="canvas-goal-header"><button className="command-trigger" onClick={() => setCommandOpen(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button></header>}
-    {!response ? <main className="goal-welcome">{form()}</main> : <>
-
+    {headerActions && createPortal(<button className="command-trigger" onClick={() => setCommandOpen(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button>, headerActions)}
       <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace"><Renderer library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} /></main>
-      <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a new goal or refine the current layout. Escape closes this command window.</DialogDescription></DialogHeader>{form(true)}<div className="command-hint"><span>Enter to build</span><span>Esc to close</span></div></DialogContent></Dialog>
-    </>}
+      <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a new goal or refine the current layout. Escape closes this command window.</DialogDescription></DialogHeader>{form()}<div className="command-hint"><span>Enter to build</span><span>Esc to close</span></div></DialogContent></Dialog>
   </div>
 }

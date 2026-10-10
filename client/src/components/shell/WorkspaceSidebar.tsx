@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ChartNoAxesCombined, Clock3, Home, LayoutGrid, ListTodo, PanelLeftClose, Sparkles, Target, Users } from 'lucide-react'
+import { CalendarDays, Clock3, Home, LayoutGrid, ListTodo, PanelLeftClose, Sparkles, Target, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const pages = [
@@ -9,7 +9,6 @@ const pages = [
   { to: '/app/meetings', label: 'Meetings', icon: Users },
   { to: '/app/planner', label: 'Planner', icon: Clock3 },
   { to: '/app/priorities', label: 'Priorities', icon: Target },
-  { to: '/app/insights', label: 'Insights', icon: ChartNoAxesCombined },
 ]
 
 export function WorkspaceSidebar({ onClose }: { onClose: () => void }) {

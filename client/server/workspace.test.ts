@@ -25,3 +25,21 @@ test('scheduling checks conflicts in the shared calendar', () => {
   assert.match(eventError({ ...event, id: 'session-b', start: '10:30', end: '11:30' }, [event]) ?? '', /overlaps/)
   assert.equal(eventError({ ...event, id: 'session-b', start: '11:00', end: '12:00' }, [event]), null)
 })
+
+test('deleting an event is undoable and missing events leave history intact', () => {
+  const initial: WorkspaceState = { tasks: [], events: [event], drafts: {}, dismissed: [], activity: [], filters: emptyFilters(), pins: [], history: [] }
+  assert.equal(workspaceReducer(initial, { type: 'delete-event', id: 'missing' }), initial)
+  const removed = workspaceReducer(initial, { type: 'delete-event', id: event.id })
+  assert.equal(removed.events.length, 0)
+  assert.equal(removed.history.length, 1)
+  assert.deepEqual(workspaceReducer(removed, { type: 'undo' }).events, [event])
+})
+
+test('rescheduling keeps one event and rejects conflicts without changing history', () => {
+  const initial: WorkspaceState = { tasks: [], events: [event, { ...event, id: 'other', start: '12:00', end: '13:00' }], drafts: {}, dismissed: [], activity: [], filters: emptyFilters(), pins: [], history: [] }
+  assert.equal(workspaceReducer(initial, { type: 'event', event: { ...event, start: '12:30', end: '13:30' } }), initial)
+  const moved = workspaceReducer(initial, { type: 'event', event: { ...event, start: '14:00', end: '15:00' } })
+  assert.equal(moved.events.length, 2)
+  assert.equal(moved.events.find(item => item.id === event.id)?.start, '14:00')
+  assert.deepEqual(workspaceReducer(moved, { type: 'undo' }).events, initial.events)
+})
