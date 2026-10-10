@@ -172,6 +172,7 @@ export async function chat(req: IncomingMessage, res: ServerResponse, env = proc
         return json(res, upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502, `Model provider (${config.provider}) returned ${upstream.status}${detail || '. Check your model name and server credentials.'}`)
       }
       const output = await upstream.json() as { output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }
+      text = output.output?.flatMap(item => item.content ?? []).filter(part => part.type === 'output_text').map(part => part.text ?? '').join('')
     }
 
     if (!text) return json(res, 502, 'The model returned no UI. Try again.')
