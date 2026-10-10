@@ -7,7 +7,7 @@ import { minutes } from '@/domain/workspace'
 import { DataState, type DisplayState } from '@/components/feedback/common'
 
 export function MetricCard({ title, value, description, icon: Icon, tone = 'neutral', displayState }: { title: string; value: string | number; description: string; icon: typeof ListTodo; tone?: string; displayState?: DisplayState }) {
-  return <article className={`bg-(--card) [border:1px_solid_var(--border)] rounded-[var(--radius)] p-5 flex flex-col [gap:0.45rem] shadow-[var(--shadow-sm)] [&_strong]:text-[length:1.9rem] [&_strong]:font-bold [&_strong]:leading-[1.1] [&_strong]:tracking-[-0.02em] [&_p]:text-[length:0.78rem] [&_p]:text-(--muted-foreground) [&.metric-success_strong]:[color:#10b981] [&.metric-warning_strong]:[color:#ef4444] metric-${tone}`}><DataState state={displayState}><div className="flex justify-between items-center text-[length:0.84rem] font-medium text-(--muted-foreground)"><span>{title}</span><Icon size={17} /></div><strong>{value}</strong><p>{description}</p></DataState></article>
+  return <article className={`bg-(--card) [border:1px_solid_var(--border)] rounded-[var(--radius)] p-5 flex flex-col [gap:0.45rem] shadow-[var(--shadow-sm)] [&_strong]:text-[length:1.9rem] [&_strong]:font-bold [&_strong]:leading-[1.1] [&_strong]:tracking-[-0.02em] [&_p]:text-[length:0.78rem] [&_p]:text-(--muted-foreground) [&.metric-success_strong]:[color:#4c856b] [&.metric-warning_strong]:[color:#ef4444] metric-${tone}`}><DataState state={displayState}><div className="flex justify-between items-center text-[length:0.84rem] font-medium text-(--muted-foreground)"><span>{title}</span><Icon size={17} /></div><strong>{value}</strong><p>{description}</p></DataState></article>
 }
 export function Metrics() {
   const { state } = useWorkspace()
@@ -20,7 +20,7 @@ export function Metrics() {
 const history = [
   { day: 'Mon', completed: 3, pending: 5 }, { day: 'Tue', completed: 5, pending: 4 }, { day: 'Wed', completed: 4, pending: 6 }, { day: 'Thu', completed: 7, pending: 3 }, { day: 'Fri', completed: 6, pending: 4 }, { day: 'Sat', completed: 2, pending: 2 }, { day: 'Sun', completed: 3, pending: 1 },
 ]
-const palette = ['#7963dc', '#b1a2ed', '#d2caef', '#a7bfca']
+const palette = ['#456a52', '#88a58d', '#d6c6a5', '#b8c5b1']
 export function ProductivityChart({ displayState }: { displayState?: DisplayState }) {
   const { state } = useWorkspace()
   const [type, setType] = useState<'trend' | 'comparison' | 'allocation'>('trend')
