@@ -3,12 +3,12 @@ import { CalendarDays, Clock3, Home, LayoutGrid, ListTodo, PanelLeftClose, Spark
 import { Button } from '@/components/ui/button'
 
 const pages = [
-  { to: '/app', label: 'Workspace', icon: Sparkles },
-  { to: '/app/tasks', label: 'Tasks', icon: ListTodo },
-  { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/app/meetings', label: 'Meetings', icon: Users },
-  { to: '/app/planner', label: 'Planner', icon: Clock3 },
-  { to: '/app/priorities', label: 'Priorities', icon: Target },
+  { to: '/', label: 'Workspace', icon: Sparkles },
+  { to: '/tasks', label: 'Tasks', icon: ListTodo },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { to: '/meetings', label: 'Meetings', icon: Users },
+  { to: '/planner', label: 'Planner', icon: Clock3 },
+  { to: '/priorities', label: 'Priorities', icon: Target },
 ]
 
 export function WorkspaceSidebar({ onClose }: { onClose: () => void }) {

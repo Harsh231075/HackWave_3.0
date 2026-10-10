@@ -11,15 +11,14 @@ function App() {
     <BrowserRouter>
       <WorkspaceProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/app" replace />} />
           <Route element={<WorkspaceLayout />}>
-          <Route path="/app" element={<DynamicWorkspace />} />
-          <Route path="/app/insights" element={<Navigate to="/app" replace />} />
-          <Route path="/app/:view/:mode?" element={<AppPage />} />
-          <Route path="/landing" element={<LandingPage />} />
-          <Route path="/dev/components" element={<ComponentGallery />} />
+            <Route path="/" element={<DynamicWorkspace />} />
+            <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/:view/:mode?" element={<AppPage />} />
+            <Route path="/landing" element={<LandingPage />} />
+            <Route path="/dev/components" element={<ComponentGallery />} />
           </Route>
-          <Route path="*" element={<Navigate to="/app" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </WorkspaceProvider>
     </BrowserRouter>

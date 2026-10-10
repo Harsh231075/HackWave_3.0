@@ -25,10 +25,10 @@ export function AppPage() {
   const view = rawView as View
   const mode = params.mode ?? 'planning'
   const [layoutHistory, setLayoutHistory] = useState<string[]>([])
-  if (!VIEWS.includes(view) || (params.mode && (view !== 'workspace' || !modes.some(item => item.id === mode)))) return <Navigate to="/app" replace />
+  if (!VIEWS.includes(view) || (params.mode && (view !== 'workspace' || !modes.some(item => item.id === mode)))) return <Navigate to="/" replace />
   const config = configFor(view, mode)
   const changeLayout = (nextView: View, nextMode = mode) => {
-    const next = nextView === 'overview' ? '/app' : nextView === 'workspace' ? `/app/workspace/${nextMode}` : `/app/${nextView}`
+    const next = nextView === 'overview' ? '/' : nextView === 'workspace' ? `/workspace/${nextMode}` : `/${nextView}`
     if (next === location.pathname) return
     setLayoutHistory(history => [...history, location.pathname].slice(-20))
     navigate(next)
