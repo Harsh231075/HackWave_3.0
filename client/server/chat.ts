@@ -32,7 +32,7 @@ function resolveProvider(env: NodeJS.ProcessEnv) {
         key: env.GROQ_API_KEY,
         keyName: 'GROQ_API_KEY',
         base: 'https://api.groq.com/openai/v1',
-        model: env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
+        model: env.GROQ_MODEL ?? 'openai/gpt-oss-120b',
       }
     case 'openai':
       return {
