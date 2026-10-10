@@ -15,6 +15,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 const defaultWorkspace = `root = Card([Workspace([${PRESETS.home.widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.id)}, ${JSON.stringify(widget.span)})`).join(', ')}])])`
 const parser = createParser(productivityLibrary.toJSONSchema(), productivityLibrary.root)
 
+function repairOpenUI(code: string): string {
+  return code
+    .replace(/^```[^\n]*\n?/gm, '')
+    .replace(/```\s*$/gm, '')
+    .replace(/FormControl\(([^,]+),\s*([^,\)]+(?:\([^\)]*\))?),\s*\{[^}]*\}\)/g, 'FormControl($1, $2)')
+    .replace(/Button\(([^,]+,[^,]+,[^,\)]+),\s*"(?:small|medium|large|extra-small)"\)/g, 'Button($1)')
+    .trim()
+}
+
 function validLayout(response: string): boolean {
   try {
     const parsed = parser.parse(response)
@@ -84,10 +93,11 @@ export function DynamicWorkspace() {
       if (controller.signal.aborted || request.current !== controller) return
       if (!result.ok) throw new Error(body.error?.message ?? 'Unable to build your workspace. Try again.')
       if (typeof body.response !== 'string') throw new Error('The model returned an empty workspace. Try again.')
-      if (!validLayout(body.response)) throw new Error('The generated layout could not be validated. Try describing your goal more precisely.')
-      const saved = saveLayout(browserStorage, body.response)
+      const sanitized = repairOpenUI(body.response)
+      if (!validLayout(sanitized)) throw new Error('The generated layout could not be validated. Try describing your goal more precisely.')
+      const saved = saveLayout(browserStorage, sanitized)
       setPersistenceNotice(saved ? '' : 'Layout updated, but device storage is unavailable. It may not survive reload.')
-      setResponse(body.response); setGoal(''); setCommandOpen(false)
+      setResponse(sanitized); setGoal(''); setCommandOpen(false)
       requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
     } catch (failure) {
       if (!controller.signal.aborted && request.current === controller) setError(failure instanceof Error ? failure.message : 'Unable to build your workspace.')
