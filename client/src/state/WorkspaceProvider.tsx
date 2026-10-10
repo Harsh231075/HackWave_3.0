@@ -3,7 +3,7 @@ import { DEMO_DATE, INITIAL_DRAFTS, INITIAL_EVENTS, INITIAL_TASKS } from '@/data
 import { emptyFilters, workspaceReducer, type Action } from '@/domain/workspace'
 import type { WorkspaceState } from '@/domain/types'
 
-export const initialState = (): WorkspaceState => ({ tasks: structuredClone(INITIAL_TASKS), events: structuredClone(INITIAL_EVENTS), drafts: { ...INITIAL_DRAFTS }, dismissed: [], activity: ['Your workspace is ready for the week', 'Demo resources added to your workspace'], role: 'student', filters: { student: emptyFilters(), teacher: emptyFilters(), professional: emptyFilters() }, pins: { student: [], teacher: [], professional: [] }, history: [] })
+export const initialState = (): WorkspaceState => ({ tasks: structuredClone(INITIAL_TASKS), events: structuredClone(INITIAL_EVENTS), drafts: { ...INITIAL_DRAFTS }, dismissed: [], activity: ['Your workspace is ready for the week', 'Demo resources added to your workspace'], filters: emptyFilters(), pins: [], history: [] })
 const WorkspaceContext = createContext<{
   state: WorkspaceState; dispatch: (action: Action) => void; notify: (message: string) => void; notice: string
   draftBuffers: Record<string, string>; editDraft: (key: string, value: string) => void

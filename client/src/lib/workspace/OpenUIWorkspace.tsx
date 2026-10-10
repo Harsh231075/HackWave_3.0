@@ -20,14 +20,22 @@ const WorkspaceWidget = defineComponent({
 })
 const Workspace = defineComponent({
   name: 'Workspace',
-  props: z.object({ children: z.array(WorkspaceWidget.ref).max(14) }),
+  props: z.object({ children: z.array(WorkspaceWidget.ref).min(1).max(14) }),
   description: 'The productivity canvas root. Arrange only approved WorkspaceWidget children; never invent records or task counts.',
   component: ({ props, renderNode }) => <div className="workspace-grid">{renderNode(props.children)}</div>,
 })
 
+const baseCard = openuiChatLibrary.components.Card
+const ProductivityCard = defineComponent({
+  name: 'Card',
+  props: baseCard.props.extend({ children: z.array(z.union([baseCard.props.shape.children.element, Workspace.ref])).min(1) }),
+  description: 'Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets.',
+  component: ({ props, renderNode }) => <div className="productivity-response">{renderNode(props.children)}</div>,
+})
+
 export const productivityLibrary = createLibrary({
-  root: 'Workspace',
-  components: [...Object.values(openuiChatLibrary.components), WorkspaceWidget, Workspace],
+  root: 'Card',
+  components: [...Object.values(openuiChatLibrary.components).filter(component => component.name !== 'Card'), ProductivityCard, WorkspaceWidget, Workspace],
   componentGroups: [
     ...(openuiChatLibrary.componentGroups ?? []),
     { name: 'Productivity', components: ['Workspace', 'WorkspaceWidget'], notes: widgetTypes.map(id => `${id}: ${registry[id].reason}`) },
@@ -44,7 +52,7 @@ export function OpenUIWorkspace({ config }: { config: unknown }) {
   const parsed = configSchema.safeParse(config)
   if (!parsed.success) return <StaticWorkspaceRenderer config={config} />
   const widgets = [...parsed.data.widgets]
-  for (const pinned of state.pins[state.role]) {
+  for (const pinned of state.pins) {
     const result = z.enum(widgetTypes).safeParse(pinned)
     if (!result.success) continue
     const id = result.data

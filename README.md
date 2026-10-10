@@ -4,7 +4,7 @@ HackWave 3.0 · PS 4: Human-Centered AI / Intent-to-Interface
 
 **Describe your goal. GoGPT arranges the relevant information, editable tools, and next actions around it.**
 
-GoGPT is a generalized workspace for students, teachers, freelancers, and professionals. It uses one reusable component library and one workspace surface at **`/app`**. Eventually, changing goals will change the composition while preserving drafts, context, filters, and pinned components.
+GoGPT is a generalized workspace organized around goals and projects. It uses one reusable component library and one workspace surface at **`/app`**. Eventually, changing goals will change the composition while preserving drafts, context, filters, and pinned components.
 
 ## What we build first
 
@@ -24,18 +24,19 @@ Later, intent resolution and AI planning supply validated configurations to the 
 - [x] OpenUI packages and productivity rendering adapter integrated.
 - [ ] Backend, persistence, authentication, integrations, and AI implemented.
 
-The workspace uses OpenUI's `Renderer` with an application-owned `Workspace` root and `WorkspaceWidget` adapters. Presets are validated before serialization to OpenUI Lang; existing widgets keep shared session state and pinned layouts. The library includes OpenUI's built-in chat components and exposes a system-prompt specification for future server integration. Model transport and live intent resolution remain unconnected. Build and lint checks pass, and browser checks cover responsive layouts and task completion across views.
+`/app` starts with a goal textbox. Submitting calls the server-side OpenAI Responses API; registered OpenUI components form a productivity page. Once a valid page is built, the goal input disappears. Ctrl+K (Cmd+K on macOS) opens a command overlay near the top for refinement. Existing shared task and draft state survives layout changes, and failed generations keep the last valid canvas. There is no chat transcript. Records remain session-only demo data.
+
+Copy `client/.env.example` to `client/.env.local`, set `OPENAI_API_KEY` and `OPENAI_MODEL`, and restart `npm run dev` from `client`. Credentials are server-only. `npm run build` generates the OpenUI specification and builds the client; `npm start` serves the built app and API together. `npm run test:chat` verifies request validation and model transport with a mocked provider. Live generation requires valid credentials.
 
 ## Routes and reuse
 
 | Surface | Purpose |
 | --- | --- |
-| `/` | Landing page and entry into the workspace |
-| `/app` | Generic dashboard by default; one shared workspace rendering surface |
-| `/app/tasks`, `/app/calendar`, `/app/meetings`, `/app/planner`, `/app/priorities`, `/app/insights`, `/app/workspace/planning` | Eight views including the default Overview, inside the same shell |
+| `/` | Redirect to `/app` |
+| `/app` | Goal input → generated productivity canvas; Ctrl+K opens refinement |
 | `/dev/components` | Development-only component/state gallery |
 
-Student, Teacher, and Professional role packs provide context, suggestions, and presets. They are context choices, not separate applications or authorization roles.
+There are no profession modes or role partitions. Tasks, events, resources, filters, pins, and drafts share one workspace. Goals and project context guide the generated UI.
 
 ## Technology
 
@@ -47,7 +48,7 @@ Student, Teacher, and Professional role packs provide context, suggestions, and 
 | Navigation/dates | React Router + date-fns — planned |
 | Transitions | Motion for React with reduced-motion support — planned |
 | Session state | React Context + reducer and selectors — planned |
-| AI rendering | OpenUI Lang Core, React Lang, and React UI installed; productivity adapter renders static presets now |
+| AI rendering | OpenUI component library + server-side OpenAI Responses generation |
 | Backend/database | Separate API and persistence selected in Stage 2 |
 
 Keep React + Vite. The reference uses Next.js, but GoGPT does not adopt its framework or travel features.
@@ -67,7 +68,7 @@ Keep React + Vite. The reference uses Next.js, but GoGPT does not adopt its fram
 - [ ] Build all 18 core components plus resource, outline, context, and evidence widgets.
 - [ ] Assemble eight views from shared widgets, selectors, and state.
 - [ ] Add daily-planning, meeting-scheduling, and overdue-recovery presets.
-- [ ] Add student exam, teacher lesson, professional meeting, and usage-analysis examples.
+- [ ] Add planning, preparation, meeting, and usage-analysis examples.
 - [ ] Preserve local edits, drafts, filters, and pins when compositions change.
 - [ ] Provide static explanations, meaningful local actions, undo/reset, and a state gallery.
 - [ ] Verify light/dark themes, responsive behavior, accessibility, build, and lint.
@@ -107,7 +108,7 @@ Accessibility and relevant checks run throughout development.
 
 ## PS 4 demonstration
 
-Start with the generic `/app` dashboard. Show client meeting preparation, product-usage investigation, and overdue project review reorganizing that same canvas. Student and teacher presets demonstrate generality.
+Start with the generic `/app` dashboard. Show client meeting preparation, product-usage investigation, and overdue project review reorganizing that same canvas. The same components support different goals without profession modes.
 
 Perform one meaningful action per composition. Narrow context in a follow-up while retaining a pinned widget. Return to an earlier goal with its edited draft intact. Include ambiguity handling and source-backed explanations.
 

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { Role } from '@/domain/types'
 
 export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'board', 'recommendation', 'outline', 'resources', 'context', 'calendar', 'availability', 'chart', 'activity', 'usage'] as const
 export type WidgetType = typeof widgetTypes[number]
@@ -30,9 +29,6 @@ export const PRESETS = {
 export type PresetId = keyof typeof PRESETS
 export const VIEWS = ['overview', 'tasks', 'calendar', 'meetings', 'planner', 'priorities', 'insights', 'workspace'] as const
 export type View = typeof VIEWS[number]
-export function configFor(view: View, mode: string, role: Role): WorkspaceConfig {
-  const config = view === 'workspace' ? PRESETS[mode as PresetId] ?? PRESETS.planning : PRESETS[view]
-  if (config.id !== 'preparation') return config
-  const title = role === 'student' ? 'Prepare for your statistics exam.' : role === 'teacher' ? 'Prepare tomorrow’s lesson.' : 'Prepare the Northstar meeting.'
-  return { ...config, title }
+export function configFor(view: View, mode: string): WorkspaceConfig {
+  return view === 'workspace' ? PRESETS[mode as PresetId] ?? PRESETS.planning : PRESETS[view]
 }

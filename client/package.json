@@ -4,10 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run generate:openui && vite",
+    "build": "npm run generate:openui && tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:openui": "node scripts/generate-openui.mjs",
+    "start": "node --env-file-if-exists=.env.local server/index.ts",
+    "test:chat": "node --test server/chat.test.ts",
+    "test": "node --test server/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
