@@ -69,13 +69,16 @@ function resolveProvider(env: NodeJS.ProcessEnv) {
   }
 }
 
-/** Automatically repairs common model AST syntax glitches (e.g. invalid FormControl 3rd arg, Button size args). */
+/** Automatically repairs common model AST syntax glitches (e.g. invalid FormControl 3rd arg, Button size args, widget ID normalization). */
 export function repairOpenUI(code: string): string {
   return code
     .replace(/^```[^\n]*\n?/gm, '')
     .replace(/```\s*$/gm, '')
     .replace(/FormControl\(([^,]+),\s*([^,\)]+(?:\([^\)]*\))?),\s*\{[^}]*\}\)/g, 'FormControl($1, $2)')
     .replace(/Button\(([^,]+,[^,]+,[^,\)]+),\s*"(?:small|medium|large|extra-small)"\)/g, 'Button($1)')
+    .replace(/WorkspaceWidget\("(?:quick-capture|quick_capture|notes|draft)"/g, 'WorkspaceWidget("outline"')
+    .replace(/WorkspaceWidget\("(?:schedule)"/g, 'WorkspaceWidget("calendar"')
+    .replace(/WorkspaceWidget\("(?:overview|dashboard)"/g, 'WorkspaceWidget("metrics"')
     .trim()
 }
 

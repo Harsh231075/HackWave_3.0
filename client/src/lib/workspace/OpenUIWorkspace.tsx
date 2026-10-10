@@ -12,7 +12,9 @@ const WorkspaceWidget = defineComponent({
   props: z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) }),
   description: 'An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records.',
   component: ({ props }) => {
-    const Widget = registry[props.id].component
+    const entry = registry[props.id]
+    if (!entry) return null
+    const Widget = entry.component
     return <div className={`workspace-cell span-${props.span}`}>
       {props.id === 'metrics' ? <Widget /> : <WidgetFrame id={props.id}><Widget /></WidgetFrame>}
     </div>

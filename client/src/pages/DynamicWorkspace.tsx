@@ -21,6 +21,9 @@ function repairOpenUI(code: string): string {
     .replace(/```\s*$/gm, '')
     .replace(/FormControl\(([^,]+),\s*([^,\)]+(?:\([^\)]*\))?),\s*\{[^}]*\}\)/g, 'FormControl($1, $2)')
     .replace(/Button\(([^,]+,[^,]+,[^,\)]+),\s*"(?:small|medium|large|extra-small)"\)/g, 'Button($1)')
+    .replace(/WorkspaceWidget\("(?:quick-capture|quick_capture|notes|draft)"/g, 'WorkspaceWidget("outline"')
+    .replace(/WorkspaceWidget\("(?:schedule)"/g, 'WorkspaceWidget("calendar"')
+    .replace(/WorkspaceWidget\("(?:overview|dashboard)"/g, 'WorkspaceWidget("metrics"')
     .trim()
 }
 
@@ -94,9 +97,12 @@ export function DynamicWorkspace() {
       if (!result.ok) throw new Error(body.error?.message ?? 'Unable to build your workspace. Try again.')
       if (typeof body.response !== 'string') throw new Error('The model returned an empty workspace. Try again.')
       const sanitized = repairOpenUI(body.response)
-      if (!validLayout(sanitized)) throw new Error('The generated layout could not be validated. Try describing your goal more precisely.')
-      const saved = saveLayout(browserStorage, sanitized)
-      setPersistenceNotice(saved ? '' : 'Layout updated, but device storage is unavailable. It may not survive reload.')
+      const parsed = parser.parse(sanitized)
+      if (!parsed.root || parsed.meta.incomplete || parsed.queryStatements.length || parsed.mutationStatements.length) {
+        console.warn('[OpenUI] Layout parse issues:', parsed.meta, sanitized)
+        const reason = !parsed.root ? 'missing root' : parsed.meta.incomplete ? 'incomplete syntax' : 'unsupported statements'
+        throw new Error(`The generated layout could not be validated (${reason}). Try describing your goal more precisely.`)
+      }
       setResponse(sanitized); setGoal(''); setCommandOpen(false)
       requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
     } catch (failure) {
@@ -111,7 +117,7 @@ export function DynamicWorkspace() {
 
   return <div className="dynamic-canvas-page">
     <PageHeaderActions><button className="command-trigger" onClick={() => setCommandOpen(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
-      <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}<Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} /></main>
-      <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a new goal or refine the current layout. Escape closes this command window.</DialogDescription></DialogHeader>{form()}<div className="command-hint"><span>Enter to build</span><span>Esc to close</span></div></DialogContent></Dialog>
+    <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}<Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} /></main>
+    <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a new goal or refine the current layout. Escape closes this command window.</DialogDescription></DialogHeader>{form()}<div className="command-hint"><span>Enter to build</span><span>Esc to close</span></div></DialogContent></Dialog>
   </div>
 }
