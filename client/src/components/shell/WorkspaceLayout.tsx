@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { defaultLightTheme, ThemeProvider } from '@openuidev/react-ui'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Brand } from './AppShell'
-import { SidebarToggleIcon } from './SidebarToggleIcon'
+import { SidebarToggleButton } from './SidebarToggleButton'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { PageHeader } from './PageHeader'
+import { PageHeaderContext } from './pageHeaderContext'
 
 const fontTheme = {
   // OpenUI text tokens embed their font family in font shorthands.
@@ -21,6 +21,16 @@ const fontTheme = {
 
 export function WorkspaceLayout() {
   const [headerActions, setHeaderActions] = useState<HTMLDivElement | null>(null)
+  const [activeSlots, setActiveSlots] = useState<Set<string>>(() => new Set())
+  const register = useCallback((id: string) => {
+    setActiveSlots(slots => new Set(slots).add(id))
+    return () => setActiveSlots(slots => {
+      const next = new Set(slots)
+      next.delete(id)
+      return next
+    })
+  }, [])
+  const headerSlot = useMemo(() => ({ target: headerActions, register }), [headerActions, register])
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
@@ -33,6 +43,9 @@ export function WorkspaceLayout() {
   return <ThemeProvider mode="light" lightTheme={fontTheme}><div className="goal-workspace workspace-with-sidebar">
     {sidebarOpen && !mobile && <aside id="workspace-sidebar" className="workspace-sidebar"><WorkspaceSidebar onClose={() => setSidebarOpen(false)} /></aside>}
     {mobile && <Dialog open={sidebarOpen} onOpenChange={setSidebarOpen}><DialogContent id="workspace-sidebar" className="workspace-sidebar-drawer" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Workspace navigation</DialogTitle><DialogDescription className="sr-only">Navigate between workspace pages.</DialogDescription></DialogHeader><WorkspaceSidebar mobile onClose={() => setSidebarOpen(false)} /></DialogContent></Dialog>}
-    <div className="workspace-main-panel"><header className="canvas-header">{(mobile || !sidebarOpen) && <div className="flex items-center gap-2"><Button variant="ghost" size="icon" aria-label="Open sidebar" aria-expanded={sidebarOpen} aria-controls="workspace-sidebar" onClick={() => setSidebarOpen(true)}><SidebarToggleIcon open={sidebarOpen} /></Button><Brand /></div>}<div ref={setHeaderActions} className="ml-auto flex items-center gap-2" /></header><Outlet context={{ headerActions }} /></div>
+    <div className="workspace-main-panel"><PageHeader visible={mobile || !sidebarOpen || activeSlots.size > 0}
+      left={(mobile || !sidebarOpen) && <SidebarToggleButton branded open={sidebarOpen} mobile={mobile} onClick={() => setSidebarOpen(true)} />}
+      right={<div ref={setHeaderActions} className="flex flex-wrap items-center justify-end gap-2" />}
+    /><PageHeaderContext.Provider value={headerSlot}><Outlet /></PageHeaderContext.Provider></div>
   </div></ThemeProvider>
 }

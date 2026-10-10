@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { useOutletContext } from 'react-router-dom'
+import { PageHeaderActions } from '@/components/shell/PageHeaderActions'
 import { createParser, Renderer } from '@openuidev/react-lang'
 import { ArrowUp, Command, LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react'
 import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
@@ -32,7 +31,6 @@ function restoreLayout() {
 }
 
 export function DynamicWorkspace() {
-  const { headerActions } = useOutletContext<{ headerActions: HTMLDivElement | null }>()
   const { state, draftBuffers } = useWorkspace()
   const [goal, setGoal] = useState('')
   const [restored] = useState(restoreLayout)
@@ -102,7 +100,7 @@ export function DynamicWorkspace() {
   </form>
 
   return <div className="dynamic-canvas-page">
-    {headerActions && createPortal(<><button className="command-trigger" onClick={() => setCommandOpen(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></>, headerActions)}
+    <PageHeaderActions><button className="command-trigger" onClick={() => setCommandOpen(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
       <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}<Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} /></main>
       <Dialog open={commandOpen} onOpenChange={setCommandOpen}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a new goal or refine the current layout. Escape closes this command window.</DialogDescription></DialogHeader>{form()}<div className="command-hint"><span>Enter to build</span><span>Esc to close</span></div></DialogContent></Dialog>
   </div>

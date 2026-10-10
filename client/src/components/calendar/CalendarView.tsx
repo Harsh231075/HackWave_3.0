@@ -1,10 +1,9 @@
-import { useContext, useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from 'date-fns'
 import { ChevronLeft, ChevronRight, Plus, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { WidgetHeaderContext } from '@/lib/workspace/WidgetHeaderContext'
+import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { minutes } from '@/domain/workspace'
 import type { Event } from '@/domain/types'
@@ -21,7 +20,6 @@ const timeLabel = (value: number) => `${String(Math.floor(value / 60)).padStart(
 
 export function CalendarView() {
   const { state, selectedDate, selectDate, dispatch } = useWorkspace()
-  const headerSlot = useContext(WidgetHeaderContext)
   const [view, setView] = useState<CalendarMode>(() => preference('calendar-view', 'month', views) as CalendarMode)
   const [category, setCategory] = useState(() => preference('calendar-category', 'all', categories))
   const [selected, setSelected] = useState<string>()
@@ -52,7 +50,7 @@ export function CalendarView() {
   const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index)
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
   return <>
-    {headerSlot ? createPortal(controls, headerSlot) : headerSlot === undefined ? <div className="mb-4 flex flex-wrap items-center gap-2">{controls}</div> : null}
+    <WidgetActions>{controls}</WidgetActions>
     <div className="calendar-secondary-controls"><Select items={categories.map(value => ({ value, label: value === 'all' ? 'All events' : value[0].toUpperCase() + value.slice(1) }))} value={category} onValueChange={value => { if (value && categories.includes(value as typeof categories[number])) { setCategory(value); savePreference('calendar-category', value) } }}><SelectTrigger size="sm" aria-label="Event category"><SelectValue /></SelectTrigger><SelectContent>{categories.map(value => <SelectItem key={value} value={value}>{value === 'all' ? 'All events' : value[0].toUpperCase() + value.slice(1)}</SelectItem>)}</SelectContent></Select><Button variant={availability ? 'secondary' : 'ghost'} size="sm" aria-expanded={availability} onClick={() => setAvailability(!availability)}>Availability</Button>{state.history.length > 0 && <Button variant="ghost" size="icon-sm" aria-label="Undo calendar change" onClick={() => dispatch({ type: 'undo' })}><Undo2 size={14} /></Button>}</div>
     <div className={`calendar-content${availability ? ' with-availability' : ''}`}><div className="min-w-0">
     {view === 'month' ? <><div className="calendar-weekdays">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => <span key={day}>{day}</span>)}</div><div className="calendar-month-grid">{days.map(day => {
