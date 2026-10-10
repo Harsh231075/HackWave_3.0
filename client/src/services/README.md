@@ -54,4 +54,37 @@ Authentication does not authenticate users or enforce access control. Local memb
 
 File uploads read a Blob and store its content locally. Download URLs are temporary blob URLs; the caller must revoke them with `revokeDownloadUrl` when finished. Storage quota failures can make attachments session-only.
 
-`api/httpClient.ts` centralizes JSON HTTP responses, service errors, and cancellation. Generation remains the only existing network integration. Later backend adapters must define asynchronous loading, server IDs, server-authoritative scheduling, and remote undo explicitly. Browser storage is local to this browser; there is no cross-device or automatic cross-tab synchronization.
+`api/httpClient.ts` centralizes JSON HTTP responses, service errors, and cancellation. Generation, intent resolution, and meeting composition use the shared HTTP client. Later backend adapters must define asynchronous loading, server IDs, server-authoritative scheduling, and remote undo explicitly. Browser storage is local to this browser; there is no cross-device or automatic cross-tab synchronization.
+
+## Structured intent boundary
+
+`createIntentService(resolver)` creates an asynchronous `IntentService.resolve(request, { signal })`. The required injected resolver can later be a local interpreter or HTTP adapter. The configured `intentService` uses `/api/intent`; existing general workspace generation remains available.
+
+The version-1 request contains `requestId`, `goal`, `referenceDate`, IANA `timezone`, and a candidate catalog (`clients`, `projects`, `meetings`). Optional `previousIntent` supplies resolved follow-up scope. Optional `clarificationAnswer` contains the original question identity and either an entity selection or an inclusive date range. Its required `clarificationContext` preserves offered choices and partial intent. Meeting candidates contain dates and optional client/project links; project candidates may link to a client. Callers supply these catalogs; the service does not read browserDatabase or infer links from record names.
+
+The response echoes `version`, `requestId`, and `originalGoal`, and uses one status:
+
+- `resolved`: `intent` contains a supported `goalType`, entity IDs, inclusive `dateRange` (`from`, `to`), and optional owner/status/priority constraints. Meeting preparation requires a meeting, usage investigation a client, and overdue review a project.
+- `needs_clarification`: `question`, `field`, `choices`, and `partialIntent`. Entity questions have at least two distinct catalog choices; date-range questions have no entity choices.
+- `unsupported`: an explanatory `reason`.
+
+Schemas and inferred types live in `domain/intent.ts`. `validateIntentResolution` performs request-aware reference checks after syntax validation. Impossible dates, reversed ranges, unknown IDs, contradictory relationships, unexpected properties, and mismatched response identity are rejected. Validation trims text without changing caller objects. It does not interpret goals, merge follow-ups, resolve relative dates, or continue a clarification.
+
+The service validates requests before calling its adapter and validates responses afterward. Invalid inputs throw `ServiceError` with code `input`; invalid responses use `response`. Adapter/network errors and cancellation retain their meaning. Unsupported goals and clarification are successful domain responses. The HTTP adapter receives the normalized request and abort signal and returns the same validated union. No records are written or UI actions executed. Import the factory/types from the service entry point; server/tests can import the pure modules directly without initializing the browser service graph.
+
+
+## Linked adaptive data and meeting composition
+
+`adaptiveDataService` exposes client/project/meeting/communication/issue/relationship collections with validated local CRUD. Configured aliases (`clientService`, `projectService`, `meetingService`, `communicationService`, `issueService`, `relationshipService`) share browserDatabase. Adding metadata does not restore task Context fields or replace existing domain records. Projects accept an optional client ID for legacy compatibility.
+
+`candidateCatalogService.load()` returns `LoadResult<IntentCandidates>` built from current clients/projects/meetings. Linked calendar events supply current meeting title/date/times/participants/agenda. Deleted linked events remove those meetings from the catalog. Invalid saved collections produce `invalid`; dangling references are excluded. All reads return copied validated records.
+
+`meetingPreparationService.load(meetingId)` returns `LoadResult<Preparation>`: client/project/meeting, explicit task/resource links, the latest linked previous meeting, ten recent project communications, open issues, and deterministic selection reasons. Project and direct meeting links are deduplicated. A record explicitly assigned to another project is excluded. Missing/deleted records are never regenerated during a read.
+
+`meetingCompositionService.compose(input, { signal })` posts a resolved intent, scoped snapshot, agenda and optional previous composition to `/api/workspace/compose`. The result uses at most seven unique approved widget types with context/outline required. Each widget has a span, concise reason, and source references checked against the supplied snapshot. Application code serializes this plan into OpenUI; the model does not create executable handlers. Scoped components use the original task/draft services.
+
+Meeting agendas use `meeting-agenda:${meetingId}`. Saved drafts persist; transient edit buffers remain session-only. `layoutService.loadSession()` supports legacy version-1 responses and version-2 meeting sessions. `saveMeeting()` validates consistency between meeting ID, intent, composition and serialized response. Restore revalidates supporting references against current local records. Layout reset clears the session, not domain records.
+
+The command workflow uses `/api/intent` before composition. Clarification answers require matching offered context and current catalog IDs; date answers use labeled date inputs. Cancel/reset/new requests prevent stale results from applying. Supported pins missing from composition remain scoped; unsupported pinned widget types are labeled as showing all workspace records. Pins themselves remain session-only.
+
+The fixed demo clock is 2026-10-12 in Asia/Kolkata. Model calls are server-side and use the existing configured provider. Usage/overdue goals retain general generation behavior until their scoped workflows are implemented. No new external integration or authenticated data source is introduced.

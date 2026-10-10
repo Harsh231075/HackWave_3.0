@@ -338,7 +338,7 @@
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
-      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\", span: \"wide\" | \"narrow\" | \"full\")",
+      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\", span: \"wide\" | \"narrow\" | \"full\")",
       "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
     },
     "Workspace": {
@@ -561,7 +561,9 @@
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
         "chart: Historical charts are labeled illustrative; time allocation is calculated from today’s actual demo sessions.",
         "activity: Local edits appear here to make changes understandable. This is a demo activity log, not live notifications.",
-        "usage: Synthetic mobile and desktop records support comparison. Release timing is evidence to investigate, not a causal conclusion."
+        "usage: Synthetic mobile and desktop records support comparison. Release timing is evidence to investigate, not a causal conclusion.",
+        "communications: Recent communications linked to the selected meeting and project.",
+        "issues: Open issues linked to the selected meeting and project."
       ]
     }
   ],
@@ -4811,7 +4813,9 @@
               "availability",
               "chart",
               "activity",
-              "usage"
+              "usage",
+              "communications",
+              "issues"
             ]
           },
           "span": {

@@ -1,351 +1,225 @@
-# Plan: Orlo static foundation to adaptive workspace
+# Plan: Orlo intent-to-interface workspace
 
-## Summary and decisions
+## Goal
 
-Build Orlo with React + TypeScript + Vite and one persistent workspace surface at `/app`. Complete the static frontend using deterministic fixtures and predefined configurations first. Add persisted operations and AI planning later without replacing the component library or renderer.
+Complete the PS 4 adaptive workspace: start from a generic dashboard, understand a user's goal, select relevant records and tools, and arrange working components around that goal. The next milestone is a verified three-task demonstration with clarification, follow-up adaptation, preserved edits, and evidence-backed explanations.
 
-Generalize through shared entities and Student, Teacher, and Professional role packs. More professions can extend the same engine. The first working slice is generic dashboard → daily planning → overdue recovery, followed by scheduling and preparation examples.
+The immediate priority is **adapting component content as reliably as component placement**. A meeting-preparation layout must display records for the selected meeting and client; an overdue review must display outstanding overdue work. Rearranging widgets that continue to show the entire workspace does not satisfy this milestone.
 
-This is the authoritative roadmap. `PHASE_1_IMPLEMENTATION_PLAN.md` remains a useful inventory of the original 18 components and eight views; this plan supersedes its separate-page emphasis, routing, sequencing, and machine-specific paths. Proposed modules below are future files unless explicitly marked as existing.
+This document replaces the previous static-first, role-based roadmap. Checkboxes below describe future work, not claims of completion. No numerical completion score should be reported without a defined evaluation rubric and recorded results.
 
-## Scope and baseline
+## Current baseline
 
-**This task:** documentation and planning only; no application implementation.
+The following foundations exist in the codebase; this inventory does not certify every behavior in a live demonstration.
 
-**Stage 1:** responsive shell, reusable components, eight views, role examples, predefined compositions, in-memory shared state, component states, and local interactions. No AI calls, backend APIs, database, authentication, or external integrations. Do not simulate model responses from the command bar.
-
-**Later:** persistent operations, context retrieval, validated AI planning, integrations, and deployment.
-
-- [x] `client/package.json` defines React/React DOM, TypeScript, Vite, React plugin, Oxlint, and npm scripts.
-- [x] `client/src/App.tsx` implements the initial landing page; `main.tsx` mounts it.
-- [x] Local reference inspected at `open-intelligent-ui/`, commit `3b39c06`.
-- [ ] Routing, styling libraries, domain widgets, and workspace state implemented.
-- [ ] Backend, AI, and automated behavioral tests implemented.
-
-Documentation does not count as implementation completion. Update checklists only after implementation and verification.
-
-## Reference architecture and reuse
-
-The reference is a travel-oriented chat application. Adapt its separation of component definitions, library registration, root layout, state, theme, and generated specification to a productivity canvas.
-
-Reference paths below are relative to `open-intelligent-ui/`.
-
-| Reference module | Observed responsibility | Orlo adaptation |
+| Existing area | Main files | Next gap |
 | --- | --- | --- |
-| `src/lib/library.ts` | `createLibrary` registers built-ins and custom components | `client/src/lib/workspace/registry.ts` registers approved widgets; future `lib/openui/library.ts` exposes adapters |
-| `src/lib/travel/components.tsx` | `defineComponent` connects schemas, descriptions, references, and React rendering | Ordinary typed productivity components first; thin schema adapters later |
-| `src/lib/route/root.tsx` | `RouteCard` provides a vertical response root and provider | `lib/workspace/root.tsx` provides responsive primary/supporting/action regions |
-| `src/lib/route/store.ts` | `useStateField` retains per-response travel edits | `state/WorkspaceProvider.tsx` retains global session data, context, and drafts independently of responses |
-| `src/lib/response-theme.ts` and `.css` | Shared theme tokens | `styles/tokens.css` is authoritative for shell, primitives, widgets, charts, and OpenUI theme mapping |
-| `src/lib/prompt-options.ts` | Selection rules and travel examples | Future `server/src/intent/prompt-options.ts` describes productivity goals, clarification, evidence, and component constraints |
-| `src/generated/spec.json` and `npm run generate` | Generated component specification | Future generated spec comes from the adapter library; never maintain it manually |
-| `src/app/page.tsx` | Mounts chat-oriented `AgentInterface` | `pages/AppPage.tsx` mounts the stable shell and workspace renderer |
-| `src/app/api/chat/route.ts` | Request checks, model transport, cancellation, streaming, errors | Future separate server handles intent, tools, planning, and transport; Vite cannot execute Next.js API routes |
+| Shared shell, sidebar, optional page actions | `client/src/App.tsx`, `components/shell/WorkspaceLayout.tsx` | Preserve the current minimal design during adaptation |
+| Default canvas, command dialog, follow-up generation | `client/src/pages/DynamicWorkspace.tsx` | Add structured goal and clarification state |
+| Model endpoint and provider transport | `client/server/index.ts`, `client/server/chat.ts` | Resolve intent before composing a page |
+| Registered OpenUI components | `client/src/lib/workspace/OpenUIWorkspace.tsx`, `registry.tsx` | WorkspaceWidget currently accepts only widget type and span |
+| Syntax validation and generated specification | `client/src/lib/workspace/layoutValidation.ts`, `client/src/generated/openui-spec.json` | Add semantic checks for bindings, actions, evidence, and continuity |
+| Shared domain and mutations | `client/src/domain/`, `client/src/state/WorkspaceProvider.tsx` | Retain one mutation path for generated and dedicated views |
+| Browser persistence and local service factories | `client/src/services/browserDatabase.ts`, `client/src/services/index.ts` | Add linked demo records and adaptive-session persistence |
+| Task/calendar editing, preferences, drafts, undo | Existing widgets and services | Scope generated selections and drafts to the resolved goal |
+| Saved generated layouts | `client/src/services/layoutService.ts` | Current saved response lacks a structured intent/binding envelope |
+| Tests | `client/server/*.test.ts` | Cover the complete adaptive workflow and browser interactions |
 
-The reference does not supply business data, global workspace persistence, or productivity widgets. Do not adopt Next.js, MapLibre, travel prompts, Wikipedia routes, or OSRM. The clone is reference material, not a runtime dependency.
+Current route contract: `/` hosts the adaptive workspace; `/landing` hosts the landing page; dedicated task, calendar, meeting, planner, and priority views remain available through the existing router. `/insights` redirects to `/`. Do not restore `/app`, query-based navigation, role packs, or a chat interface.
 
-**Reuse rule:** implement each widget once. Supporting views, static presets, and future AI compositions use that implementation and the same handlers. OpenUI adapters wrap it later. Keep domain types and global state independent of OpenUI response state.
+The command dialog remains available through Ctrl+K/Cmd+K. After a successful generation it closes, leaving the workspace visible. Keep Orlo branding, local Figtree typography, the shared white theme, and minimal page text.
 
-Verify applicable licenses and attribution before copying source. Architecture patterns and package APIs can guide the implementation without wholesale copying.
+Tasks have no free-text Context field. Resource context and the existing context-summary widget are separate concepts and remain supported. Introduce explicit record relationships where required rather than restoring the removed task field.
 
-## Route contract
+## Scope
 
-| Route | Composition |
+**Required for the next milestone:** structured intent resolution, clarification continuation, linked synthetic business data, deterministic retrieval, goal-specific widget bindings, validated composition, working action dispatch, pin/draft continuity, grounded explanations, persistence migration, and the three-task evaluation.
+
+**Deferred:** authentication, cloud databases, real CRM/email/calendar integrations, collaboration, profession-specific interfaces, a new frontend framework, and general-purpose autonomous execution. The existing local auth/sharing/integration services remain local or unavailable as documented. They must not be presented as working external integrations.
+
+Use the installed OpenUI packages and current server/provider transport. Do not add another generation framework or duplicate the shared service layer. New modules listed below are proposed; create them only when their implementation phase begins.
+
+## Target flow and ownership
+
+Goal submission → resolve intent/entities/dates → clarify if needed → retrieve bounded records → propose composition → validate and enforce continuity → render bound widgets → explain selections → dispatch explicit user actions.
+
+The model interprets the goal and proposes a composition. Application code validates references, resolves records, enforces pins, and executes allowlisted actions. Prompt instructions supplement these rules; they do not enforce them.
+
+| Contract | Required information and rules |
 | --- | --- |
-| `/` | Landing page with entry into `/app` |
-| `/app` | Default Overview dashboard |
-| `/app?view=tasks` | Task management |
-| `/app?view=calendar` | Calendar |
-| `/app?view=meetings` | Meetings |
-| `/app?view=planner` | Daily Planner |
-| `/app?view=priorities` | Priority and recovery board |
-| `/app?view=insights` | Productivity Insights |
-| `/app?view=workspace` | Static preview selector first; intent-driven canvas later |
-| `/dev/components` | Development-only component/state gallery |
+| IntentResolution | Version, original goal, goal type, entity references, date range/timezone, requested constraints, and either resolved/clarification/unsupported status |
+| Clarification | Request ID, focused question, candidate IDs and labels, required answer fields, and retained original intent; no domain writes |
+| RecordReference | Record kind and stable ID; references must resolve in the submitted workspace snapshot |
+| RetrievalResult | Selected references, relevant derived metrics, bounded source excerpts, and deterministic selection reasons |
+| WorkspacePlan | Version, resolved intent, stable widget instances, bindings, spans/order, evidence references, and allowed action IDs |
+| WidgetBinding | Explicit selectors or validated record IDs, date/status constraints, draft scope where relevant; omitted binding means the ordinary dedicated-view behavior |
+| AdaptiveSession | Last valid plan/response, resolved intent, pins, pending clarification where restorable, and compatible component state |
+| ActionRequest | Known action ID and runtime-validated arguments, dispatched through existing services; no generated executable handlers |
 
-Use React Router. Eight views share one shell, registry, and records. Do not build eight independently styled applications. Details open in accessible dialogs/drawers.
+Keep widget **type** separate from widget **instance identity**. Use stable semantic identities to preserve state, but continue rendering tasks exactly once with the existing List/Kanban selector. Follow-ups refine the resolved intent; they must not silently discard the previous entity or date scope.
 
-Unknown views fall back to Overview; unknown paths show a helpful not-found page. Direct navigation, refresh, and back/forward must work. Production hosting needs SPA fallback for `/app`.
+## Ordered implementation phases
 
-AI changes the active configuration on the same `/app` surface. A query parameter is navigation state, not the source of truth for records or drafts. No route is created for each profession or prompt.
+### 1. Establish the contracts and behavioral baseline
 
-## Proposed modules
+- [ ] Add shared runtime schemas under proposed `client/src/domain/adaptive.ts` and pure validation helpers under `client/src/lib/workspace/planValidation.ts`.
+- [ ] Define the first supported goals: meeting preparation, usage investigation, and overdue-work review. Return an understandable unsupported result for other goals without replacing the current canvas.
+- [ ] Specify date semantics using the existing demo clock plus an explicit timezone. Resolve “tomorrow” once per request; keep date-only deadlines distinct from timestamped usage observations.
+- [ ] Define partial follow-up semantics: inherit unchanged entity/date constraints; replace only explicitly changed constraints.
+- [ ] Capture existing route, task/calendar control, persistence, and mutation behavior in focused regression cases before changing contracts.
 
-```text
-client/src/
-  App.tsx                         # providers and router
-  routes/AppRoutes.tsx
-  pages/LandingPage.tsx
-  pages/AppPage.tsx                # shell + active composition
-  pages/ComponentGallery.tsx       # development only
-  components/
-    ui/                           # shared shadcn primitives
-    shell/                        # sidebar, top bar, command bar, drawer
-    tasks/ calendar/ meetings/ planner/
-    insights/ feedback/ resources/
-  domain/                         # types and domain rules
-  data/
-    demo/                         # normalized fixtures and fixed clock
-    repositories/                 # fixture implementation; future API adapter
-    selectors/                    # views, metrics, calendar projections
-  state/
-    WorkspaceProvider.tsx         # Context + reducer
-    actions.ts                    # typed local operations
-  lib/workspace/
-    types.ts                      # WorkspaceConfig contracts
-    registry.ts                   # widget metadata and bindings
-    root.tsx                      # approved layout regions
-    WorkspaceRenderer.tsx
-    presets/                      # views and goal examples
-    role-packs.ts
-    validate.ts
-  styles/tokens.css
-  index.css
-  lib/openui/                     # Stage 3 adapters
-  generated/spec.json            # Stage 3 generated artifact
-server/src/                       # Stage 2 onward
-  api/ domain/ repositories/
-  intent/ tools/ workspace/        # Stage 3 onward
-```
+**Acceptance:** schemas reject unknown entity references, invalid ranges, unsupported widget/action IDs, and malformed status unions. A follow-up such as “only blocked items” retains the prior project selection. Existing dedicated views still behave normally.
 
-Folders represent responsibilities. Create modules when needed, not empty scaffolding. Smaller responsibilities can share a file until separation helps.
+### 2. Add linked synthetic data without changing existing task fields
 
-## Domain, configuration, and state contracts
+- [ ] Add typed clients, communications, issues, meeting records, usage observations/segments, and typed relationships in proposed `client/src/data/adaptiveDemo.ts` and domain schemas.
+- [ ] Reuse existing project, event, task, and resource IDs where appropriate. Link records through a validated relationship collection: project-to-task, client-to-project, meeting-to-event, meeting-to-resource, and related communication/issue references.
+- [ ] Use at least two clients/projects and two plausible upcoming meetings so relevance and ambiguity can be demonstrated. Include unrelated records, completed overdue tasks, blocked work, missing data, and a previous meeting.
+- [ ] Add narrow service factories for these collections through the existing browserDatabase boundary. Reuse the collection helper and error/result conventions.
+- [ ] Seed new collections only when missing. Preserve user-created domain records and malformed stored values according to existing persistence rules.
+- [ ] Keep usage measurements separate from task-completion metrics. Seed a visible decline with segment differences and possible explanatory events; do not label correlation as proven causation.
 
-### Shared records
+**Acceptance:** every relationship resolves to a real fixture record. A Northstar selection excludes another client's records. Reload and seeding do not overwrite edited tasks/events/drafts. No task Context input or filter returns.
 
-Use stable IDs and links for Person, Context (course/project/client), Goal, Task, Event, TimeBlock, Resource, Draft, Recommendation, and Activity. Lesson, exam, and meeting details specialize shared concepts through typed records.
+### 3. Implement intent resolution and clarification continuation
 
-- Tasks link to owners, contexts, resources, and dependencies.
-- Events represent meetings/classes/exams; meeting views select applicable records.
-- Time blocks link to tasks/events; avoid counting one event twice in availability.
-- Drafts are keyed by context and purpose, not widget mount order.
-- Explanations and recommendations reference supporting record IDs.
-- Product-usage fixtures are separate analytics records. Task completion is not product usage or proof of learning.
-- A fixed demo clock and explicit timezone drive today, overdue status, and availability.
+- [ ] Extract reusable provider-call behavior from `client/server/chat.ts` only as necessary; retain current provider configurations, cancellation, limits, and errors.
+- [ ] Add a proposed intent resolver under `client/server/intent.ts`. The model receives the goal, bounded candidate entities, demo clock, timezone, and prior resolved intent, then returns schema-validated structured output.
+- [ ] Extend the existing generation endpoint with a versioned result union: clarification, ready workspace, or unsupported. Keep transport errors distinct from valid unsupported/clarification results.
+- [ ] Update `services/contracts.ts`, `generationService.ts`, and `hooks/useWorkspaceGeneration.ts` together. A clarification answer carries the request ID, original goal, retained resolution, and validated selected candidate.
+- [ ] Introduce a small adaptive-session state hook for `DynamicWorkspace.tsx` rather than placing the full workflow inside the page component.
+- [ ] Render a concise application-owned clarification control in the command dialog. Asking a question preserves the current dashboard. Enter/selection continues the original goal; cancel performs no domain mutation.
+- [ ] If a candidate is removed or the question becomes stale, re-resolve instead of accepting an invalid answer. New goal submission supersedes pending clarification.
 
-Derive metrics and calendar projections from shared state rather than separately mutable page fixtures. Include conflicts, empty results, long labels, blocked tasks, and overdue work. Role packs configure vocabulary, suggestions, example context, and presets; they do not grant authorization or erase another context's data.
+**Acceptance:** “Prepare tomorrow's meeting” asks which meeting when multiple candidates match. Choosing Northstar generates Northstar's preparation view without requiring the user to retype their goal. Cancellation, invalid answers, stale replies, and unsupported requests leave the last valid canvas usable.
 
-### WorkspaceConfig and registry
+### 4. Retrieve relevant records deterministically
 
-Use one declarative, versioned application-owned contract:
+- [ ] Add proposed `client/src/services/retrievalService.ts` operating on a resolved intent and a consistent browserDatabase snapshot.
+- [ ] Meeting retrieval selects the meeting/event, client/project, previous meeting, relevant communications, open issues, linked tasks/resources, and usage summary if available.
+- [ ] Usage retrieval selects the client/product, comparable periods and segments, measurement coverage, relevant communications/issues, and related work.
+- [ ] Overdue retrieval selects linked tasks with due date before the demo date and status other than completed, with requested owner/priority/blocked filters.
+- [ ] Produce typed evidence references and deterministic reasons for each selected group. Bound record counts and text sizes; expose missing data instead of inventing replacements.
+- [ ] For the current browser-only storage model, send the selected snapshot and retrieval result to composition. Validate their schemas on the server. This is demo context, not an authenticated source of truth.
+- [ ] After slow generation, resolve references against current local records again. If important referenced records changed or disappeared, refresh or reject the proposal with an understandable message.
 
-| Configuration field | Purpose |
-| --- | --- |
-| Schema version and configuration ID | Compatibility and identifiable presets/plans |
-| Goal and selected context | What this composition supports |
-| Layout kind | Approved overview/planning/analysis/work-queue pattern |
-| Stable widget instance ID and component type | Identity and allowlisted renderer |
-| Data references and filters | Application-owned selectors resolve records |
-| Region, order, permitted size | Constrained responsive placement |
-| Explanation references | Record-grounded relevance |
-| Allowed action IDs | Known application handlers, never generated executable code |
+**Acceptance:** identical intent and snapshot produce identical selected IDs. Unrelated clients' records never appear. Overdue excludes completed work. Usage comparisons disclose missing/zero baselines and do not invent percentages. Evidence links open the supporting record.
 
-Registry entries define the renderer, typed options, supported sizes, data binding, actions, and accessible label. Widgets receive resolved props/callbacks; they do not import specific presets or own API retrieval.
+### 5. Bind reusable widgets to the resolved task
 
-Validate presets in Stage 1. Later model plans require runtime checks for known types, valid refs, bounded widget counts, supported options, and allowed actions. Missing data has an understandable fallback. Never accept arbitrary JSX, JavaScript, CSS, SQL, or model-defined handlers.
+- [ ] Extend `WorkspaceWidget` in `OpenUIWorkspace.tsx` with a validated instance identity and binding reference. Extend registry metadata with supported binding/action capabilities.
+- [ ] Add an application-owned binding resolver/provider shared by the generated renderer and widgets. Widgets receive resolved selections through typed props or a narrowly scoped provider; do not create a second record store.
+- [ ] Update tasks, meetings, resources, context summary, timeline, availability, metrics, outline, and usage widgets incrementally. Existing unbound dedicated views keep their normal selection behavior.
+- [ ] Separate generated-view constraints from global task filters. User filters can narrow the bound selection but cannot expand it into another entity's data.
+- [ ] Compute counts, charts, recommendations, and availability using the same scoped records. Define scheduling availability scope explicitly so omitted busy events do not make a time appear free.
+- [ ] Add focused communications/issues/evidence display components only where the existing resource/detail components cannot adequately support the task.
+- [ ] Keep the existing single task widget, selected List/Kanban mode, component controls, and shared mutations. Regenerate the OpenUI specification through `npm run generate:openui`.
 
-### State ownership
+**Acceptance:** meeting preparation shows only linked records; overdue lists only matching open overdue tasks; generated metrics agree with displayed records. Editing/completing a bound task updates its dedicated view. List/Kanban switches show one representation. Empty selections show an explicit empty state.
 
-1. Domain state: tasks, events, drafts, time blocks, and activity.
-2. Workspace state: current context, active config, filters, pins, previous layout.
-3. Transient UI state: dialogs, hover, temporary validation.
+### 6. Validate composition and explain adaptation
 
-Mount the provider above the renderer. Use record-keyed drafts and stable semantic widget IDs. Layout undo restores composition without undoing unrelated task edits; mutation undo uses separate action history. Reset Demo explicitly restores fixtures after confirmation.
+- [ ] Have composition return a structured WorkspacePlan with allowlisted widget types, bindings, stable identities, evidence, and layout constraints.
+- [ ] Make the validated plan authoritative for productivity widgets. Prefer deterministic serialization of that plan into OpenUI; restrict any model-generated supporting content to a small approved set of primitives.
+- [ ] Retain existing syntax validation and additionally reject unresolved IDs, duplicate task widgets, unsupported spans/actions, incompatible bindings, excessive widget counts, and evidence not present in retrieval.
+- [ ] Provide an on-demand “Why this layout?” explanation through existing header/options patterns. Keep the default canvas minimal.
+- [ ] Explain specific selections, for example “Two unfinished follow-ups from Northstar's previous meeting,” with inspectable evidence. Distinguish measured facts, deterministic recommendations, and model hypotheses.
+- [ ] Replace the canvas only after full validation. Generation, validation, or persistence failures preserve the last valid canvas and report the practical failure.
 
-Stage 1 state is in memory and resets on reload. Switching views/presets/role context must preserve edits during that session. Reload restoration belongs to Stage 2.
+**Acceptance:** invalid or invented references cannot reach the renderer. The view contains useful interactive components, not a generated essay. Each surfaced data group has an inspectable reason. Explanations do not claim unsupported causation or external synchronization.
 
-## Dependencies
+### 7. Enforce continuity and working actions
 
-- Existing: React/React DOM, TypeScript, Vite, React plugin, Oxlint, npm lockfile.
-- Stage 1: Tailwind with supported Vite integration, shadcn/ui primitives, Lucide React, React Router, Recharts, date-fns, and Motion where purposeful.
-- State starts with Context + reducer; add a store package only when complexity justifies it.
-- Add runtime schema tooling when configuration validation requires it; do not install the reference's whole stack.
-- Stage 3 candidates: OpenUI React Lang, Lang Core, optional React UI, CLI, and Zod. Model SDKs belong only on the server.
-- Verify compatible versions and APIs when installing. The inspected reference imports `zod/v4` while declaring Zod `3.25.76`; copying version numbers is not compatibility verification.
+- [ ] Normalize plans before render to enforce pins in application code, including generated responses rather than only the preset renderer.
+- [ ] Preserve a pinned widget's binding and stable identity across follow-ups. Label retained scope when the new goal concerns another entity; do not silently rebind pinned content.
+- [ ] Resolve capacity conflicts deterministically: keep pins, reject an over-limit proposal or remove lower-priority unpinned widgets, and explain the result. Never silently drop a pin.
+- [ ] Scope drafts by purpose and stable entity, such as meeting agenda plus meeting ID. Include the matching draft buffer in relevant follow-ups and avoid exposing unrelated drafts to composition.
+- [ ] Replace `DynamicWorkspace.tsx`'s generic `onAction` command-opening behavior with validated dispatch for supported generated actions and clarification answers. Inspect the installed renderer's action payload before defining adapters.
+- [ ] Route task/event/draft/recommendation operations through existing services and validation. Do not execute mutations merely because generation mentioned an action.
+- [ ] Preserve cancellation/request identity handling: an older response cannot overwrite a newer goal, reset, or clarification choice.
 
-Use Node 24 and npm. Preserve the lockfile and keep React + Vite. No model credentials in `VITE_*` variables or browser code. Server/framework/database choices are made in Stage 2, not imposed by the travel sample.
+**Acceptance:** a pinned widget survives goal changes, an edited agenda survives switching away/back, and unrelated meetings have separate drafts. Completing a task and saving an agenda work from the generated layout. Invalid actions produce feedback without mutating records. Reset during generation cannot be undone by a late response.
 
-## Ordered stages and implementation checklist
+### 8. Persist and migrate the adaptive session safely
 
-### Stage 0 — Baseline and roadmap
+- [ ] Extend `layoutService.ts` with a versioned envelope containing validated plan, resolved intent, compatible response/state, and pins. Keep domain records in their existing database storage.
+- [ ] Define migration for current response-only saved layouts: preserve valid legacy content in a legacy mode or migrate only when bindings can be established safely. Never infer invented entity links from saved text.
+- [ ] Restore pending clarification only if its candidates and version remain valid; otherwise preserve the prior canvas and ask again on the next submission.
+- [ ] Reject incompatible/invalid saved envelopes with the current dashboard fallback and a dismissible notice. Do not silently overwrite the original raw value during load.
+- [ ] Retain in-memory usability when storage fails. Reset layout clears adaptive session state without resetting task/event records or unrelated collections.
 
-- [x] Inspect the client and reference architecture.
-- [x] Record `/app`, reuse, data/state contracts, and staged criteria.
-- [x] Update README with truthful implementation status.
+**Acceptance:** refresh restores the resolved goal, scoped layout, pins, and saved entity-specific drafts. Existing valid saved layouts remain usable. Malformed or unavailable storage causes no crash or destructive initialization. Layout reset preserves domain edits.
 
-**Acceptance:** a developer can identify the first implementation slice and the future dynamic composition boundary.
+### 9. Verify the three-task demonstration and update documentation
 
-### Stage 1 — Complete static frontend
+- [ ] Add focused tests to existing `client/server/*.test.ts` or new files there for intent schemas, retrieval, bindings, semantic validation, action dispatch, continuity, and migration.
+- [ ] Use mocked provider outputs for deterministic automated tests; keep a separate manual live-provider run to assess interpretation of unseen phrasing.
+- [ ] Test browser flows on desktop and narrow mobile widths: command shortcut, clarification keyboard use, dialog focus, canvas focus after adaptation, evidence inspection, task edit, view selector, scheduling errors, persistence, and reset.
+- [ ] Preserve the current canvas during loading; announce results and errors accessibly. Respect reduced motion and avoid focus loss when components move.
+- [ ] Update README and service documentation to current routes, local persistence boundaries, supported goals, demo clock, setup, and known limitations.
+- [ ] Record live evaluation results instead of reporting an unsupported completion percentage.
 
-#### 1.1 Design system, routing, and shell
+## Required demonstration script
 
-- [ ] Establish tokens, typography, light/dark themes, focus styling, and restrained accent color.
-- [ ] Configure shared Button/Input/Select/Tabs/Badge/Dialog/Drawer/Tooltip/Skeleton primitives.
-- [ ] Implement routes, supporting view queries, fallbacks, and the development gallery.
-- [ ] Build sidebar, top bar, mobile drawer, context selector, and toolbar.
-- [ ] Add the labeled AI placeholder; suggestion chips populate input only.
-
-**Acceptance:** direct `/app` navigation and history work; shell/dialog controls are keyboard usable; no prompt produces fake AI output.
-
-#### 1.2 Fixtures and shared session state
-
-- [ ] Define domain types, linked fixtures, demo clock, and timezone.
-- [ ] Add the repository boundary, derived selectors, and Context/reducer provider.
-- [ ] Implement local task updates, event creation, draft edits, filters, and reset.
-- [ ] Derive metrics, calendars, and availability from the same records.
-
-**Acceptance:** a task edit agrees across views; a meeting appears consistently in calendar/planner/meetings; conflicts produce deterministic feedback.
-
-#### 1.3 Renderer and first working slice
-
-- [ ] Define WorkspaceConfig, registry, layout root, and preset validation.
-- [ ] Build metric/task/timeline/filter/toolbar widgets and WorkspaceRenderer first.
-- [ ] Compose Overview and Daily Planning from those widgets.
-- [ ] Add PriorityBoard, recommendations, confirmation, and explanations for recovery.
-- [ ] Implement pins, layout undo, and state-preserving preset switches.
-
-**Acceptance:** generic dashboard → planning → recovery changes hierarchy on `/app`; task edits and drafts survive a switch back. Visible actions work locally or explicitly show unavailable status.
-
-#### 1.4 Finish reusable component coverage
-
-Include populated, loading, empty, error, selected, disabled, and success states where applicable. Interactive primitives require hover/focus states. The gallery makes variants inspectable; do not invent irrelevant states for every icon.
-
-| Done | Component | Minimum evidence |
+| Step | Input/action | Required visible result |
 | --- | --- | --- |
-| [ ] | MetricCard | Derived value, labeled trend, description, skeleton |
-| [ ] | TaskCard | Completion, priority, due date, duration, status, details/actions |
-| [ ] | TaskList | Search/filter/sort, shared edits, no-results state |
-| [ ] | PriorityBoard | Groups/counts and accessible priority change |
-| [ ] | TaskForm | Local create/edit, required-field and duration validation |
-| [ ] | CalendarView | Month/week/day, navigation, details, overlaps, mobile agenda |
-| [ ] | MeetingCard | Participants, agenda, status, details; external join unavailable |
-| [ ] | MeetingForm | Local scheduling, valid time range, participants |
-| [ ] | AvailabilityPanel | Available/busy/selected slots and conflict feedback |
-| [ ] | DailyTimeline | Events/tasks/breaks/gaps and labeled demo current time |
-| [ ] | TimeBlockCard | Related records, time range, category/status |
-| [ ] | RecommendationCard | Static evidence/reason, local accept/dismiss where supported |
-| [ ] | ConfirmationDialog | Before/after, cancel, focus handling, actual result feedback |
-| [ ] | ExplanationPanel | Goal, component selections, record-grounded reasons |
-| [ ] | FilterControls | Date/status/priority/category/search/sort and reset |
-| [ ] | WorkspaceToolbar | Mode, pins, layout undo, explanation toggle |
-| [ ] | ProductivityChart | Variants, legends, text summary, loading/empty states |
-| [ ] | WorkspaceRenderer | Bindings, approved layouts, stable IDs, missing-data fallback |
-| [ ] | ResourceList | Linked materials, inspection/open action, labels |
-| [ ] | EditableOutline | Shared local agenda/lesson/study draft |
-| [ ] | ContextSummary | Selected course/project/client and record references |
-| [ ] | EvidenceLinks | Inspectable mock evidence and safe links |
+| 1 | Open `/` | Generic dashboard with working shared data |
+| 2 | “Prepare tomorrow's meeting” | Focused clarification if multiple meetings match; dashboard retained |
+| 3 | Select Northstar | Client/meeting overview, relevant communications/issues, linked tasks/resources, editable agenda |
+| 4 | Edit and save agenda; pin a relevant widget | Saved draft and explicit pin state |
+| 5 | “Investigate Northstar's product usage drop” | Real seeded usage periods/segments, supporting evidence, investigation actions; pin retained |
+| 6 | Inspect evidence | Source record is visible; causal hypotheses are identified as hypotheses |
+| 7 | “Review overdue Atlas project work” | Outstanding overdue Atlas tasks, blockers/owners, scoped counts, recovery actions |
+| 8 | “Only blocked items” | Atlas/date scope retained; selection narrows; task appears once |
+| 9 | Perform a task action; return to meeting preparation | Mutation visible elsewhere; saved Northstar agenda restored |
+| 10 | Refresh; attempt invalid output or cancel a request | Session restored; failed/cancelled generation preserves valid UI |
 
-Drag-and-drop is optional; keyboard-accessible priority changes are required. Reuse shadcn primitives rather than build a competing primitive library.
+Also evaluate paraphrases, an unknown client, no matching records, a changed/deleted entity, ambiguous dates, provider failure, rapid goal changes, unavailable storage, and a narrow viewport. Record pass/fail and observed failures for each case.
 
-#### 1.5 Assemble views and role examples
+## Validation commands
 
-- [ ] Overview: metrics, tasks, meetings, timeline, recommendations, chart, activity.
-- [ ] My Tasks: list, filters, creation/editing, details, overdue work.
-- [ ] Calendar: month/week/day, deadlines, meetings, event details.
-- [ ] Meetings: list, scheduling form, availability, agenda/details.
-- [ ] Daily Planner: timeline, priorities, blocks, gaps, recommendations.
-- [ ] Priorities: board, overdue work, deadlines, blockers, recovery summary.
-- [ ] Productivity Insights: transparent task/time measures and charts.
-- [ ] Workspace: daily-planning, meeting-scheduling, and overdue-recovery presets.
-- [ ] Student exam preview: topics, resources, revision blocks, study outline.
-- [ ] Teacher lesson preview: objectives, materials, outline, preparation tasks.
-- [ ] Professional meeting preview: context, communications/issues, agenda draft.
-- [ ] Usage-investigation preview: separate synthetic usage data and evidence timeline.
+Run from `client/`:
 
-Role previews are configurations, not new page implementations. Label the selector as a static demo/development tool. A mock clarification selector can demonstrate design for multiple meetings, but must not claim live intent detection.
+- `npm test` for service/domain/transport/plan regression tests.
+- `npm run build` for specification generation, TypeScript, and production build.
+- `npm run lint` for code checks; distinguish existing warnings from new issues.
 
-**Acceptance:** all eight views are complete and reuse records/widgets. Presets change selection and prominence, not just colors. No view consists of empty placeholder boxes.
+Run `git diff --check` from the repository root. Browser verification and one live-provider three-task run are separate requirements; passing unit tests alone does not prove intent accuracy or usability. API keys remain server-side and are never committed or placed in browser environment variables.
 
-#### 1.6 Verification and exit
+## Risks and mitigations
 
-- [ ] Inspect 375px, 768px, and 1440px layouts in both themes.
-- [ ] Verify keyboard paths, focus restoration, contrast, labels, chart text summaries, reduced motion, and overflow.
-- [ ] Exercise create/edit/complete/filter/schedule/draft/pin/undo/reset across views.
-- [ ] Test critical behavior: cross-view consistency, config-switch draft preservation, invalid config fallback, scheduling conflicts.
-- [ ] Run `npm run build` and `npm run lint`; document unresolved failures.
-- [ ] Verify no model/backend/integration calls or credentials were introduced.
-
-**Exit:** complete session-only static prototype. This is not yet final PS 4 AI compliance.
-
-### Stage 2 — Persistent productivity operations
-
-- [ ] Select server framework/database from data access and hosting needs; record the decision.
-- [ ] Define versioned API contracts; replace fixture repository with API adapter.
-- [ ] Persist tasks/events/resources/drafts and workspace preferences.
-- [ ] Validate writes; handle loading/errors/retries/stale updates/timezones/conflicts.
-- [ ] Add authentication and ownership checks before real/shared data.
-- [ ] Restore context, pins, drafts, and layouts after reload.
-- [ ] Test server rules, ownership isolation, and frontend consistency.
-
-**Exit:** verified persistent operations with the same widgets and `/app`; failures remain understandable and another user's records cannot be accessed.
-
-### Stage 3 — Intent and adaptive composition
-
-- [ ] Run a bounded OpenUI/Vite spike with one existing widget and custom root; check callbacks, theme, and state continuity.
-- [ ] Resolve intent, entities, and dates; return focused clarification for ambiguity.
-- [ ] Implement deterministic tools for task/event/resource/context/usage retrieval.
-- [ ] Produce an application-owned WorkspacePlan matching the approved config contract with evidence refs and action IDs.
-- [ ] Validate before commit; merge pins and preserve drafts/filters intentionally.
-- [ ] Expose existing widgets through thin `defineComponent`/`createLibrary` adapters where useful; generate the component spec.
-- [ ] Keep WorkspacePlan authoritative for layout/actions; any OpenUI Lang within widgets is restricted to registered components.
-- [ ] Implement server-side transport, cancellation, request limits, and errors inspired by the reference.
-- [ ] Retain last valid canvas until replacement validates; ignore stale results after context changes.
-- [ ] Connect command bar, clarification, explanations, and follow-ups.
-- [ ] Evaluate paraphrases, ambiguity, unsupported goals, invalid output, tool errors, and rapid goal changes.
-
-Flow: goal + current context → resolve/clarify → retrieve records → select/prioritize widgets → validate → merge user-controlled state → render on `/app` → explain.
-
-An OpenUI API mismatch is resolved in the adapter or by retaining the config renderer; it does not require Next.js. Do not create a competing OpenUI workspace state system. Model selection is separate from mutation execution. Server-side handlers enforce ownership and validation; consequential changes receive concrete user review. Retrieved text cannot authorize operations.
-
-**Exit:** unseen phrasing and follow-ups reorganize the same canvas, clarify actual ambiguity, preserve edits, and provide grounded explanations. Invalid model output cannot execute writes or replace the valid canvas.
-
-### Stage 4 — Integrations and deployment
-
-- [ ] Select calendar/document/LMS or project integrations from observed user demand.
-- [ ] Implement connection scopes, sync status, conflicts, failures, and disconnect.
-- [ ] Preview external changes; verify results and handle duplicate requests safely.
-- [ ] Configure SPA fallback, API origin/proxy, server secrets, migrations, and deployment checks.
-- [ ] Observe errors/timings without exposing private source content.
-- [ ] Evaluate task success, corrections, retained work, explanation usefulness, and accessibility.
-- [ ] Record the PS 4 demo and clearly document static versus live capabilities.
-
-**Exit:** direct deployed `/app` refresh works; integration failures preserve a usable canvas; demonstrated actions have verified results.
-
-## Final PS 4 demo checklist
-
-- [ ] Start from the generic dashboard on `/app`.
-- [ ] Prepare a client meeting: context, communications, issues, editable agenda.
-- [ ] Investigate usage decline: usage series, segments, relevant event evidence.
-- [ ] Review overdue project work: owners, blockers, priorities, recovery actions.
-- [ ] Perform one meaningful action in each composition.
-- [ ] Narrow context in a follow-up while retaining a pinned widget.
-- [ ] Return to the earlier goal with its edited draft intact.
-- [ ] Clarify ambiguous entities/dates instead of silently choosing.
-- [ ] Explain selections with records; distinguish observed trends from causal hypotheses.
-- [ ] Show student/teacher reuse of the same engine.
-
-Business fixtures retain the supplied PS 4 demo; role previews show generality. Real AI claims begin only after Stage 3.
-
-## Risks and open decisions
-
-| Risk/decision | Impact | Mitigation/stage |
+| Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Broad profession scope | Shallow workflows and UI expansion | Shared engine; validate a few concrete goals first |
-| Eight views obscure the workspace | Conventional app with an AI field | Build `/app` composition slice first |
-| Layout changes remount drafts | Lost work | Provider above renderer, record-keyed drafts, stable IDs, tests |
-| Fixture clock drift | Wrong deadlines/calendars | Fixed demo clock/timezone and selectors |
-| OpenUI compatibility | Integration delays | Thin adapters and bounded Stage 3 spike |
-| Competing state/theme layers | Inconsistent behavior | Application state and tokens remain authoritative |
-| Invalid/stale model output | Broken or wrong-context canvas | Validation, cancellation, request IDs, last-valid fallback |
-| Server/database unresolved | Premature dependencies | Decide in Stage 2 from actual queries/ownership/hosting |
-| Source reuse terms unclear | Attribution/license ambiguity | Inspect relevant licenses before copying |
-| Static demo overstated | Misleading PS 4 evidence | Explicit labels and separate static/AI acceptance |
+| Model resolves the wrong client/date | Convincing but irrelevant UI | Candidate IDs, runtime checks, explicit ambiguity handling, visible resolved scope |
+| Text matching substitutes for relationships | Cross-client data leakage in the demo | Typed links and deterministic selectors; unknown links remain missing |
+| OpenUI syntax is valid but semantics are wrong | Duplicate/misbound or inert components | Structured authoritative plan, semantic validation, action allowlist |
+| Existing filters override generated scope | Wrong counts and records | Separate binding constraints from view filters and intersect selections |
+| Missing busy events in a bound calendar | Incorrect scheduling suggestions | Availability checks against all applicable busy events, not just visible ones |
+| Pins and draft keys change during adaptation | Lost or misleading work | Stable identities, explicit pin binding policy, entity-scoped drafts |
+| Schema changes overwrite local records | Data loss | Additive collections, explicit migrations, malformed-value preservation tests |
+| Requests race with edits or resets | Stale canvas or missing references | Cancellation, request IDs, current-record revalidation |
+| Broad business scope delays the demo | More features without PS 4 proof | Complete one meeting-preparation slice before usage and overdue expansion |
+| Synthetic evidence overstates causality | Misleading explanation | Separate facts from hypotheses; label synthetic data and measurement coverage |
+| Larger context exposes unrelated drafts | Privacy and relevance problems | Bounded retrieval and entity-specific draft selection |
 
-## Dependencies and effort
+## Dependencies and delivery order
 
-Internal order: primitives + fixtures/state → registry/widgets → complete static compositions → persisted operations → intent/tools/planning → integrations. Accessibility and consistency checks run throughout.
+No new cloud database or external integration is a prerequisite. The live evaluation requires a working configured model provider; automated tests use mocks. Confirm installed OpenUI action/schema capabilities from the package code before extending adapters.
 
-External dependencies: compatible frontend packages in Stage 1; server/database hosting in Stage 2; model access and OpenUI API verification in Stage 3; integration access in Stage 4. Stage 1 needs no later service credentials.
+Internal order: contracts → linked fixtures → intent/clarification → retrieval → bound widgets → validated composition/explanations → continuity/actions → persistence migration → full evaluation. Implement and verify meeting preparation end to end first, then reuse the same path for usage investigation and overdue review. Avoid merging all phases into one large change.
 
-Relative effort: Stage 1 **L** for complete responsive coverage; Stage 2 **L** for persistence and ownership; Stage 3 **XL** for intent/retrieval/validated adaptation; Stage 4 **L–XL** depending on integration count. These are planning sizes, not delivery dates. Verify one complete slice before expanding the inventory.
+Relative effort: contracts/data **M**, intent/clarification **L**, retrieval/bindings **L**, composition/continuity **L**, persistence/evaluation **M–L**. These are planning sizes, not delivery dates. The complete milestone is **XL** because it changes cross-cutting contracts and needs live behavioral verification.
+
+## Definition of done
+
+- [ ] Three distinct goals change both layout and relevant content on the same workspace.
+- [ ] Ambiguity is clarified and the answer continues the original task.
+- [ ] References, counts, evidence, and actions are validated against actual local records.
+- [ ] Each composition supports at least one meaningful working action.
+- [ ] Follow-ups preserve intended entity/date scope, pins, and saved drafts.
+- [ ] Reload restores compatible adaptive state; failed generation never replaces valid UI.
+- [ ] Dedicated task/calendar pages, shared controls, and local mutations remain functional.
+- [ ] Desktop/mobile/keyboard flows pass, automated checks pass, and live demo results are documented.
+- [ ] Documentation accurately states local-only data, synthetic sources, supported goals, and remaining limitations.
+
+**First implementation step:** introduce and test the adaptive contracts, then add the minimal linked Northstar/Atlas fixtures needed for a complete meeting-preparation workflow. Do not begin by adding more general-purpose pages or service stubs.

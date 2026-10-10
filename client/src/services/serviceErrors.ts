@@ -1,5 +1,5 @@
 export class ServiceError extends Error {
-  readonly code: 'network' | 'http' | 'response'
+  readonly code: 'input' | 'network' | 'http' | 'response'
   readonly status?: number
   constructor(code: ServiceError['code'], message: string, status?: number) {
     super(message)

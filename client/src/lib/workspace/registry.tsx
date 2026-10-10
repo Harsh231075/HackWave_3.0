@@ -1,3 +1,4 @@
+import { Communications, Issues } from '@/components/resources/MeetingPreparationWidgets'
 import { Activity, BarChart3, BookOpen, CalendarDays, Clock3, FileText, LayoutGrid, ListTodo, Sparkles, Target, Users } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { TaskList } from '@/components/tasks/TaskWidgets'
@@ -9,6 +10,8 @@ import type { WidgetType } from './config'
 
 export type WidgetDefinition = { title: string; reason: string; icon: typeof ListTodo; component: ComponentType }
 export const registry: Record<WidgetType, WidgetDefinition> = {
+  communications: { title: 'Communications', reason: 'Recent communications linked to the selected meeting and project.', icon: FileText, component: Communications },
+  issues: { title: 'Issues', reason: 'Open issues linked to the selected meeting and project.', icon: ListTodo, component: Issues },
   metrics: { title: 'Summary', reason: 'Counts come from the tasks and focus sessions in your workspace.', icon: LayoutGrid, component: Metrics },
   tasks: { title: 'Tasks', reason: 'Open, blocked, and completed tasks share the same records across the workspace. Filter by deadline or owner to narrow your next step.', icon: ListTodo, component: TaskList },
   timeline: { title: 'Timeline', reason: 'Scheduled sessions show where your time is committed and where there is room for focus.', icon: Clock3, component: DailyTimeline },

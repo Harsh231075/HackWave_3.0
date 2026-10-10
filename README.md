@@ -2,143 +2,108 @@
 
 HackWave 3.0 · PS 4: Human-Centered AI / Intent-to-Interface
 
-**Describe your goal. Orlo arranges the relevant information, editable tools, and next actions around it.**
+Orlo starts with a generic dashboard at `/`. Ctrl+K (Cmd+K on macOS) opens the command window. A meeting-preparation request resolves the meeting, clarifies ambiguity, retrieves explicitly linked records, and asks the configured AI provider to arrange approved interactive widgets. There is no chat transcript.
 
-Orlo is a generalized workspace organized around goals and projects. It uses one reusable component library and one workspace surface at **`/app`**. Eventually, changing goals will change the composition while preserving drafts, context, filters, and pinned components.
+## Current capabilities
 
-## What we build first
+- Shared white interface, local Figtree typography, reusable sidebar and page controls.
+- Tasks with List/Kanban selection, calendar scheduling, shared edits, validation, undo, resources, and drafts.
+- Device-local browserDatabase services and saved generated layouts.
+- Structured intent resolution through `/api/intent`, including entity/date clarification.
+- Two synthetic clients (Northstar and Westbridge), projects, upcoming/previous meetings, communications, issues, and explicit task/resource links.
+- Meeting-specific preparation with AI-selected widget order/spans, validated source references, and separate editable agendas.
+- Last valid canvas retained on provider errors, invalid output, cancellation, and unsupported goals.
 
-Build a complete **static frontend prototype** with React + TypeScript + Vite. Start `/app` with a generic dashboard, then show predefined planning, scheduling, preparation, and overdue-work layouts on the same canvas.
+The meeting workflow is scoped to actual supplied records. Usage investigation and overdue review currently continue through the existing general generation path after intent resolution; their complete scoped workflows remain future work. AI interpretation requires configured model credentials. Automated checks use mocked providers and do not certify live-model accuracy.
 
-Static means deterministic demo data and predefined configurations. Controls can update shared in-memory React state: complete a task, edit an agenda, select a slot, filter records, or switch previews. Display **“Demo data; changes reset on reload.”** The command bar is labeled **“AI not connected.”**
+## Try meeting preparation
 
-Later, intent resolution and AI planning supply validated configurations to the same renderer. Reuse the components rather than rebuild the frontend for each profession or goal.
+1. Open `/`, then press Ctrl+K/Cmd+K.
+2. Enter **“Prepare tomorrow’s meeting.”**
+3. Choose Northstar or Westbridge if the resolver asks which meeting.
+4. Inspect linked tasks, resources, communications, and open issues; use each widget’s information button for supporting records.
+5. Edit and save the meeting agenda. Switch meetings and return; agendas are keyed by meeting ID.
+6. Refresh to restore the scoped layout and saved draft.
 
-## Current status
+The deterministic demo reference date is **2026-10-12**, timezone **Asia/Kolkata**. Both upcoming demo meetings are on 2026-10-13. Relative dates use this reference, not the real date. Source data is synthetic and is not retrieved from a real CRM, inbox, or calendar integration.
 
-- [x] React + TypeScript + Vite client initialized.
-- [x] Initial “Coming Soon” landing page and concept documentation present.
-- [x] Local architecture reference inspected; staged roadmap recorded in [PLAN.md](./PLAN.md).
-- [x] `/app` routing and application shell implemented.
-- [x] Reusable component library and static workspace previews implemented.
-- [x] OpenUI packages and productivity rendering adapter integrated.
-- [ ] Backend, persistence, authentication, integrations, and AI implemented.
+Existing saved collections are preserved. A previously saved empty/deleted projects collection is not overwritten with the demo projects; therefore those meetings may be absent. Malformed saved data produces an error rather than being silently replaced. Use a separate browser profile/site storage for a fresh demo without discarding existing records.
 
-`/app` starts with a goal textbox. Submitting calls the server-side OpenAI Responses API; registered OpenUI components form a productivity page. Once a valid page is built, the goal input disappears. Ctrl+K (Cmd+K on macOS) opens a command overlay near the top for refinement. Existing shared task and draft state survives layout changes, and failed generations keep the last valid canvas. There is no chat transcript. Records remain session-only demo data.
+## Routes
 
-Copy `client/.env.example` to `client/.env.local`, set `OPENAI_API_KEY` and `OPENAI_MODEL`, and restart `npm run dev` from `client`. Credentials are server-only. `npm run build` generates the OpenUI specification and builds the client; `npm start` serves the built app and API together. `npm run test:chat` verifies request validation and model transport with a mocked provider. Live generation requires valid credentials.
-
-## Routes and reuse
-
-| Surface | Purpose |
+| Route | Purpose |
 | --- | --- |
-| `/` | Redirect to `/app` |
-| `/app` | Goal input → generated productivity canvas; Ctrl+K opens refinement |
-| `/dev/components` | Development-only component/state gallery |
+| `/` | Default dashboard and adaptive workspace |
+| `/landing` | Landing page |
+| `/tasks`, `/calendar`, `/meetings`, `/planner`, `/priorities` | Dedicated shared component views |
+| `/workspace/:mode` | Predefined composition previews |
+| `/dev/components` | Component/state gallery |
+| `/insights` | Redirect to `/` |
 
-There are no profession modes or role partitions. Tasks, events, resources, filters, pins, and drafts share one workspace. Goals and project context guide the generated UI.
-
-## Technology
-
-| Layer | Current or planned |
-| --- | --- |
-| Foundation | React 19, TypeScript, Vite, npm — configured |
-| Styling/primitives | Tailwind CSS + shadcn/ui — planned |
-| Icons/charts | Lucide React + Recharts — planned |
-| Navigation/dates | React Router + date-fns — planned |
-| Transitions | Motion for React with reduced-motion support — planned |
-| Session state | React Context + reducer and selectors — planned |
-| AI rendering | OpenUI component library + server-side OpenAI Responses generation |
-| Backend/database | Separate API and persistence selected in Stage 2 |
-
-Keep React + Vite. The reference uses Next.js, but Orlo does not adopt its framework or travel features.
-
-## Stages and checklist
-
-### Stage 0 — Baseline and architecture
-
-- [x] Inspect the client and local `open-intelligent-ui/` reference.
-- [x] Document the `/app` strategy, reuse, and data/state boundaries.
-- [x] Establish [PLAN.md](./PLAN.md) as the authoritative roadmap.
-
-### Stage 1 — Static frontend
-
-- [ ] Establish theme tokens, accessible primitives, responsive shell, and routing.
-- [ ] Create normalized deterministic fixtures with one demo clock/timezone.
-- [ ] Build all 18 core components plus resource, outline, context, and evidence widgets.
-- [ ] Assemble eight views from shared widgets, selectors, and state.
-- [ ] Add daily-planning, meeting-scheduling, and overdue-recovery presets.
-- [ ] Add planning, preparation, meeting, and usage-analysis examples.
-- [ ] Preserve local edits, drafts, filters, and pins when compositions change.
-- [ ] Provide static explanations, meaningful local actions, undo/reset, and a state gallery.
-- [ ] Verify light/dark themes, responsive behavior, accessibility, build, and lint.
-
-**Exit:** complete session-only frontend. No model calls, backend, authentication, database, or external integrations.
-
-### Stage 2 — Functional data and persistence
-
-- [ ] Introduce a separate server API behind the existing repository boundary.
-- [ ] Persist tasks, events, drafts, resources, and workspace preferences.
-- [ ] Validate create/edit/schedule operations and handle conflicts.
-- [ ] Add authentication and ownership checks before real/shared data.
-- [ ] Verify reload restoration and agreement across views.
-
-**Exit:** working productivity features using the same `/app` and components.
-
-### Stage 3 — Intent-driven adaptive workspace
-
-- [ ] Resolve goals, entities, dates, and ambiguity from natural language.
-- [ ] Retrieve relevant records and select approved components/actions.
-- [ ] Validate layout plans and render through the existing registry.
-- [ ] Evaluate OpenUI with thin adapters around existing widgets.
-- [ ] Preserve edits/pins and keep the last valid layout on failure.
-- [ ] Explain selections with evidence and support follow-up adaptation.
-
-**Exit:** genuine goal-driven adaptation; static previews are no longer the only layout source.
-
-### Stage 4 — Integrations, evaluation, and deployment
-
-- [ ] Select calendar/document/LMS or project-tool integrations from user needs.
-- [ ] Handle sync failures, timezones, permissions, and reviewed external writes.
-- [ ] Evaluate paraphrases, ambiguity, task completion, and state preservation.
-- [ ] Deploy the Vite SPA with `/app` fallback routing and the server API.
-- [ ] Complete the PS 4 demo and document limitations.
-
-Accessibility and relevant checks run throughout development.
-
-## PS 4 demonstration
-
-Start with the generic `/app` dashboard. Show client meeting preparation, product-usage investigation, and overdue project review reorganizing that same canvas. The same components support different goals without profession modes.
-
-Perform one meaningful action per composition. Narrow context in a follow-up while retaining a pinned widget. Return to an earlier goal with its edited draft intact. Include ambiguity handling and source-backed explanations.
-
-Stage 1 demonstrates **static composition only**. Final PS 4 compliance requires Stage 3 intent understanding, clarification, and real adaptation.
+No profession modes or role partitions are used. Task records have no free-text Context field; adaptive selection uses explicit record relationships.
 
 ## Local setup
 
-Use **Node.js 24** and npm. The locked Vite toolchain requires Node `^20.19.0 || >=22.12.0`; the previous Node 18 recommendation was insufficient.
+Use Node.js 24 and npm:
 
 ```bash
 cd client
 npm ci
+```
+
+Copy `client/.env.example` to `client/.env.local`, select a provider and configure its key/model, then run:
+
+```bash
 npm run dev
 ```
 
-Checks, run inside `client/`:
+Provider transport supports OpenAI, Groq, Ollama, and the configured gateway. Credentials stay server-side; do not put keys in `VITE_*` variables. Without provider configuration the standard local views work, while generation reports unavailable configuration.
+
+For the production server:
 
 ```bash
 npm run build
-npm run lint
-npm run preview
+npm start
 ```
 
-`/app` is planned; the current client renders the initial landing page.
+The server serves the SPA and APIs together. Vite development middleware exposes the same APIs; `npm run preview` alone does not serve those APIs.
 
-## Documentation
+## API and data boundaries
 
-- [PLAN.md](./PLAN.md) — architecture, ordered steps, checklists, acceptance criteria, and risks.
-- [PROJECT_UNDERSTANDING.md](./PROJECT_UNDERSTANDING.md) — original problem analysis.
-- [PHASE_1_IMPLEMENTATION_PLAN.md](./PHASE_1_IMPLEMENTATION_PLAN.md) — earlier UI inventory; PLAN.md takes precedence where scope, routing, state, or sequencing differs.
-- [Open Intelligent UI](https://github.com/thesysdev/open-intelligent-ui) — architecture reference, available locally as `open-intelligent-ui/`; not the Orlo runtime.
+| Endpoint | Contract |
+| --- | --- |
+| `POST /api/intent` | Versioned intent request → resolved / needs_clarification / unsupported response |
+| `POST /api/workspace/compose` | Resolved meeting intent + scoped snapshot → validated widget composition and evidence |
+| `POST /api/generate` | Existing general generation request → OpenUI response |
 
-Team Harsh231075 · HackWave 3.0
+The browser owns the local record snapshot. Server validation checks payload consistency but does not authenticate it or make it a trusted remote database. Generated output cannot execute mutations; interactive components use existing local services.
+
+Tasks/events/drafts persist under the existing workspace key. Additional clients/projects/meetings/communications/issues/relationships/resources use the shared metadata database. Layout version 2 saves meeting scope and composition while continuing to read version-1 responses. Unsaved agenda buffers survive view switches in the current session; only saved drafts survive reload. Pins remain session-only. Layout reset does not reset domain records.
+
+Authentication, sharing, external calendar connections, notification delivery, and cloud synchronization are not implemented. Their local service boundaries do not claim external functionality.
+
+## Validation
+
+Run inside `client/`:
+
+```bash
+npm test
+npm run build
+npm run lint
+```
+
+The test suite covers intent schemas, clarification validation, provider transports, linked retrieval, composition evidence, persistence compatibility, shared mutations, and error paths. Browser checks additionally exercise the meeting selection/agenda flow, keyboard access, reload, and mobile layout. Live-provider evaluation requires credentials and remains separate from deterministic tests.
+
+Meeting milestone validation recorded for this implementation:
+
+| Check | Result |
+| --- | --- |
+| Service/domain/API tests | 69 passed |
+| Production build and TypeScript | Passed; existing large-chunk warning remains |
+| Lint | Passed with existing warnings |
+| Mocked desktop/mobile browser flow | Passed: clarification, client isolation, evidence, shared task edits, List/Kanban, separate agendas, reload, date answers, cancellation, invalid/unsupported output, collection updates, pins, and layout reset |
+| Live configured Groq flow | Passed: ambiguous request → Northstar selection → AI composition → scoped records → agenda save/reload |
+
+This verifies the meeting milestone, not the full three-task PS 4 demonstration.
+
+See [PLAN.md](./PLAN.md) for the roadmap and [services documentation](./client/src/services/README.md) for factory interfaces and local storage behavior.

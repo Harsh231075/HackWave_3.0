@@ -1,3 +1,4 @@
+import { adaptiveEndpoint } from './adaptive.ts'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +9,8 @@ const root = fileURLToPath(new URL('../dist', import.meta.url))
 const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }
 createServer(async (req, res) => {
   const path = new URL(req.url ?? '/', 'http://localhost').pathname
+  if (path === '/api/intent') return adaptiveEndpoint('intent', req, res)
+  if (path === '/api/workspace/compose') return adaptiveEndpoint('compose', req, res)
   if (path === '/api/generate') return chat(req, res)
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return }
   try {
