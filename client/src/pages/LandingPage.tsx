@@ -1,4 +1,4 @@
-import { Link } from 'react-router'
+import { Link } from 'react-router-dom'
 import { ArrowRight, BookOpen, Check, Clock3, Layers, Sparkles, Target } from 'lucide-react'
 import { Brand } from '@/components/shell/AppShell'
 
@@ -141,7 +141,7 @@ export function LandingPage() {
               </div>
 
               <Link
-                to="/app?view=workspace"
+                to="/app/workspace/planning"
                 className="inline-flex items-center justify-center gap-2 pt-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
               >
                 See how the canvas adapts to goals <ArrowRight size={13} />

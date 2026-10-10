@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link } from 'react-router-dom'
 import { Activity, ArrowUpRight, BookOpen, CalendarDays, CheckCheck, ChevronDown, ChevronsLeft, ChevronsRight, Clock3, Command, LayoutDashboard, LayoutGrid, Menu, Moon, Search, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'

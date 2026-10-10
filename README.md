@@ -19,11 +19,12 @@ Later, intent resolution and AI planning supply validated configurations to the 
 - [x] React + TypeScript + Vite client initialized.
 - [x] Initial “Coming Soon” landing page and concept documentation present.
 - [x] Local architecture reference inspected; staged roadmap recorded in [PLAN.md](./PLAN.md).
-- [ ] `/app` routing and application shell implemented.
-- [ ] Reusable component library and static workspace previews implemented.
+- [x] `/app` routing and application shell implemented.
+- [x] Reusable component library and static workspace previews implemented.
+- [x] OpenUI packages and productivity rendering adapter integrated.
 - [ ] Backend, persistence, authentication, integrations, and AI implemented.
 
-These checkboxes describe implementation status. The initial client has passed build and lint checks; the planned application has not yet been built.
+The workspace uses OpenUI's `Renderer` with an application-owned `Workspace` root and `WorkspaceWidget` adapters. Presets are validated before serialization to OpenUI Lang; existing widgets keep shared session state and pinned layouts. The library includes OpenUI's built-in chat components and exposes a system-prompt specification for future server integration. Model transport and live intent resolution remain unconnected. Build and lint checks pass, and browser checks cover responsive layouts and task completion across views.
 
 ## Routes and reuse
 
@@ -31,7 +32,7 @@ These checkboxes describe implementation status. The initial client has passed b
 | --- | --- |
 | `/` | Landing page and entry into the workspace |
 | `/app` | Generic dashboard by default; one shared workspace rendering surface |
-| `/app?view=tasks`, `calendar`, `meetings`, `planner`, `priorities`, `insights`, `workspace` | Eight views including the default Overview, inside the same shell |
+| `/app/tasks`, `/app/calendar`, `/app/meetings`, `/app/planner`, `/app/priorities`, `/app/insights`, `/app/workspace/planning` | Eight views including the default Overview, inside the same shell |
 | `/dev/components` | Development-only component/state gallery |
 
 Student, Teacher, and Professional role packs provide context, suggestions, and presets. They are context choices, not separate applications or authorization roles.
@@ -46,7 +47,7 @@ Student, Teacher, and Professional role packs provide context, suggestions, and 
 | Navigation/dates | React Router + date-fns — planned |
 | Transitions | Motion for React with reduced-motion support — planned |
 | Session state | React Context + reducer and selectors — planned |
-| AI rendering | OpenUI adapters evaluated in Stage 3; no AI packages required in Stage 1 |
+| AI rendering | OpenUI Lang Core, React Lang, and React UI installed; productivity adapter renders static presets now |
 | Backend/database | Separate API and persistence selected in Stage 2 |
 
 Keep React + Vite. The reference uses Next.js, but GoGPT does not adopt its framework or travel features.
