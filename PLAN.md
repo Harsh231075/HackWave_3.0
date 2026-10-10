@@ -1,8 +1,8 @@
-# Plan: GoGPT static foundation to adaptive workspace
+# Plan: Orlo static foundation to adaptive workspace
 
 ## Summary and decisions
 
-Build GoGPT with React + TypeScript + Vite and one persistent workspace surface at `/app`. Complete the static frontend using deterministic fixtures and predefined configurations first. Add persisted operations and AI planning later without replacing the component library or renderer.
+Build Orlo with React + TypeScript + Vite and one persistent workspace surface at `/app`. Complete the static frontend using deterministic fixtures and predefined configurations first. Add persisted operations and AI planning later without replacing the component library or renderer.
 
 Generalize through shared entities and Student, Teacher, and Professional role packs. More professions can extend the same engine. The first working slice is generic dashboard → daily planning → overdue recovery, followed by scheduling and preparation examples.
 
@@ -30,7 +30,7 @@ The reference is a travel-oriented chat application. Adapt its separation of com
 
 Reference paths below are relative to `open-intelligent-ui/`.
 
-| Reference module | Observed responsibility | GoGPT adaptation |
+| Reference module | Observed responsibility | Orlo adaptation |
 | --- | --- | --- |
 | `src/lib/library.ts` | `createLibrary` registers built-ins and custom components | `client/src/lib/workspace/registry.ts` registers approved widgets; future `lib/openui/library.ts` exposes adapters |
 | `src/lib/travel/components.tsx` | `defineComponent` connects schemas, descriptions, references, and React rendering | Ordinary typed productivity components first; thin schema adapters later |

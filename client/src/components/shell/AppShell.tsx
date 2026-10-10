@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Sparkles, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useWorkspace } from '@/state/WorkspaceProvider'
+import { OrloLogo } from './OrloLogo'
 import type { View } from '@/lib/workspace/config'
 
-export function Brand() {
-  return <span className="goal-brand"><Sparkles size={20} /> GoGPT</span>
+export function Brand({ logoSize = 26 }: { logoSize?: number }) {
+  return <span className="goal-brand"><OrloLogo size={logoSize} /> Orlo</span>
 }
 
 export function AppShell({ children }: { view: View; onNavigate: (view: View) => void; children: ReactNode }) {

@@ -1,4 +1,4 @@
-# GoGPT — Current Project Status & Next Implementation Stages
+# Orlo — Current Project Status & Next Implementation Stages
 **HackWave 3.0 — Problem Statement 4: Intent-to-Interface (Adaptive AI Workspace)**  
 *Date: October 2026*
 
@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-Traditional productivity tools force users into static dashboards with predefined tabs, navigation trees, and rigid workflows. **GoGPT** reverses this paradigm: **the interface adapts dynamically to the user's natural language intent.**
+Traditional productivity tools force users into static dashboards with predefined tabs, navigation trees, and rigid workflows. **Orlo** reverses this paradigm: **the interface adapts dynamically to the user's natural language intent.**
 
 Instead of clicking through tabs to assemble a workflow, the user states what they need to accomplish. The system interprets the intent, selects the appropriate functional components, injects relevant context, and renders a focused, interactive workspace on demand.
 
@@ -15,7 +15,7 @@ Instead of clicking through tabs to assemble a workflow, the user states what th
 ## 2. Product Niche, Target Users & Supported Tasks
 
 ### A. What Niche Are We Building?
-**GoGPT** is in the **AI-Powered Adaptive Productivity Workspace / Context-Aware Work OS** niche.
+**Orlo** is in the **AI-Powered Adaptive Productivity Workspace / Context-Aware Work OS** niche.
 
 Instead of requiring users to juggle 4–5 disconnected productivity tools (e.g., Notion for notes, Trello/Jira for task tracking, Google Calendar for schedules, Clockify for focus timers):
 * **One Adaptive Canvas:** A unified interface where the tools themselves morph dynamically based on the current goal.
@@ -34,7 +34,7 @@ Instead of requiring users to juggle 4–5 disconnected productivity tools (e.g.
 
 ---
 
-### C. Which Tasks Can Users Perform in GoGPT?
+### C. Which Tasks Can Users Perform in Orlo?
 
 Users perform diverse workflows by simply typing their intention into the workspace:
 
@@ -207,7 +207,7 @@ Here is the exact lifecycle of how user intent translates into an adaptive scree
 
 ## 7. HackWave 3.0 Evaluation Alignment
 
-| Evaluation Criterion | How GoGPT Addresses It |
+| Evaluation Criterion | How Orlo Addresses It |
 |---|---|
 | **Intent Understanding** | Translates ambiguous natural language into structured component blueprints. |
 | **Dynamic Generation** | Composes a tailored interface on the fly from 14 modular components. |

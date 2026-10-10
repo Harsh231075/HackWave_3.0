@@ -19,4 +19,4 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': mime[extension] ?? 'application/octet-stream' })
     res.end(req.method === 'HEAD' ? undefined : data)
   } catch { res.writeHead(500); res.end('Unable to serve the application. Run npm run build first.') }
-}).listen(Number(process.env.PORT ?? 3000), '127.0.0.1', () => console.log(`GoGPT available at http://127.0.0.1:${process.env.PORT ?? 3000}`))
+}).listen(Number(process.env.PORT ?? 3000), '127.0.0.1', () => console.log(`Orlo available at http://127.0.0.1:${process.env.PORT ?? 3000}`))

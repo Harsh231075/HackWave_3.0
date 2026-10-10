@@ -1,13 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { PanelLeftOpen, Sparkles } from 'lucide-react'
-import { ThemeProvider } from '@openuidev/react-ui'
-import { Button } from '@/components/ui/button'
+import { defaultLightTheme, ThemeProvider } from '@openuidev/react-ui'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { SidebarToggleButton } from './SidebarToggleButton'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { PageHeader } from './PageHeader'
+import { PageHeaderContext } from './pageHeaderContext'
+
+const fontTheme = {
+  // OpenUI text tokens embed their font family in font shorthands.
+  ...Object.fromEntries(Object.entries(defaultLightTheme)
+    .filter(([key, value]) => key.startsWith('text') && typeof value === 'string' && (value.includes(defaultLightTheme.fontBody!) || value.includes(defaultLightTheme.fontCode!)))
+    .map(([key, value]) => [key, (value as string).replace(defaultLightTheme.fontBody!, 'Figtree, sans-serif').replace(defaultLightTheme.fontCode!, 'Figtree, sans-serif')])),
+  fontBody: 'Figtree, sans-serif',
+  fontHeading: 'Figtree, sans-serif',
+  fontLabel: 'Figtree, sans-serif',
+  fontNumbers: 'Figtree, sans-serif',
+  fontCode: 'Figtree, sans-serif',
+}
 
 export function WorkspaceLayout() {
   const [headerActions, setHeaderActions] = useState<HTMLDivElement | null>(null)
+  const [activeSlots, setActiveSlots] = useState<Set<string>>(() => new Set())
+  const register = useCallback((id: string) => {
+    setActiveSlots(slots => new Set(slots).add(id))
+    return () => setActiveSlots(slots => {
+      const next = new Set(slots)
+      next.delete(id)
+      return next
+    })
+  }, [])
+  const headerSlot = useMemo(() => ({ target: headerActions, register }), [headerActions, register])
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => {
@@ -17,9 +40,12 @@ export function WorkspaceLayout() {
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  return <ThemeProvider mode="light"><div className="goal-workspace workspace-with-sidebar">
+  return <ThemeProvider mode="light" lightTheme={fontTheme}><div className="goal-workspace workspace-with-sidebar">
     {sidebarOpen && !mobile && <aside id="workspace-sidebar" className="workspace-sidebar"><WorkspaceSidebar onClose={() => setSidebarOpen(false)} /></aside>}
-    {mobile && <Dialog open={sidebarOpen} onOpenChange={setSidebarOpen}><DialogContent id="workspace-sidebar" className="workspace-sidebar-drawer" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Workspace navigation</DialogTitle><DialogDescription className="sr-only">Navigate between workspace pages.</DialogDescription></DialogHeader><WorkspaceSidebar onClose={() => setSidebarOpen(false)} /></DialogContent></Dialog>}
-    <div className="workspace-main-panel"><header className="canvas-header"><Button variant="ghost" size="icon" aria-label={sidebarOpen ? 'Hide sidebar' : 'Open sidebar'} aria-expanded={sidebarOpen} aria-controls="workspace-sidebar" onClick={() => setSidebarOpen(value => !value)}><PanelLeftOpen size={20} /></Button><span className="goal-brand"><Sparkles size={20} /> GoGPT</span><div ref={setHeaderActions} className="ml-auto flex items-center gap-2" /></header><Outlet context={{ headerActions }} /></div>
+    {mobile && <Dialog open={sidebarOpen} onOpenChange={setSidebarOpen}><DialogContent id="workspace-sidebar" className="workspace-sidebar-drawer" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Workspace navigation</DialogTitle><DialogDescription className="sr-only">Navigate between workspace pages.</DialogDescription></DialogHeader><WorkspaceSidebar mobile onClose={() => setSidebarOpen(false)} /></DialogContent></Dialog>}
+    <div className="workspace-main-panel"><PageHeader visible={mobile || !sidebarOpen || activeSlots.size > 0}
+      left={(mobile || !sidebarOpen) && <SidebarToggleButton branded open={sidebarOpen} mobile={mobile} onClick={() => setSidebarOpen(true)} />}
+      right={<div ref={setHeaderActions} className="flex flex-wrap items-center justify-end gap-2" />}
+    /><PageHeaderContext.Provider value={headerSlot}><Outlet /></PageHeaderContext.Provider></div>
   </div></ThemeProvider>
 }

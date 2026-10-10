@@ -1,10 +1,10 @@
-# GoGPT — Adaptive Productivity Workspace
+# Orlo — Adaptive Productivity Workspace
 
 HackWave 3.0 · PS 4: Human-Centered AI / Intent-to-Interface
 
-**Describe your goal. GoGPT arranges the relevant information, editable tools, and next actions around it.**
+**Describe your goal. Orlo arranges the relevant information, editable tools, and next actions around it.**
 
-GoGPT is a generalized workspace organized around goals and projects. It uses one reusable component library and one workspace surface at **`/app`**. Eventually, changing goals will change the composition while preserving drafts, context, filters, and pinned components.
+Orlo is a generalized workspace organized around goals and projects. It uses one reusable component library and one workspace surface at **`/app`**. Eventually, changing goals will change the composition while preserving drafts, context, filters, and pinned components.
 
 ## What we build first
 
@@ -51,7 +51,7 @@ There are no profession modes or role partitions. Tasks, events, resources, filt
 | AI rendering | OpenUI component library + server-side OpenAI Responses generation |
 | Backend/database | Separate API and persistence selected in Stage 2 |
 
-Keep React + Vite. The reference uses Next.js, but GoGPT does not adopt its framework or travel features.
+Keep React + Vite. The reference uses Next.js, but Orlo does not adopt its framework or travel features.
 
 ## Stages and checklist
 
@@ -139,6 +139,6 @@ npm run preview
 - [PLAN.md](./PLAN.md) — architecture, ordered steps, checklists, acceptance criteria, and risks.
 - [PROJECT_UNDERSTANDING.md](./PROJECT_UNDERSTANDING.md) — original problem analysis.
 - [PHASE_1_IMPLEMENTATION_PLAN.md](./PHASE_1_IMPLEMENTATION_PLAN.md) — earlier UI inventory; PLAN.md takes precedence where scope, routing, state, or sequencing differs.
-- [Open Intelligent UI](https://github.com/thesysdev/open-intelligent-ui) — architecture reference, available locally as `open-intelligent-ui/`; not the GoGPT runtime.
+- [Open Intelligent UI](https://github.com/thesysdev/open-intelligent-ui) — architecture reference, available locally as `open-intelligent-ui/`; not the Orlo runtime.
 
 Team Harsh231075 · HackWave 3.0
