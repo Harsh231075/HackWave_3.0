@@ -3,17 +3,37 @@
 @import "@openuidev/react-ui/layered/styles/index.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('/fonts/Figtree/Figtree-VariableFont_wght.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('/fonts/Figtree/Figtree-Italic-VariableFont_wght.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 300 900;
+  font-display: swap;
+}
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-heading: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 :root {
+  --openui-font-body: 'Figtree', sans-serif;
+  --openui-font-heading: 'Figtree', sans-serif;
+  --openui-font-label: 'Figtree', sans-serif;
+  --openui-font-numbers: 'Figtree', sans-serif;
+  --openui-font-code: 'Figtree', sans-serif;
   --background: #ffffff;
   --foreground: #252936;
   --card: #ffffff;
@@ -94,6 +114,8 @@
     padding: 0;
   }
 
+  html { font-family: var(--font-sans); }
+
   body {
     font-family: var(--font-sans);
     background-color: var(--background);
@@ -138,7 +160,7 @@
 }
 .goal-workspace { min-height: 100dvh; background: #ffffff; color: #252936; }
 .goal-welcome { max-width: 760px; min-height: 100dvh; margin: auto; padding: 24px; display: flex; flex-direction: column; justify-content: center; }
-.goal-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.5px; }
+.goal-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 22px; line-height: 1.2; font-weight: 650; letter-spacing: -.5px; }
 .goal-brand svg { color: #7059c9; }
 .goal-welcome > .goal-brand { margin-bottom: 40px; font-size: 22px; }
 .goal-welcome h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; letter-spacing: -1.5px; max-width: 650px; }
@@ -152,14 +174,14 @@
 .goal-error { color: #bb423e; font-size: 13px; margin-top: 12px; }
 .goal-progress { color: #717787; font-size: 13px; display: flex; justify-content: space-between; margin-top: 12px; }
 .goal-progress button { text-decoration: underline; }
-.canvas-header { display: flex; gap: 24px; align-items: center; padding: 20px 32px; border-bottom: 1px solid #e4e6ec; background: white; }
+.canvas-header { min-height: 72px; display: flex; gap: 24px; align-items: center; padding: 20px 32px; border-bottom: 1px solid #e4e6ec; background: white; }
 .canvas-goal { flex: 1; min-width: 0; font-size: 13px; color: #717787; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-trigger { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #e4e6ec; border-radius: 8px; font-size: 11px; color: #717787; }
 .generated-canvas { padding: 32px; max-width: 1440px; margin: auto; outline: none; }
 .goal-command-dialog { top: 14vh; translate: 0 0; transform: translateX(-50%); max-width: min(720px, calc(100vw - 32px)); padding: 12px; border-radius: 20px; background: #ffffffed; backdrop-filter: blur(24px); box-shadow: 0 24px 100px #141a3433; }
 .goal-command-dialog .goal-input-row { border: 0; box-shadow: none; background: transparent; }
 .command-hint { display: flex; justify-content: space-between; border-top: 1px solid #e4e6ec; padding: 10px 16px 2px; color: #858a98; font-size: 11px; }
-@media (max-width: 640px) { .canvas-header { padding: 16px; gap: 12px; }.generated-canvas { padding: 20px 16px; }.canvas-goal { display: none; }.command-trigger { margin-left: auto; }.goal-input-row { gap: 10px; padding: 12px; }.goal-input-row input { font-size: 13px; } }
+@media (max-width: 640px) { .canvas-header { min-height: 64px; padding: 16px; gap: 12px; }.generated-canvas { padding: 20px 16px; }.canvas-goal { display: none; }.command-trigger { margin-left: auto; }.goal-input-row { gap: 10px; padding: 12px; }.goal-input-row input { font-size: 13px; } }
 .workspace-with-sidebar { display: flex; }
 .workspace-main-panel { flex: 1; min-width: 0; }
 .workspace-sidebar { flex: 0 0 260px; width: 260px; position: sticky; top: 0; height: 100dvh; background: #f0f1f5; border-right: 1px solid #e4e6ec; }
@@ -202,6 +224,7 @@
 .minimal-page-actions select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 12px; }
 .minimal-about { min-height: calc(100dvh - 81px); max-width: 720px; margin: auto; padding: 32px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
 .minimal-about h1 { font-size: 36px; font-weight: 600; letter-spacing: -1px; }
+.minimal-about .goal-brand { font-size: inherit; }
 .minimal-about p { color: var(--muted-foreground); margin: 16px 0 28px; }
 .minimal-about a { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
 

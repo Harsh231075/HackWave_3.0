@@ -2,13 +2,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useOutletContext } from 'react-router-dom'
 import { createParser, Renderer } from '@openuidev/react-lang'
-import { ArrowUp, Command, LoaderCircle, MoreHorizontal, RotateCcw, Sparkles, X } from 'lucide-react'
+import { ArrowUp, Command, LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react'
 import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
 import { clearLayout, readLayout, saveLayout } from '@/lib/workspace/layoutPersistence'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { PRESETS } from '@/lib/workspace/config'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { DEMO_DATE } from '@/data/demo'
+import { OrloLogo } from '@/components/shell/OrloLogo'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -95,7 +96,7 @@ export function DynamicWorkspace() {
     } finally { if (request.current === controller) { request.current = null; setPending(false) } }
   }
   const form = () => <form onSubmit={generate} className="goal-form">
-    <div className="goal-input-row"><Sparkles size={20} aria-hidden="true" /><label htmlFor={'command-goal'} className="sr-only">Describe the workspace you need</label><input id={'command-goal'} autoFocus value={goal} onChange={event => setGoal(event.target.value)} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div>
+    <div className="goal-input-row"><OrloLogo size={20} /><label htmlFor={'command-goal'} className="sr-only">Describe the workspace you need</label><input id={'command-goal'} autoFocus value={goal} onChange={event => setGoal(event.target.value)} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div>
     {pending && <div className="goal-progress" role="status">Building your workspace… <button type="button" onClick={cancelRequest}>Cancel</button></div>}
     {error && <p className="goal-error" role="alert">{error}</p>}
   </form>
