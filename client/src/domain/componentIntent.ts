@@ -62,6 +62,7 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if (result.data.action === 'manage') {
     if (recordMutationGoal(input.goal)) return reject('Record mutation is not a workspace layout operation.',['operations'])
     if(result.data.operations.some(op=>op.type==='clear')&&!authorizesClear(input.goal))return reject('Clearing the workspace was not explicitly authorized.',['operations'])
+    if (result.data.operations.some(op=>['keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return reject('Component removal was not explicitly authorized.',['operations'])
     const named=namedWidgets(input.goal)
     for(const op of result.data.operations){if(op.type==='remove'||op.type==='replace'||op.type==='keep'){const targets=op.widgets.map(id=>input.instances?.find(w=>w.instanceId===id)?.widgetType??id);if(named.length&&targets.some(id=>!named.includes(id as typeof widgetTypes[number])))return reject('Removal targets do not match the requested components.',['operations'])}}
     const allowed = new Set<string>([...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
@@ -69,7 +70,6 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
       const targets = op.type === 'clear' || op.type === 'add' ? [] : op.type === 'move' ? [op.widget, ...(op.relativeTo ? [op.relativeTo] : [])] : op.type === 'resize' ? [op.widget] : op.widgets
       if (targets.some(target => !allowed.has(target))) return reject('The model referenced an unknown component or instance.',['operations'])
     }
-    if (result.data.operations.some(op=>['clear','keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return reject('Component removal was not explicitly authorized.',['operations'])
     return result
   }
   if (result.data.action !== 'view') return result
@@ -147,6 +147,9 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   const management=localManagement(input.goal);if(management && !(management.operations.length===1 && management.operations[0].type==='add' && management.operations[0].widgets.length===1 && isExtension(management.operations[0].widgets[0])))return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
+  if (/\b(?:send|share)\b/.test(text) && /\btime\b/.test(text) && !/\b(?:emails?|mails?|gmail|meetings?|appointments?|calendar|availability|slots?|schedule|timer|pomodoro|voice|audio|notes?|resources?|documents?|tasks?)\b/.test(text)) {
+    return {action:'clarify',question:'Do you want to compose an email, show available meeting times, or schedule a meeting?',choices:[...(input.enabledExtensions?.includes('mail')?['Compose an email']:[]),'Show my availability','Schedule a meeting']}
+  }
   if (/\b(gmail|inbox|mails?|emails?|sent mail|drafts)\b/.test(text) && !/\b(communications|linked|project messages)\b/.test(text)) {
     const composing = /\b(write|compose|send|reply|forward|new email|new mail)\b/.test(text)
     const folder = /\bsent\b/.test(text) ? 'Sent' : /\bdrafts?\b/.test(text) ? 'Drafts' : /\btrash\b/.test(text) ? 'Trash' : /\ball (?:mails?|emails?)\b/.test(text) ? 'All Mail' : 'Inbox'

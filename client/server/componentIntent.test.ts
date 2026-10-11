@@ -8,6 +8,35 @@ import { widgetTypes } from '../src/lib/workspace/config.ts'
 import { componentIntentEndpoint } from './components.ts'
 import type { Task, Event } from '../src/domain/types.ts'
 const input: ComponentRequest={goal:'Show tasks',referenceDate:'2026-10-12',timezone:'Asia/Kolkata',catalog:{owners:['Alex','Maya'],draftKeys:['outline'],topics:['Statistics']}}
+test('ambiguous sharing of time clarifies without removing workspace components',()=>{
+ const goal='I want to send time is some person so please render a component'
+ for(const enabledExtensions of [[],['mail']] as const){
+  const request:ComponentRequest={...input,goal,enabledExtensions:[...enabledExtensions],workspaceWidgets:['tasks','meetings']}
+  const result=fallbackComponentIntent(request)
+  assert.equal(result.action,'clarify')
+  if(result.action==='clarify'){
+   assert.match(result.question,/email.*meeting times.*schedule/)
+   assert.equal(result.choices.includes('Compose an email'),enabledExtensions.length>0)
+  }
+  for(const operation of [{type:'remove',widgets:['tasks']},{type:'keep',widgets:['meetings']},{type:'replace',widgets:['tasks'],with:['meetings']},{type:'clear'}]){
+   const validated=validateComponentResolution({action:'manage',operations:[operation],reply:'Updated'},request)
+   assert.equal(validated.success,false)
+   if(!validated.success)assert.match(validated.error.issues[0].message,/not explicitly authorized/)
+  }
+ }
+})
+test('explicit email and availability requests retain their intended component',()=>{
+ const email=fallbackComponentIntent({...input,goal:'Send my meeting time by email',enabledExtensions:['mail']})
+ assert.equal(email.action,'view')
+ if(email.action==='view')assert.deepEqual(email.widgets,['mail-compose'])
+ const availability=fallbackComponentIntent({...input,goal:'Show available meeting times'})
+ assert.notEqual(availability.action,'clarify')
+})
+test('unauthorized removal reports authorization before target mismatch',()=>{
+ const result=validateComponentResolution({action:'manage',operations:[{type:'remove',widgets:['tasks']}],reply:'Updated'},{...input,goal:'Show my meetings'})
+ assert.equal(result.success,false)
+ if(!result.success)assert.equal(result.error.issues[0].message,'Component removal was not explicitly authorized.')
+})
 function view(goal:string,previous?:ComponentView){const result=fallbackComponentIntent({...input,goal,previous});assert.equal(result.action,'view',goal);return result as ComponentView}
 const cases: Array<[string,string]>=[['What’s left to do?','tasks'],['Show my calendar','calendar'],['My appointments today','meetings'],['Daily timeline','timeline'],['Find free slots tomorrow','availability'],['Suggest my next step','recommendation'],['Show my draft notes','outline'],['Open Statistics resources','resources'],['Create a new resource','resource-create'],['Project background for Northstar','context'],['Statistics summary','metrics'],['How productive was I?','chart'],['Recent changes','activity'],['Show session usage','usage'],['Show messages','communications'],['Show open issues','issues']]
 for(const [prompt,widget] of cases)test(`natural wording selects ${widget}: ${prompt}`,()=>assert.ok(view(prompt).widgets.includes(widget as typeof widgetTypes[number])))
