@@ -13,6 +13,7 @@ export function instancesFromLayout(value: unknown, id: () => string = () => cry
   const binding: WidgetBinding = meeting.success ? { kind: 'meeting', meetingId: meeting.data.meetingId, clientId: meeting.data.intent.clientId!, projectId: meeting.data.intent.projectId! } : usage.success ? { kind: 'usage', intent: usage.data.intent } : { kind: 'overdue', intent: overdue.data!.intent, referenceDate: overdue.data!.referenceDate }
   return layout.composition.widgets.map((widget, index) => ({ ...makeInstance(widget.type, binding, { taskFilters: overdue.success ? overdue.data.filters : meeting.success ? meeting.data.taskFilters : usage.data!.taskFilters }, id()), span: widget.span, ...(index === 0 && layout.composition.actions ? { actions: layout.composition.actions } : {}), explanation: { type: widget.type, reason: widget.reason, evidence: widget.evidence }, fingerprint: usage.success ? usage.data.snapshotFingerprint : '' }))
 }
+const initializedDatabases=new WeakSet<BrowserDatabase>()
 export function createWorkspaceDocumentService(database: BrowserDatabase) {
   const load = (): LoadResult<WorkspaceDocument> => {
     const loaded = database.readCollection(workspaceCollectionKey)
@@ -26,11 +27,16 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
   }
   let initial: { document: WorkspaceDocument; notice: string; persistence: SaveResult } | undefined
   function initialize(): { document: WorkspaceDocument; notice: string; persistence: SaveResult } {
+    const firstLoad=!initializedDatabases.has(database)
+    initializedDatabases.add(database)
     const existing = load()
     if (initial && existing.status === 'missing') return initial
     if (existing.status === 'found') {
+      // Route remounts preserve live requests; fresh loads retain resumable clarifications.
+      const interrupted = firstLoad && existing.value.turns.some(turn => turn.status === 'pending' || (turn.status === 'clarification' && !existing.value.continuation?.pending))
+      if (!interrupted) return { document: existing.value, notice: '', persistence: database.getPersistenceResult() }
       const document = { ...existing.value, turns: existing.value.turns.map(turn => turn.status === 'pending' ? { ...turn, status: 'cancelled' as const, reply: 'This request was interrupted. Send it again to continue.' } : turn.status === 'clarification' && !existing.value.continuation?.pending ? { ...turn, status: 'cancelled' as const, reply: 'This question was interrupted. Send it again to continue.' } : turn) }
-      return { document, notice: '', persistence: { status: 'saved' } }
+      return { document, notice: '', persistence: save(document) }
     }
     let document = emptyWorkspace(), skipped = 0
     if (existing.status === 'invalid') return { document, notice: 'Saved workspace is invalid and has been preserved. Reset the workspace to start again.', persistence: { status: 'invalid' } }
