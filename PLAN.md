@@ -500,3 +500,14 @@ Service/domain/API tests, TypeScript/build, render smoke checks, shared-record b
 - [ ] Complete the comprehensive keyboard/screen-reader/responsive accessibility audit.
 - [ ] Verify real microphone and mobile/Safari recording permissions/playback.
 - [ ] Add backend authenticated user ownership and cloud storage only when backend work starts; no multi-user capability is claimed by local storage.
+
+## Numbered widget versions and spatial layout
+
+- [x] Declare numbered versions with minimum/preferred/maximum widths, minimum/preferred heights and content scrolling rules in a shared catalog. Keep Timer and Calculator to one useful presentation each.
+- [x] Send the AI available versions, effective view constraints, measured canvas dimensions, rendered bounds and current rows. Validate unsupported versions and ambiguous targets before applying changes.
+- [x] Support explicit versions, smaller/larger, top/bottom, left/right and placement relative to another widget. Apply batches atomically; allow pinned views to move.
+- [x] Fit logical rows into the existing 12-column grid, cap small tools, wrap narrow screens and recompute on sidebar/viewport changes without generating again.
+- [x] Persist versions and logical rows, normalize older span-only layouts and preserve surviving positions during pin/unpin/removal. Keep record selection independent of presentation.
+- [x] Preserve stable component identity, task/calendar modes, filters, drafts and running timers during layout changes. Allow content growth for forms and bound scrolling for information widgets.
+- [x] Allow imported extension manifests to declare validated layout versions; otherwise use one default presentation.
+- [ ] Verify a real model provider against paraphrased size and relative-placement requests. Local fallback/browser tests do not prove live model reliability.

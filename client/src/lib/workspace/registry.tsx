@@ -1,3 +1,4 @@
+import { widgetLayoutCatalog, type LayoutVariant } from '@/domain/widgetLayout'
 import { MailInboxWidget, MailMessageWidget, MailComposeWidget } from '@/extensions/mail/MailWidgets'
 import { Calculator } from '@/extensions/calculator/Calculator'
 import { ExternalPlugin } from '@/extensions/external/ExternalPlugin'
@@ -17,8 +18,8 @@ import { Metrics, ProductivityChart, UsageExplorer } from '@/components/insights
 import { RecentActivity, RecommendationCard } from '@/components/feedback/RecommendationCard'
 import { widgetTypes, type WidgetType } from './config'
 
-export type WidgetDefinition = { title: string; reason: string; icon: typeof ListTodo; component: ComponentType; supportedBindings: readonly WidgetBinding['kind'][]; supportedActions: readonly WorkspaceAction['type'][] }
-const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings' | 'supportedActions'>> = {
+export type WidgetDefinition = { layoutVariants: LayoutVariant[]; title: string; reason: string; icon: typeof ListTodo; component: ComponentType; supportedBindings: readonly WidgetBinding['kind'][]; supportedActions: readonly WorkspaceAction['type'][] }
+const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings' | 'supportedActions' | 'layoutVariants'>> = {
   'mail-inbox': { title: 'Mail inbox', reason: 'Browse Gmail messages and folders. Requires user authorization; account-scoped.', icon: FileText, component: MailInboxWidget },
   'mail-message': { title: 'Mail message', reason: 'Read the selected Gmail message. Email contents are not available to the model.', icon: FileText, component: MailMessageWidget },
   'mail-compose': { title: 'Compose mail', reason: 'User-controlled Gmail composer. Commands never send mail.', icon: FileText, component: MailComposeWidget },
@@ -44,7 +45,7 @@ const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings'
   activity: { title: 'Activity', reason: 'Local edits appear here to make changes understandable. Recorded local actions include timestamps; this is not a notification service.', icon: Activity, component: RecentActivity },
   usage: { title: 'Usage', reason: 'Usage measurements and releases come from browserDatabase and are filtered by client, project, dates and segment. Comparisons are calculated from selected records; missing data is not zero and release timing does not establish causation.', icon: BarChart3, component: UsageExplorer },
 }
-export const registry = Object.fromEntries(widgetTypes.map(type => [type, { ...definitions[type], supportedActions: type === 'tasks' || type === 'recommendation' ? ['task.edit', 'focus.schedule'] : type === 'outline' ? ['draft.edit'] : [], supportedBindings: widgetBindingKinds.filter(kind => supportsBinding(type, kind)) }])) as unknown as Record<WidgetType, WidgetDefinition>
+export const registry = Object.fromEntries(widgetTypes.map(type => [type, { ...definitions[type], layoutVariants: widgetLayoutCatalog[type], supportedActions: type === 'tasks' || type === 'recommendation' ? ['task.edit', 'focus.schedule'] : type === 'outline' ? ['draft.edit'] : [], supportedBindings: widgetBindingKinds.filter(kind => supportsBinding(type, kind)) }])) as unknown as Record<WidgetType, WidgetDefinition>
 export function widgetTitle(id: WidgetType) { return registry[id].title }
 
 export function activeRegistry() { return Object.fromEntries(Object.entries(registry).filter(([id]) => extensionService.isWidgetEnabled(id))) }

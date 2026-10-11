@@ -1,10 +1,13 @@
+import { arrangeWidgetRows, type ArrangedCell } from '@/domain/widgetLayout'
+import { WidgetPresentationContext } from './WidgetPresentation'
+import { measureCanvas } from './canvasMetrics'
 import { MailBoundWidget } from '@/extensions/mail/MailWidgets'
 import { DisabledExtension } from '@/extensions/DisabledExtension'
 import { isExtension } from '@/extensions/catalog'
 import { extensionService, pluginImportService } from '@/services'
 import { motion, useReducedMotion } from 'motion/react'
 import { GeneratedActionButtons } from './GeneratedActionButtons'
-import { useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useContext, useMemo, useSyncExternalStore, useRef, useState, useEffect, type ReactNode } from 'react'
 import { browserDatabase, workspaceActionService } from '@/services'
 import { createRecordStore } from '@/services/preparationStore'
 import { loadPinnedRecords } from '@/services/pinnedRecords'
@@ -70,7 +73,7 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   }}><DisplayPreferencesContext.Provider value={{ preferences: { taskView: view.taskView ?? preferences.taskView, calendarView: view.calendarView ?? preferences.calendarView, calendarCategory: view.calendarCategory ?? preferences.calendarCategory }, update: patch => update(patch) }}><ComponentViewProvider plan={plan} onChange={change}>{scoped}</ComponentViewProvider></DisplayPreferencesContext.Provider></WorkspaceViewProvider></UnscopedWidget>
 }
 
-function InstanceCard({ instance, update, remove, pageActions = false }: { remove?:(id:string)=>void; pageActions?: boolean; instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+function InstanceCard({ instance, update, remove, pageActions = false, cell }: { cell?: ArrangedCell; remove?:(id:string)=>void; pageActions?: boolean; instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
   useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getRevision, browserDatabase.getRevision)
   const calendar = useGoogleCalendar()
   const reducedMotion = useReducedMotion()
@@ -82,12 +85,33 @@ function InstanceCard({ instance, update, remove, pageActions = false }: { remov
   if (instance.binding.kind === 'google-calendar') content = calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId ? <GoogleBoundWidget instance={instance} update={update} /> : <div className="space-y-3"><p>This view belongs to its original Google account. Connect that account to continue.</p><GoogleCalendarConnection /></div>
   if (records.status !== 'found' || !loadActionScope(browserDatabase, instance.binding)) content = <p role="alert">This view’s original records are unavailable. Restore them or remove this view.</p>
   if (isExtension(instance.widgetType) && (!extensionService.isWidgetEnabled(instance.widgetType) || instance.widgetType==='external-plugin' && !!instance.viewState.externalPluginId && !pluginImportService.getById(instance.viewState.externalPluginId)?.enabled)) content = <DisabledExtension id={instance.widgetType} remove={remove?()=>remove(instance.instanceId):undefined} />
-  return <motion.div layout={reducedMotion ? false : 'position'} transition={{ layout: { duration: 0.3, ease: 'easeOut' } }} className={`workspace-cell span-${instance.span} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300`} data-workspace-component={instance.widgetType} data-instance-id={instance.instanceId}>
+  return <motion.div layout={reducedMotion ? false : 'position'} transition={{ layout: { duration: 0.3, ease: 'easeOut' } }} style={cell ? { gridRow: cell.row, gridColumn: `${cell.column} / span ${cell.columns}`, width: '100%', maxWidth: cell.variant.maxWidth, containerType: 'inline-size' } : undefined} className={`workspace-cell ${cell ? 'adaptive-widget-cell' : 'span-' + instance.span} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300`} data-workspace-component={instance.widgetType} data-instance-id={instance.instanceId} data-layout-version={cell?.variant.version}>
+    <WidgetPresentationContext.Provider value={cell ? { variant: cell.variant, width: cell.width } : null}>
     <InstanceHost instance={instance} update={patch => update({ ...instance, viewState: { ...instance.viewState, ...patch } })}>
       <WidgetFrame id={instance.widgetType} pageActions={pageActions} instance={instance} recordsChanged={records.status === 'found' && !!instance.fingerprint && records.value.fingerprint !== instance.fingerprint}>{content}{extensionService.isWidgetEnabled(instance.widgetType) && instance.actions && (instance.binding.kind !== 'google-calendar' || calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId) && <GeneratedActionButtons buttons={instance.actions} />}</WidgetFrame>
     </InstanceHost>
+    </WidgetPresentationContext.Provider>
   </motion.div>
 }
-export function InstanceCanvas({ instances, update, remove, pageActionWidget }: { remove?:(id:string)=>void; pageActionWidget?: WidgetType; instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
-  return <div className="workspace-grid">{instances.map(instance => <InstanceCard key={instance.instanceId} instance={instance} update={update} remove={remove} pageActions={instance.widgetType === pageActionWidget} />)}</div>
+export function InstanceCanvas({ instances, update, remove, pageActionWidget, rows, adaptive = false }: { rows?: string[][]; adaptive?: boolean; remove?:(id:string)=>void; pageActionWidget?: WidgetType; instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+  const grid = useRef<HTMLDivElement>(null)
+  const [metrics, setMetrics] = useState(() => ({ width: 0, height: 0, gap: 24, allowVerticalScroll: true as const }))
+  useEffect(() => {
+    if (!adaptive || !grid.current) return
+    const measure = () => {
+      const next = measureCanvas(grid.current)
+      setMetrics(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(grid.current)
+    window.addEventListener('resize', measure)
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
+  }, [adaptive])
+  const display = useDisplayPreferences()
+  const effective = instances.map(i => ({...i,viewState:{...i.viewState,taskView:i.viewState.taskView??display.taskView,calendarView:i.viewState.calendarView??display.calendarView}}))
+  const cells = adaptive ? arrangeWidgetRows(effective, rows, metrics) : []
+  const byId = new Map(instances.map(instance => [instance.instanceId, instance]))
+  const ordered = adaptive ? cells.map(cell => byId.get(cell.instanceId)!) : instances
+  return <div ref={grid} className={`workspace-grid ${adaptive ? 'adaptive-workspace-grid' : ''}`}>{ordered.map(instance => <InstanceCard key={instance.instanceId} instance={instance} cell={cells.find(cell => cell.instanceId === instance.instanceId)} update={update} remove={remove} pageActions={instance.widgetType === pageActionWidget} />)}</div>
 }

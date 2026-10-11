@@ -10,7 +10,7 @@ export function useWorkspaceDocument() {
   return {
     document: snapshot.document, current, notice: snapshot.notice,
     setNotice: store.setNotice,
-    save: (next: typeof snapshot.document, remember = true) => { if (!store.save(next, remember)) return false; current.current = next; return true },
+    save: (next: typeof snapshot.document, remember = true) => { if (!store.save(next, remember)) return false; current.current = store.getSnapshot().document; return true },
     interrupt: store.interrupt, canUndo: !!snapshot.undo.length, undo: store.undo, clearUndo: store.clearUndo,
   }
 }

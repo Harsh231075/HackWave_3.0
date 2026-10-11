@@ -19,8 +19,8 @@ function nodes(response: string, library: Library, root: Root) {
   visit(parsed.root)
   return found
 }
-export function extractActiveWidgets(response: string, library: Library, root: Root): Array<{ id: WidgetType; span: WidgetInstance['span'] }> {
-  return nodes(response, library, root).flatMap(node => node.typeName === 'WorkspaceWidget' && widgetTypes.includes(node.props.id as WidgetType) && ['wide', 'narrow', 'full'].includes(String(node.props.span)) ? [{ id: node.props.id as WidgetType, span: node.props.span as WidgetInstance['span'] }] : [])
+export function extractActiveWidgets(response: string, library: Library, root: Root): Array<{ id: WidgetType; span: WidgetInstance['span']; layoutVersion?: number }> {
+  return nodes(response, library, root).flatMap(node => node.typeName === 'WorkspaceWidget' && widgetTypes.includes(node.props.id as WidgetType) && ['wide', 'narrow', 'full'].includes(String(node.props.span)) ? [{ id: node.props.id as WidgetType, span: node.props.span as WidgetInstance['span'], ...(node.props.version !== undefined ? {layoutVersion:Number(node.props.version)} : {}) }] : [])
 }
 export function extractGeneratedActions(response: string, library: Library, root: Root): z.infer<typeof workspaceActionButtonSchema>[] {
   return nodes(response, library, root).flatMap(node => { const parsed = node.typeName === 'WorkspaceAction' ? workspaceActionButtonSchema.safeParse(node.props) : null; return parsed?.success ? [parsed.data] : [] }).slice(0, 4)

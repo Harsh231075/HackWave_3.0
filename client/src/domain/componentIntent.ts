@@ -1,3 +1,4 @@
+import { canvasMetricsSchema, layoutVariantSchema, supportedLayoutVariants, widgetLayoutCatalog } from './widgetLayout.ts'
 import { isMailWidget, mailFolders } from './mail.ts'
 import { requestsRemovedScope } from './intent.ts'
 import { extensionIds } from '../extensions/contracts.ts'
@@ -23,6 +24,7 @@ export const viewBindingsSchema = z.strictObject({
   recordQuery: z.string().max(160).optional(),   draftKey: z.string().optional(),
 })
 export const componentViewSchema = z.object({
+  layoutVersions: z.record(z.string(), z.number().int().positive()).optional(),
   action: z.literal('view'), widgets: z.array(z.enum(widgetTypes)).min(1).max(widgetTypes.length), bindings: viewBindingsSchema,
   reply: z.string().min(1).max(1000), referenceDate: z.iso.date(), timezone: z.string(), source: z.enum(['ai','local']).optional(), continuation: continuationChangeSchema.optional(),
 }).superRefine((view, ctx) => {
@@ -37,9 +39,9 @@ export const componentResolutionSchema = z.discriminatedUnion('action', [compone
   z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),continuation:continuationChangeSchema.optional(),source:z.enum(['ai','local']).optional() }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
-export const componentRequestSchema = z.object({ enabledExtensions:z.array(z.enum(extensionIds)).default([]),  goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
-  instances:z.array(z.object({pinned:z.boolean().optional(),instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
-  catalog:z.object({ externalPlugins:z.array(z.object({id:z.string(),name:z.string(),description:z.string()})).max(10).optional(), tasks:z.array(z.object({id:z.string(),title:z.string()})).default([]), owners:z.array(z.string()).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
+export const componentRequestSchema = z.object({ canvas: canvasMetricsSchema.optional(), rows: z.array(z.array(z.string())).max(14).optional(), revision: z.number().int().nonnegative().optional(), renderedLayout:z.array(z.object({instanceId:z.string(),width:z.number().nonnegative().max(20000),height:z.number().nonnegative().max(20000),row:z.number().int().positive(),column:z.number().int().positive()})).max(14).optional(), enabledExtensions:z.array(z.enum(extensionIds)).default([]),  goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
+  instances:z.array(z.object({externalLayoutVariants:z.array(layoutVariantSchema).max(8).optional(),pinned:z.boolean().optional(),instanceId:z.string(),layoutVersion:z.number().int().positive().optional(),layoutSide:z.enum(['left','right']).optional(),layoutWidth:z.enum(['full','wide','narrow']).optional(),span:z.enum(['full','wide','narrow']).optional(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
+  catalog:z.object({ externalPlugins:z.array(z.object({id:z.string(),name:z.string(),description:z.string(),layoutVariants:z.array(layoutVariantSchema).max(8).optional()})).max(10).optional(), tasks:z.array(z.object({id:z.string(),title:z.string()})).default([]), owners:z.array(z.string()).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 type ParsedComponentRequest=z.infer<typeof componentRequestSchema>
 export type ComponentRequest = Omit<ParsedComponentRequest,'enabledExtensions'|'catalog'> & {enabledExtensions?:ParsedComponentRequest['enabledExtensions'];catalog:Omit<ParsedComponentRequest['catalog'],'tasks'> & {tasks?:ParsedComponentRequest['catalog']['tasks']}}
@@ -72,15 +74,23 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
     if (result.data.operations.some(op=>['keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return reject('Component removal was not explicitly authorized.',['operations'])
     const named=namedWidgets(input.goal)
     for(const op of result.data.operations){if(op.type==='remove'||op.type==='replace'||op.type==='keep'){const targets=op.widgets.map(id=>input.instances?.find(w=>w.instanceId===id)?.widgetType??id);if(named.length&&targets.some(id=>!named.includes(id as typeof widgetTypes[number])))return reject('Removal targets do not match the requested components.',['operations'])}}
-    const allowed = new Set<string>([...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
+    const allowed = new Set<string>(['@last', ...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
     for (const op of result.data.operations) {
       const targets = op.type === 'clear' || op.type === 'add' ? [] : op.type === 'move' ? [op.widget, ...(op.relativeTo ? [op.relativeTo] : [])] : op.type === 'resize' ? [op.widget] : op.widgets
       if (targets.some(target => !allowed.has(target))) return reject('The model referenced an unknown component or instance.',['operations'])
+      if (op.type === 'resize' && [op.span, op.version, op.size].filter(v => v !== undefined).length !== 1) return reject('Choose one size change.',['operations'])
+      if (op.type === 'resize' && op.version !== undefined) {
+        const types = input.instances?.filter(i => i.instanceId === op.widget || i.widgetType === op.widget).map(i => i.widgetType) ?? []
+        if (!types.length && widgetTypes.includes(op.widget as typeof widgetTypes[number])) types.push(op.widget as typeof widgetTypes[number])
+        if (types.some(type => !supportedLayoutVariants(input.instances?.find(i=>i.instanceId===op.widget||i.widgetType===type)??{instanceId:'',widgetType:type}).some(v => v.version === op.version))) return reject('Unsupported widget version.',['operations'])
+      }
+      if (op.type === 'move' && (op.widget === op.relativeTo || ['left-of','right-of','above','below','before','after'].includes(op.position) && !op.relativeTo)) return reject('Choose a distinct placement anchor.',['operations'])
     }
     return result
   }
   if (result.data.action !== 'view') return result
   const view = result.data, b = view.bindings
+  if (view.layoutVersions && Object.entries(view.layoutVersions).some(([type, version]) => !view.widgets.includes(type as typeof widgetTypes[number]) || !(type === 'external-plugin' ? input.catalog.externalPlugins?.find(p=>p.id===b.externalPluginId)?.layoutVariants ?? widgetLayoutCatalog['external-plugin'] : widgetLayoutCatalog[type as typeof widgetTypes[number]])?.some(v => v.version === version))) return reject('Unsupported widget version.',['layoutVersions'])
   if (view.continuation?.targetInstanceIds.some(id => input.instances?.some(instance => instance.instanceId === id && instance.pinned)) && !/\b(pinned|pin)\b/i.test(input.goal)) return componentResolutionSchema.safeParse(null)
   const localRefinement = fallbackComponentIntent(input)
   if (!view.continuation && localRefinement.action === 'view' && localRefinement.continuation?.relationship === 'refinement') return componentResolutionSchema.safeParse(null)

@@ -1,3 +1,4 @@
+import { normalizeLayoutRows } from '../domain/widgetLayout.ts'
 import { emptyWorkspace, workspaceCollectionKey, workspaceDocumentSchema, type WorkspaceDocument } from '../domain/workspaceDocument.ts'
 import { makeInstance, type WidgetBinding, type WidgetInstance } from '../domain/widgetInstances.ts'
 import { PRESETS } from '../lib/workspace/config.ts'
@@ -19,10 +20,10 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
     const loaded = database.readCollection(workspaceCollectionKey)
     if (loaded.status !== 'found') return loaded
     const parsed = workspaceDocumentSchema.safeParse(loaded.value)
-    return parsed.success ? { status: 'found', value: parsed.data } : { status: 'invalid' }
+    return parsed.success ? { status: 'found', value: { ...parsed.data, rows: normalizeLayoutRows([...parsed.data.active, ...parsed.data.pins], parsed.data.rows) } } : { status: 'invalid' }
   }
   const save = (document: WorkspaceDocument): SaveResult => {
-    const parsed = workspaceDocumentSchema.safeParse(document)
+    const parsed = workspaceDocumentSchema.safeParse({...document, rows:normalizeLayoutRows([...document.active,...document.pins],document.rows)})
     return parsed.success ? database.writeCollection(workspaceCollectionKey, parsed.data) : { status: 'invalid' }
   }
   let initial: { document: WorkspaceDocument; notice: string; persistence: SaveResult } | undefined
@@ -41,6 +42,7 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
     const document=emptyWorkspace()
     if(existing.status==='invalid')return {document,notice:'Saved layout is invalid. Reset local data to recover.',persistence:{status:'invalid'}}
     document.active=PRESETS.home.widgets.map(w=>({...makeInstance(w.id),span:w.span}))
+    document.rows=normalizeLayoutRows(document.active)
     const persistence=save(document)
     initial={document,persistence,notice:persistence.status==='saved'?'':'Layout is available for this session only.'}
     return initial

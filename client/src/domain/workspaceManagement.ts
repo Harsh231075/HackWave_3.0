@@ -5,8 +5,8 @@ export const workspaceOperationSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('keep'),widgets:z.array(z.string().min(1).max(200)).min(1)}),
   z.object({type:z.literal('remove'),widgets:z.array(z.string().min(1).max(200)).min(1)}),
   z.object({type:z.literal('replace'),widgets:z.array(z.string().min(1).max(200)).min(1),with:z.array(z.enum(widgetTypes)).min(1)}),
-  z.object({type:z.literal('move'),widget:z.string().min(1).max(200),relativeTo:z.string().min(1).max(200).optional(),position:z.enum(['before','after','first','last'])}),
-  z.object({type:z.literal('resize'),widget:z.string().min(1).max(200),span:z.enum(['full','wide','narrow'])}),
+  z.object({type:z.literal('move'),widget:z.string().min(1).max(200),relativeTo:z.string().min(1).max(200).optional(),position:z.enum(['before','after','first','last','left','right','left-of','right-of','above','below'])}),
+  z.object({type:z.literal('resize'),widget:z.string().min(1).max(200),span:z.enum(['full','wide','narrow']).optional(),version:z.number().int().positive().optional(),size:z.enum(['smaller','larger']).optional()}),
   z.object({type:z.literal('add'),widgets:z.array(z.enum(widgetTypes)).min(1)}),
 ])
 export type WorkspaceOperation=z.infer<typeof workspaceOperationSchema>
@@ -53,7 +53,22 @@ export function localManagement(goal:string) {
  else if(/^keep only\b/.test(text)){const widgets=namedWidgets(text);if(!widgets.length)return null;operations.push({type:'keep',widgets})}
  else if(/\breplace\b/.test(text)){const parts=text.split(/\bwith\b/);if(parts.length!==2)return null;const widgets=namedWidgets(parts[0]),withWidgets=namedWidgets(parts[1]);if(!widgets.length||!withWidgets.length)return null;operations.push({type:'replace',widgets,with:withWidgets})}
  else if(/^(?:please\s+)?(?:remove|hide|delete)\b/.test(text)){const widgets=namedWidgets(text);if(!widgets.length)return null;operations.push({type:'remove',widgets})}
- else if(/\b(move|put|reorder)\b/.test(text)){const parts=text.split(/\b(above|below|before|after)\b/);const widgets=namedWidgets(parts[0]);if(widgets.length!==1)return null;const relative=namedWidgets(parts[2]??'');const position=/top|first/.test(text)?'first':/bottom|last/.test(text)?'last':/above|before/.test(parts[1]??'')?'before':'after';if(!relative.length&&!['first','last'].includes(position))return null;operations.push({type:'move',widget:widgets[0],relativeTo:relative[0],position})}
- else if(/\b(wide|narrow|full width|resize)\b/.test(text)){const widgets=namedWidgets(text);if(widgets.length!==1)return null;operations.push({type:'resize',widget:widgets[0],span:/narrow/.test(text)?'narrow':/full/.test(text)?'full':'wide'})}
+ else if(/\b(smaller|larger|bigger|version\s*\d+|wide|narrow|full width|resize)\b/.test(text)){
+   const widgets=namedWidgets(text); const widget=widgets.length===1?widgets[0]:/\b(this|it|that)\b/.test(text)?'@last':undefined
+   if(!widget)return null
+   const version=text.match(/\bversion\s*(\d+)\b/)
+   operations.push({type:'resize',widget,...(version?{version:Number(version[1])}:/smaller|larger|bigger/.test(text)?{size:/smaller/.test(text)?'smaller':'larger'}:{span:/narrow/.test(text)?'narrow':/full/.test(text)?'full':'wide'})})
+ }
+ else if(/\b(move|put|place|reorder)\b/.test(text)){
+   const parts=text.split(/\b(left(?: side)? of|right(?: side)? of|above|below|before|after)\b/)
+   const widgets=namedWidgets(parts[0])
+   const widget=widgets.length===1?widgets[0]:/\b(this|it|that)\b/.test(parts[0])?'@last':undefined
+   if(!widget)return null
+   const relative=/\boverview\b/.test(parts[2]??'')?['metrics']:namedWidgets(parts[2]??'')
+   const relation=parts[1]?.replace(' side','').replace(' ','-')
+   const position=relation??(/top|first/.test(text)?'first':/bottom|last/.test(text)?'last':/left/.test(text)?'left':/right/.test(text)?'right':undefined)
+   if(!position || (relation&&relative.length!==1))return null
+   operations.push({type:'move',widget,...(relative[0]?{relativeTo:relative[0]}:{}),position:position as 'first'})
+ }
  return operations.length?managementSchema.parse({action:'manage',operations,reply:'Workspace updated. Saved records and edits are kept.'}):null
 }

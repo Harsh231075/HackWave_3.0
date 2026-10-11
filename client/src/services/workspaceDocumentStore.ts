@@ -1,8 +1,9 @@
+import { normalizeLayoutRows } from '../domain/widgetLayout.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import { createWorkspaceDocumentService } from './workspaceDocumentService.ts'
 import { commitWorkspace, type WorkspaceDocument } from '../domain/workspaceDocument.ts'
 
-type History = Pick<WorkspaceDocument, 'active' | 'pins' | 'targets' | 'continuation'>
+type History = Pick<WorkspaceDocument, 'active' | 'pins' | 'rows' | 'targets' | 'continuation'>
 export function createWorkspaceDocumentStore(database: BrowserDatabase) {
   const service = createWorkspaceDocumentService(database)
   let snapshot: { document: WorkspaceDocument; notice: string; undo: History[] } | undefined
@@ -14,7 +15,7 @@ export function createWorkspaceDocumentStore(database: BrowserDatabase) {
     return snapshot
   }
   const emit = () => { for (const listener of listeners) listener() }
-  const history = (document: WorkspaceDocument): History => ({ active: document.active, pins: document.pins, targets: document.targets, continuation: document.continuation ? { lastSuccess: document.continuation.lastSuccess } : undefined })
+  const history = (document: WorkspaceDocument): History => ({ active: document.active, pins: document.pins, rows: document.rows, targets: document.targets, continuation: document.continuation ? { lastSuccess: document.continuation.lastSuccess } : undefined })
   database.subscribe(() => {
     if (writing) return
     if (epoch !== database.getEpoch()) { epoch = database.getEpoch(); snapshot = undefined; getSnapshot(); emit(); return }
@@ -27,6 +28,7 @@ export function createWorkspaceDocumentStore(database: BrowserDatabase) {
   })
   function save(document: WorkspaceDocument, remember = true) {
     const previous = getSnapshot()
+    document = {...document,rows:normalizeLayoutRows([...document.active,...document.pins],document.rows)}
     writing = true
     const result = service.save(document)
     writing = false

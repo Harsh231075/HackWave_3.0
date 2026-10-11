@@ -1,3 +1,4 @@
+import { normalizeLayoutRows, chooseLayoutVersion } from './widgetLayout.ts'
 import { workspaceContinuationSchema } from './workspaceContinuation.ts'
 import { z } from 'zod'
 import { MAX_CANVAS_WIDGETS, MAX_PINS, pinnedWidgetSchema, widgetInstanceSchema, widgetSelectionKey, makeInstance, type WidgetInstance } from './widgetInstances.ts'
@@ -7,6 +8,7 @@ import { PRESETS, type WidgetType } from '../lib/workspace/config.ts'
 export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), source:z.enum(['ai','local']).optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
 export const workspaceDocumentSchema = z.strictObject({
   version: z.literal(3), continuation: workspaceContinuationSchema.optional(), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
+  rows: z.array(z.array(z.string().min(1)).min(1).max(MAX_CANVAS_WIDGETS)).max(MAX_CANVAS_WIDGETS).optional(),
   revision: z.number().int().nonnegative(), turns: turnSchema.array().max(60), targets: z.string().array(),
 }).superRefine((document, ctx) => {
   const ids = [...document.active, ...document.pins].map(w => w.instanceId)
@@ -37,7 +39,9 @@ export function resolveTarget(document: WorkspaceDocument, target: string, inclu
   return matching[0]
 }
 export function commitWorkspace(document: WorkspaceDocument, patch: Partial<WorkspaceDocument>): WorkspaceDocument {
-  const next = workspaceDocumentSchema.parse(JSON.parse(JSON.stringify({ ...document, ...patch, revision: document.revision + 1 })))
+  const merged = { ...document, ...patch }
+  const rows = normalizeLayoutRows([...merged.active, ...merged.pins], patch.rows ?? normalizeLayoutRows([...document.active, ...document.pins], document.rows))
+  const next = workspaceDocumentSchema.parse(JSON.parse(JSON.stringify({ ...merged, rows, revision: document.revision + 1 })))
   const ids = new Set([...next.active, ...next.pins].map(w => w.instanceId))
   if (next.continuation?.lastSuccess?.targetInstanceIds.some(id => !ids.has(id))) delete next.continuation.lastSuccess
   if (next.continuation?.pending?.targetInstanceIds.some(id => !ids.has(id))) delete next.continuation.pending
@@ -45,6 +49,7 @@ export function commitWorkspace(document: WorkspaceDocument, patch: Partial<Work
 }
 export function applyInstanceOperations(document: WorkspaceDocument, operations: WorkspaceOperation[], create: (type: WidgetType) => WidgetInstance, includePins = false): WorkspaceDocument {
   let active = [...document.active], pins = [...document.pins]
+  let rows = normalizeLayoutRows([...active, ...pins], document.rows)
   const targets: string[] = []
   const target = (name: string) => resolveTarget({ ...document, active, pins }, name, includePins)
   const remove = (ids: string[]) => { active = active.filter(w => !ids.includes(w.instanceId)); if (includePins) pins = pins.filter(w => !ids.includes(w.instanceId)) }
@@ -69,40 +74,75 @@ export function applyInstanceOperations(document: WorkspaceDocument, operations:
       const ids = op.widgets.flatMap(type => { const found = target(type); return found ? [found.instanceId] : [] })
       if (!ids.length) throw new Error('The requested view is not on this workspace.')
       const index = Math.max(0, active.findIndex(w => ids.includes(w.instanceId)))
+      const oldRows = rows.map(row => [...row])
       remove(ids)
       if (op.type === 'replace') {
         const added = op.with.map(create).filter(w => ![...active, ...pins].some(existing => widgetSelectionKey(w) === widgetSelectionKey(existing)))
         active.splice(index, 0, ...added); targets.push(...added.map(w => w.instanceId))
+        let inserted = false
+        rows = oldRows.map(row => row.flatMap(id => {
+          if (!ids.includes(id)) return [id]
+          if (inserted) return []
+          inserted = true; return added.map(w => w.instanceId)
+        })).filter(row => row.length)
       }
       continue
     }
-    const instance = target(op.widget)
+    const layoutTarget = (name: string) => {
+      if (name === '@last') {
+        const matching = [...active, ...pins].filter(w => document.targets.includes(w.instanceId))
+        if (matching.length !== 1) throw new TargetError('selected', matching.length ? matching : [...active, ...pins])
+        return matching[0]
+      }
+      return resolveTarget({ ...document, active, pins }, name, true)
+    }
+    const instance = layoutTarget(op.widget)
     if (!instance) throw new Error('Add that view before changing it.')
     targets.push(instance.instanceId)
     if (op.type === 'resize') {
-      active = active.map(w => w.instanceId === instance.instanceId ? { ...w, span: op.span } : w)
-      pins = pins.map(w => w.instanceId === instance.instanceId ? { ...w, span: op.span } : w)
+      if ([op.span, op.version, op.size].filter(v => v !== undefined).length !== 1) throw new Error('Choose one size or version change.')
+      const layoutVersion = op.version !== undefined || op.size ? chooseLayoutVersion(instance, op.version ?? op.size!) : instance.layoutVersion
+      const patch = { ...(op.span ? { span: op.span, layoutWidth: op.span } : { layoutWidth: undefined }), ...(layoutVersion !== undefined ? { layoutVersion } : {}) }
+      active = active.map(w => w.instanceId === instance.instanceId ? { ...w, ...patch } : w)
+      pins = pins.map(w => w.instanceId === instance.instanceId ? { ...w, ...patch } : w)
     } else {
-      if (pins.some(w => w.instanceId === instance.instanceId)) throw new Error('Unpin this view before reordering it among active views.')
-      const anchor = op.relativeTo ? target(op.relativeTo) : undefined
-      if (anchor?.instanceId === instance.instanceId) continue
-      active = active.filter(w => w.instanceId !== instance.instanceId)
-      let index = op.position === 'first' ? 0 : active.length
-      if (op.position === 'before' || op.position === 'after') {
-        if (!anchor || !active.some(w => w.instanceId === anchor.instanceId)) throw new Error('Choose an active target view.')
-        index = active.findIndex(w => w.instanceId === anchor.instanceId) + (op.position === 'after' ? 1 : 0)
+      const anchor = op.relativeTo ? layoutTarget(op.relativeTo) : undefined
+      if (anchor?.instanceId === instance.instanceId) throw new Error('A widget cannot be positioned relative to itself.')
+      const side = op.position === 'right' ? 'right' as const : undefined
+      active = active.map(w => w.instanceId === instance.instanceId ? { ...w, layoutSide: side } : w)
+      pins = pins.map(w => w.instanceId === instance.instanceId ? { ...w, layoutSide: side } : w)
+      const all = [...active, ...pins]
+      rows = normalizeLayoutRows(all, rows)
+      const ownRow = rows.find(row => row.includes(instance.instanceId))!
+      const anchorRow = anchor ? rows.find(row => row.includes(anchor.instanceId)) : undefined
+      if (['before','after','above','below','left-of','right-of'].includes(op.position) && !anchorRow) throw new Error('Choose an available target view.')
+      let destination: string[] | undefined
+      if (op.position === 'left' || op.position === 'right') destination = ownRow
+      if (op.position === 'left-of' || op.position === 'right-of') destination = anchorRow
+      rows = rows.map(row => row.filter(id => id !== instance.instanceId)).filter(row => row.length)
+      if (destination) {
+        const remaining = destination.filter(id => id !== instance.instanceId)
+        const insertion = op.position === 'left' ? 0 : op.position === 'right' ? remaining.length : remaining.indexOf(anchor!.instanceId) + (op.position === 'right-of' ? 1 : 0)
+        remaining.splice(insertion, 0, instance.instanceId)
+        const index = rows.findIndex(row => row.some(id => destination!.includes(id)))
+        if (index < 0) rows.push(remaining); else rows[index] = remaining
+      } else {
+        let index = op.position === 'first' ? 0 : rows.length
+        if (anchor) index = rows.findIndex(row => row.includes(anchor.instanceId)) + (['after','below'].includes(op.position) ? 1 : 0)
+        rows.splice(index, 0, [instance.instanceId])
       }
-      active.splice(index, 0, instance)
+      const order = rows.flat()
+      active.sort((a, b) => order.indexOf(a.instanceId) - order.indexOf(b.instanceId))
     }
   }
-  return commitWorkspace(document, { active, pins, targets })
+  return commitWorkspace(document, { active, pins, targets, rows })
 }
 
 export function resetWorkspaceLayout(document: WorkspaceDocument): WorkspaceDocument {
   const pinned = new Set(document.pins.map(widgetSelectionKey))
   const active = PRESETS.home.widgets.map(widget => ({ ...makeInstance(widget.id), span: widget.span }))
     .filter(widget => !pinned.has(widgetSelectionKey(widget))).slice(0, MAX_CANVAS_WIDGETS - document.pins.length)
-  return commitWorkspace(document, { active, targets: [], continuation: undefined })
+  return commitWorkspace(document, { active, rows: normalizeLayoutRows([...active, ...document.pins]), targets: [], continuation: undefined })
 }
 export function clearWorkspacePins(document: WorkspaceDocument): WorkspaceDocument {
   const activeIds = new Set(document.active.map(widget => widget.instanceId))
