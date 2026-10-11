@@ -18,7 +18,7 @@ export function normalizeGoogleEvent(item: Record<string, unknown>, calendarId =
     timezone: start?.timeZone ?? 'UTC', attendees: attendees.filter(a => a.email).map(a => ({ email: a.email!, name: a.displayName, response: a.responseStatus })),
     organizer: organizer?.email ?? '', location: typeof item.location === 'string' ? item.location : '',
     meetingUrl: typeof item.hangoutLink === 'string' ? item.hangoutLink : conference?.entryPoints?.find(p => p.entryPointType === 'video')?.uri ?? '',
-    url: typeof item.htmlLink === 'string' ? item.htmlLink : '', revision: String(item.etag ?? item.updated ?? ''), status: String(item.status ?? 'confirmed') }
+    url: typeof item.htmlLink === 'string' ? item.htmlLink : '', revision: String(item.etag ?? item.updated ?? ''), transparent: item.transparency === 'transparent', status: String(item.status ?? 'confirmed') }
 }
 export function createGoogleProvider(env: NodeJS.ProcessEnv, save: () => void, transport: typeof fetch = fetch) {
   const refreshes = new Map<Connection, Promise<void>>()

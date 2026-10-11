@@ -5,7 +5,7 @@ export const calendarEventSchema = z.object({
   start: z.string(), end: z.string(), allDay: z.boolean(), timezone: z.string(),
   attendees: z.array(z.object({ email: z.string(), name: z.string().optional(), response: z.string().optional() })),
   organizer: z.string(), location: z.string(), meetingUrl: z.string(), url: z.string(),
-  revision: z.string(), status: z.string(),
+  revision: z.string(), status: z.string(), transparent: z.boolean().optional(),
 })
 export type CalendarEvent = z.infer<typeof calendarEventSchema>
 export type CalendarConnection = { connected: boolean; configured: boolean; accountId?: string; email?: string; canWrite?: boolean; timezone?: string }

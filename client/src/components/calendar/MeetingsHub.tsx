@@ -182,7 +182,8 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
 
               const agendaText = isLocal ? localEvent?.agenda : remoteEvent?.description
               const meetUrlMatch = agendaText?.match(/https?:\/\/[^\s]+/)?.[0]
-              const joinUrl = !isLocal ? (remoteEvent?.meetingUrl || meetUrlMatch) : meetUrlMatch
+              const demo = isLocal && (localEvent?.id.startsWith('demo-preview-') || /^Demo ·/i.test(localEvent?.title ?? ''))
+              const joinUrl = demo ? undefined : !isLocal ? (remoteEvent?.meetingUrl || meetUrlMatch) : meetUrlMatch
 
               const attendees = isLocal
                 ? (localEvent?.participants ?? [])

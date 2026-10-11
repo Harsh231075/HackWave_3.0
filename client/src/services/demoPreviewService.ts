@@ -11,8 +11,8 @@ export function addDemoPreview(database: BrowserDatabase, date: string) {
       { id:'demo-preview-task-3',title:'Demo · Share project brief',description:'A completed sample task.',owner:'Maya',due:date,duration:15,priority:'low',status:'completed' },
     ]
     const events: Event[] = [
-      {id:'demo-preview-event-1',title:'Demo · Design review',date,start:'11:00',end:'12:00',category:'meeting',participants:['Maya','Alex'],agenda:'Review designs, resolve questions, agree on next steps. Meeting link: https://meet.google.com/hck-wave-rev'},
-      {id:'demo-preview-event-2',title:'Demo · Client check-in',date:shiftDate(date,1),start:'14:00',end:'14:30',category:'meeting',participants:['Maya','Jordan'],agenda:'Review the delivery timeline. Meeting link: https://meet.google.com/clt-chk-in'},
+      {id:'demo-preview-event-1',title:'Demo · Design review',date,start:'11:00',end:'12:00',category:'meeting',participants:['Maya','Alex'],agenda:'Review designs, resolve questions, agree on next steps.'},
+      {id:'demo-preview-event-2',title:'Demo · Client check-in',date:shiftDate(date,1),start:'14:00',end:'14:30',category:'meeting',participants:['Maya','Jordan'],agenda:'Review the delivery timeline.'},
       {id:'demo-preview-event-3',title:'Demo · Design preparation',date,start:'09:30',end:'10:15',category:'focus',participants:[],agenda:'Protected time to prepare the review.'},
     ]
     for (const task of tasks) if (!state.tasks.some(t=>t.id===task.id)) {database.dispatch({type:'task',task});tasksAdded++}

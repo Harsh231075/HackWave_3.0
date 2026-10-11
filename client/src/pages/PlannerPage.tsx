@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus, Sparkles, Target, Zap } from 'lucide-react'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { useGoogleEventsWindow } from '@/hooks/useGoogleEventsWindow'
 import { calendarDate, shiftDate } from '@/domain/calendar'
+import { GoogleEventDetails } from '@/components/calendar/GoogleCalendarWidgets'
+import { googleCalendarService } from '@/services/googleCalendarService'
+import { createPlannerSchedulingService } from '@/services/plannerSchedulingService'
+import { plannerSummary, slotConflicts } from '@/domain/plannerTime'
 import { projectGoogleEvents } from '@/domain/meetingCalendar'
 import { minutes } from '@/domain/workspace'
 import { availabilityService, browserDatabase } from '@/services'
@@ -15,20 +19,28 @@ import { MeetingDetails, MeetingForm } from '@/components/calendar/CalendarWidge
 import type { Task } from '@/domain/types'
 
 export function PlannerPage() {
-  const { state, selectedDate, selectDate, saveEvent, notify } = useWorkspace()
+  const { state, selectedDate, selectDate, notify } = useWorkspace()
   const google = useGoogleCalendar()
   const [schedulingTask, setSchedulingTask] = useState<Task | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null)
   const [creatingBlock, setCreatingBlock] = useState<{ start?: string } | null>(null)
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<string>()
+  const openEvent = (id: string) => { setSelectedGoogleAccount(google.connection?.accountId); setSelectedEventId(id) }
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [schedulingError, setSchedulingError] = useState('')
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const current = useRef({date:selectedDate,task:schedulingTask,block:creatingBlock,connection:google.connection,mounted:true})
+  useEffect(() => { current.current={date:selectedDate,task:schedulingTask,block:creatingBlock,connection:google.connection,mounted:true}; return () => { current.current.mounted=false } },[selectedDate,schedulingTask,creatingBlock,google.connection])
+  const scheduling = () => createPlannerSchedulingService(browserDatabase,(from,to,zone)=>googleCalendarService.events(from,to,zone),()=>current.current.connection)
 
   const today = calendarDate()
   const dateObj = parseISO(selectedDate)
 
   // Remote Google events for this day
-  const remote = useGoogleEventsWindow(selectedDate, selectedDate, google.connection?.connected)
-  const projectedGoogle = projectGoogleEvents(remote.events, selectedDate, selectedDate, google.timezone)
+  const remote = useGoogleEventsWindow(selectedDate, selectedDate, google.connection?.connected, timezone)
+  const projectedGoogle = projectGoogleEvents(remote.events, selectedDate, selectedDate, timezone)
 
   // Local events on selected date
   const localEvents = state.events.filter(e => e.date === selectedDate)
@@ -36,47 +48,36 @@ export function PlannerPage() {
   // Combined events for display & gap calculations
   const allDayEvents = [...localEvents, ...projectedGoogle].sort((a, b) => a.start.localeCompare(b.start))
 
-  const meetingEvents = allDayEvents.filter(e => e.category === 'meeting' || e.category === 'class')
   const focusEvents = allDayEvents.filter(e => e.category === 'focus')
 
-  const totalMeetingMinutes = meetingEvents.reduce((acc, e) => acc + Math.max(0, minutes(e.end) - minutes(e.start)), 0)
-  const totalFocusMinutes = focusEvents.reduce((acc, e) => acc + Math.max(0, minutes(e.end) - minutes(e.start)), 0)
-
-  // Workday bounds 09:00 to 18:00 (540 mins total workday)
-  const workDayMinutes = 9 * 60
-  const committedMinutes = totalMeetingMinutes + totalFocusMinutes
-  const freeWorkMinutes = Math.max(0, workDayMinutes - committedMinutes)
+  const summary = plannerSummary(localEvents, remote.events, selectedDate, timezone)
+  const totalMeetingMinutes = summary.meetingMinutes
+  const totalFocusMinutes = summary.focusMinutes
+  const freeWorkMinutes = summary.freeMinutes
+  const calendarReady = !google.loading && !google.error && (!google.connection?.connected || (!remote.loading && !remote.error))
 
   // Pending tasks
   const pendingTasks = state.tasks.filter(t => t.status === 'pending')
 
   // Find free slots for the currently selected task to schedule
   const taskDuration = schedulingTask?.duration ?? 45
-  const availableSlots = schedulingTask ? availabilityService.findSlots({
+  const availableSlots = schedulingTask && calendarReady ? availabilityService.findSlots({
     date: selectedDate,
     duration: taskDuration,
     from: '09:00',
     to: '18:00',
     step: 15,
-  }) : []
+  }).filter(slot => !slotConflicts(remote.events, selectedDate, slot.start, slot.end, timezone)) : []
 
-  function scheduleFocusForTask(task: Task, slot: { start: string; end: string }) {
-    const result = saveEvent({
-      title: `Focus: ${task.title.replace(/^Demo ·\s*/i, '')}`,
-      date: selectedDate,
-      start: slot.start,
-      end: slot.end,
-      category: 'focus',
-      participants: [task.owner],
-      agenda: `Dedicated work session for: ${task.title}. ${task.description}`,
-    })
-    if (!result.ok) {
-      notify('message' in result && result.message ? result.message : 'Unable to schedule focus.')
-      return
-    }
-    notify(`Focus scheduled for "${task.title}" at ${slot.start}–${slot.end}.`)
-    setSchedulingTask(null)
-    setSelectedSlot(null)
+  async function scheduleFocusForTask(task: Task, slot: { start: string; end: string }) {
+    if (!calendarReady || saving) return
+    setSaving(true); setSchedulingError('')
+    try {
+      const result = await scheduling().schedule(task,selectedDate,slot,timezone,()=>current.current.mounted && current.current.date===selectedDate && current.current.task===task)
+      notify(`Focus scheduled for "${task.title}" at ${result.start}–${result.end}.`)
+      setSchedulingTask(null); setSelectedSlot(null)
+    } catch (error) { if (current.current.mounted) {setSchedulingError(error instanceof Error ? error.message : 'Unable to verify availability.'); google.refreshEvents()} }
+    finally { if(current.current.mounted)setSaving(false) }
   }
 
   function handleLoadDemo() {
@@ -106,7 +107,7 @@ export function PlannerPage() {
           <Button variant="outline" size="sm" onClick={handleLoadDemo}>
             <Sparkles size={14} className="mr-1.5 text-primary" /> Load demo data
           </Button>
-          <Button size="sm" onClick={() => setCreatingBlock({ start: '10:00' })}>
+          <Button size="sm" disabled={!calendarReady || saving} onClick={() => setCreatingBlock({ start: '10:00' })}>
             <Plus size={14} className="mr-1.5" /> Add work block
           </Button>
         </div>
@@ -138,9 +139,9 @@ export function PlannerPage() {
 
         {/* Quick Stats */}
         <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
-          <div className="flex items-center gap-1.5" title="Total meeting commitments today">
+          <div className="flex items-center gap-1.5" title="Meeting busy time within 09:00–18:00; overlapping periods count once">
             <CalendarDays size={15} className="text-blue-500" />
-            <span>{(totalMeetingMinutes / 60).toFixed(1)}h Meetings</span>
+            <span>{calendarReady ? `${(totalMeetingMinutes / 60).toFixed(1)}h` : '—'} Meetings</span>
           </div>
           <div className="flex items-center gap-1.5" title="Scheduled deep work / focus time">
             <Zap size={15} className="text-emerald-500" />
@@ -148,7 +149,7 @@ export function PlannerPage() {
           </div>
           <div className="flex items-center gap-1.5" title="Free gaps in working hours (9am - 6pm)">
             <Clock3 size={15} className="text-amber-500" />
-            <span>{(freeWorkMinutes / 60).toFixed(1)}h Open time</span>
+            <span>{calendarReady ? `${(freeWorkMinutes / 60).toFixed(1)}h` : '—'} Open time</span>
           </div>
           <div className="flex items-center gap-1.5" title="Tasks awaiting schedule">
             <Target size={15} className="text-violet-500" />
@@ -157,6 +158,9 @@ export function PlannerPage() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">{timezone} · Working hours 09:00–18:00 · Focus blocks save locally.{remote.refreshedAt ? ` Google last synced ${new Date(remote.refreshedAt).toLocaleTimeString()}.` : ''}</p>
+      {(google.loading || remote.loading) && <p role="status" className="text-sm text-muted-foreground">Checking calendar availability…</p>}
+      {(remote.error || google.error) && <div className="rounded-lg border border-destructive p-3"><p role="alert">{remote.error || google.error} · Availability is unavailable until calendars can be verified. Any displayed Google records are the last successful snapshot.</p><Button size="sm" variant="outline" onClick={()=>{google.refreshEvents();void google.refresh()}}>Retry calendars</Button></div>}
       {notice && (
         <div role="status" className="flex items-center justify-between rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-primary">
           <span>{notice}</span>
@@ -177,16 +181,17 @@ export function PlannerPage() {
             </span>
           </div>
 
+          <div className="mb-3 space-y-2" aria-label="All-day and outside-hours events">{allDayEvents.filter(event => ('allDay' in event && event.allDay) || Number(event.start.slice(0,2))<8 || Number(event.start.slice(0,2))>=18).map(event=><button key={event.id} className="block w-full rounded-lg border p-3 text-left text-sm" onClick={()=>setSelectedEventId(event.id)}>{event.title} · {'allDay' in event && event.allDay ? 'All day' : `${event.start}–${event.end}`}</button>)}</div>
           <div className="space-y-1">
             {hours.map(hour => {
               const hourLabel = `${String(hour).padStart(2, '0')}:00`
               const nextHour = `${String(hour + 1).padStart(2, '0')}:00`
 
               // Events starting in this hour
-              const startingEvents = allDayEvents.filter(e => Number(e.start.slice(0, 2)) === hour)
+              const startingEvents = allDayEvents.filter(e => !('allDay' in e && e.allDay) && Number(e.start.slice(0, 2)) === hour)
               // Is hour slot occupied by an ongoing event?
               const occupied = allDayEvents.some(
-                e => minutes(e.start) < (hour + 1) * 60 && minutes(e.end) > hour * 60
+                e => !('transparent' in e && e.transparent) && minutes(e.start) < (hour + 1) * 60 && minutes(e.end) > hour * 60
               )
 
               return (
@@ -209,7 +214,7 @@ export function PlannerPage() {
                             <button
                               key={event.id}
                               type="button"
-                              onClick={() => setSelectedEventId(event.id)}
+                              onClick={() => openEvent(event.id)}
                               className={`w-full rounded-lg border p-2.5 text-left transition-all hover:ring-1 hover:ring-ring ${
                                 isFocus
                                   ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100'
@@ -236,7 +241,7 @@ export function PlannerPage() {
                           )
                         })}
                       </div>
-                    ) : !occupied ? (
+                    ) : !occupied && calendarReady ? (
                       <button
                         type="button"
                         onClick={() => setCreatingBlock({ start: hourLabel })}
@@ -250,7 +255,7 @@ export function PlannerPage() {
                       </button>
                     ) : (
                       <div className="h-full min-h-[30px] pt-1 text-xs italic text-muted-foreground/40">
-                        Session continues…
+                        {calendarReady ? 'Session continues…' : 'Checking availability…'}
                       </div>
                     )}
                   </div>
@@ -277,7 +282,7 @@ export function PlannerPage() {
             {pendingTasks.map(task => {
               // Check if already has a focus session on this day
               const scheduledSession = focusEvents.find(
-                e => e.title.toLowerCase().includes(task.title.toLowerCase().replace(/^demo ·\s*/i, ''))
+                e => e.id === `planner-focus:${task.id}:${selectedDate}` || e.title === `Focus: ${task.title.replace(/^Demo ·\s*/i, '')}`
               )
 
               return (
@@ -320,9 +325,9 @@ export function PlannerPage() {
                       <Button
                         size="sm"
                         variant="default"
-                        className="h-7 text-xs font-medium"
+                        className="h-7 text-xs font-medium" disabled={!calendarReady || saving}
                         onClick={() => {
-                          setSchedulingTask(task)
+                          setSchedulingError(''); setSchedulingTask(task)
                           setSelectedSlot(null)
                         }}
                       >
@@ -349,7 +354,7 @@ export function PlannerPage() {
 
       {/* Focus Scheduling Dialog */}
       {schedulingTask && (
-        <Dialog open onOpenChange={open => { if (!open) setSchedulingTask(null) }}>
+        <Dialog open onOpenChange={open => { if (!open && !saving) {setSchedulingTask(null);setSelectedSlot(null)} }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Schedule Focus Session</DialogTitle>
@@ -363,7 +368,7 @@ export function PlannerPage() {
                 Available Free Slots on {selectedDate}
               </label>
 
-              {availableSlots.length > 0 ? (
+              {!calendarReady ? <p role="status">Verify calendar availability before choosing a time.</p> : availableSlots.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {availableSlots.map(slot => {
                     const isSelected = selectedSlot?.start === slot.start
@@ -397,19 +402,20 @@ export function PlannerPage() {
               )}
             </div>
 
+            {schedulingError && <p role="alert" className="text-sm text-destructive">{schedulingError}</p>}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSchedulingTask(null)}>
+              <Button variant="outline" disabled={saving} onClick={() => {setSchedulingTask(null);setSelectedSlot(null)}}>
                 Cancel
               </Button>
               <Button
-                disabled={!selectedSlot}
+                disabled={saving || !calendarReady || !selectedSlot || !availableSlots.some(s=>s.start===selectedSlot.start && s.end===selectedSlot.end)}
                 onClick={() => {
                   if (selectedSlot) {
                     scheduleFocusForTask(schedulingTask, selectedSlot)
                   }
                 }}
               >
-                Confirm Focus Time
+                {saving ? 'Checking calendars…' : 'Confirm Focus Time'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -419,6 +425,7 @@ export function PlannerPage() {
       {/* Manual Add Block Modal */}
       {creatingBlock && (
         <MeetingForm
+          beforeSave={input => scheduling().verify(input,timezone,()=>current.current.mounted && current.current.block===creatingBlock && current.current.date===selectedDate)}
           open
           date={selectedDate}
           start={creatingBlock.start ?? '10:00'}
@@ -427,12 +434,13 @@ export function PlannerPage() {
       )}
 
       {/* Event Details Dialog */}
-      {selectedEventId && (
+      {selectedEventId && !selectedEventId.startsWith('google:') && (
         <MeetingDetails
           event={state.events.find(e => e.id === selectedEventId)}
           onClose={() => setSelectedEventId(null)}
         />
       )}
+      {selectedEventId?.startsWith('google:') && <Dialog open onOpenChange={open=>{if(!open)setSelectedEventId(null)}}><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Google meeting details</DialogTitle><DialogDescription>Verified Google Calendar record · {google.timezone}</DialogDescription></DialogHeader>{(()=>{const event=selectedGoogleAccount===google.connection?.accountId ? remote.events.find(e=>selectedEventId===`google:${e.id}:${selectedDate}`) : undefined;return event?<GoogleEventDetails event={event}/>:<p>This event is no longer available in this calendar view. Refresh to check its status.</p>})()}</DialogContent></Dialog>}
     </main>
   )
 }

@@ -3,7 +3,7 @@ import { useComponentView } from '@/state/ComponentViewContext'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { SelectedMeeting } from '@/components/resources/MeetingPreparationWidgets'
 import { availabilityService } from '@/services'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { format, parseISO } from 'date-fns'
 import { ArrowUpRight, CalendarDays, Clock3, Plus, Users } from 'lucide-react'
@@ -15,9 +15,10 @@ import { DataState, StatusBadge, type DisplayState } from '@/components/feedback
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { DEMO_DATE, DEMO_TIME } from '@/data/demo'
 import { minutes } from '@/domain/workspace'
+import type { EventInput } from '@/domain/commands'
 import type { Event } from '@/domain/types'
 
-export function MeetingForm({ open, onClose, date, start = '13:30', event: initial, duration=60 }: { duration?:number; open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
+export function MeetingForm({ open, onClose, date, start = '13:30', event: initial, duration=60, beforeSave }: { beforeSave?: (input: EventInput) => Promise<void>; duration?:number; open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
   const { saveEvent, notify } = useWorkspace()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [day, setDay] = useState(initial?.date ?? date)
@@ -27,12 +28,23 @@ export function MeetingForm({ open, onClose, date, start = '13:30', event: initi
   const [agenda, setAgenda] = useState(initial?.agenda ?? '')
   const [category, setCategory] = useState<Event['category']>(initial?.category ?? 'meeting')
   const [error, setError] = useState('')
-  return <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{initial ? 'Edit session' : 'Schedule a session'}</DialogTitle><DialogDescription>Changes are saved on this device.</DialogDescription></DialogHeader><form className="flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:[gap:0.35rem] [&_label]:text-[length:0.84rem] [&_label]:font-medium [&_select]:bg-(--background) [&_select]:[border:1px_solid_var(--border)] [&_select]:rounded-[var(--radius)] [&_select]:[padding:0.5rem_0.75rem] [&_select]:text-[length:0.88rem] [&_select]:text-(--foreground) [&_input]:bg-(--background) [&_input]:[border:1px_solid_var(--border)] [&_input]:rounded-[var(--radius)] [&_input]:[padding:0.5rem_0.75rem] [&_input]:text-[length:0.88rem] [&_input]:text-(--foreground) [&_textarea]:bg-(--background) [&_textarea]:[border:1px_solid_var(--border)] [&_textarea]:rounded-[var(--radius)] [&_textarea]:[padding:0.5rem_0.75rem] [&_textarea]:text-[length:0.88rem] [&_textarea]:text-(--foreground)" onSubmit={e => {
+  const [saving, setSaving] = useState(false)
+  const mounted = useRef(false)
+  useEffect(() => { mounted.current = true; return () => {mounted.current = false} }, [])
+  return <Dialog open={open} onOpenChange={value => { if (!value && !saving) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{initial ? 'Edit session' : 'Schedule a session'}</DialogTitle><DialogDescription>Changes are saved on this device.</DialogDescription></DialogHeader><form className="flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:[gap:0.35rem] [&_label]:text-[length:0.84rem] [&_label]:font-medium [&_select]:bg-(--background) [&_select]:[border:1px_solid_var(--border)] [&_select]:rounded-[var(--radius)] [&_select]:[padding:0.5rem_0.75rem] [&_select]:text-[length:0.88rem] [&_select]:text-(--foreground) [&_input]:bg-(--background) [&_input]:[border:1px_solid_var(--border)] [&_input]:rounded-[var(--radius)] [&_input]:[padding:0.5rem_0.75rem] [&_input]:text-[length:0.88rem] [&_input]:text-(--foreground) [&_textarea]:bg-(--background) [&_textarea]:[border:1px_solid_var(--border)] [&_textarea]:rounded-[var(--radius)] [&_textarea]:[padding:0.5rem_0.75rem] [&_textarea]:text-[length:0.88rem] [&_textarea]:text-(--foreground)" onSubmit={async e => {
     e.preventDefault()
-    const result = saveEvent({ id: initial?.id, title, date: day, start: begin, end, category, participants: participants.split(','), agenda })
-    if (!result.ok) { setError(result.message); return }
-    notify('Event saved.'); onClose()
-  }}><label>Session title<Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Research check-in" maxLength={120} required autoFocus /></label><div className="grid grid-cols-2 [gap:0.85rem]"><label>Date<Input type="date" value={day} onChange={e => setDay(e.target.value)} required /></label><label>Type<select value={category} onChange={e => setCategory(e.target.value as Event['category'])}><option value="meeting">Meeting</option><option value="focus">Focus session</option><option value="class">Class / learning</option><option value="break">Break</option></select></label><label>Start time<Input type="time" value={begin} onChange={e => setBegin(e.target.value)} required /></label><label>End time<Input type="time" value={end} onChange={e => setEnd(e.target.value)} required /></label></div><label>Participants<Input value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={300} /></label><label>Agenda / description<Textarea value={agenda} onChange={e => setAgenda(e.target.value)} placeholder="What would you like to cover?" rows={3} maxLength={3000} /></label>{error && <p role="alert" className="[color:#ef4444] text-[length:0.8rem] font-medium">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">{initial ? 'Save changes' : 'Schedule session'}</Button></DialogFooter></form></DialogContent></Dialog>
+    if(saving)return
+    const input = { id: initial?.id, title, date: day, start: begin, end, category, participants: participants.split(','), agenda }
+    setSaving(true); setError('')
+    try {
+      await beforeSave?.(input)
+      if(!mounted.current)return
+      const result = saveEvent(input)
+      if (!result.ok) { setError(result.message); return }
+      notify('Event saved.'); onClose()
+    } catch(error) {if(mounted.current)setError(error instanceof Error?error.message:'Unable to verify calendar availability.')}
+    finally {if(mounted.current)setSaving(false)}
+  }}><fieldset disabled={saving} className="contents"><label>Session title<Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Research check-in" maxLength={120} required autoFocus /></label><div className="grid grid-cols-2 [gap:0.85rem]"><label>Date<Input type="date" value={day} onChange={e => setDay(e.target.value)} required /></label><label>Type<select value={category} onChange={e => setCategory(e.target.value as Event['category'])}><option value="meeting">Meeting</option><option value="focus">Focus session</option><option value="class">Class / learning</option><option value="break">Break</option></select></label><label>Start time<Input type="time" value={begin} onChange={e => setBegin(e.target.value)} required /></label><label>End time<Input type="time" value={end} onChange={e => setEnd(e.target.value)} required /></label></div><label>Participants<Input value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={300} /></label><label>Agenda / description<Textarea value={agenda} onChange={e => setAgenda(e.target.value)} placeholder="What would you like to cover?" rows={3} maxLength={3000} /></label>{error && <p role="alert" className="[color:#ef4444] text-[length:0.8rem] font-medium">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">{saving ? 'Checking calendars…' : initial ? 'Save changes' : 'Schedule session'}</Button></DialogFooter></fieldset></form></DialogContent></Dialog>
 }
 
 export function MeetingCard({ event, onSelect }: { event: Event; onSelect: () => void }) {
