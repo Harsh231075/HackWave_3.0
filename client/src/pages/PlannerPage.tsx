@@ -13,6 +13,7 @@ import { projectGoogleEvents } from '@/domain/meetingCalendar'
 import { minutes } from '@/domain/workspace'
 import { availabilityService, browserDatabase } from '@/services'
 
+import { PageHeaderActions } from '@/components/shell/PageHeaderActions'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MeetingDetails, MeetingForm } from '@/components/calendar/CalendarWidgets'
@@ -85,25 +86,8 @@ export function PlannerPage() {
 
   return (
     <main id="main-content" className="shared-page-content space-y-6" tabIndex={-1}>
-      {/* Header */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Day Planner</h1>
-          <p className="text-sm text-muted-foreground">
-            Daily timeline of meetings and tasks. Schedule focus blocks directly into free time.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-
-          <Button size="sm" disabled={!calendarReady || saving} onClick={() => setCreatingBlock({ start: '10:00' })}>
-            <Plus size={14} className="mr-1.5" /> Add work block
-          </Button>
-        </div>
-      </header>
-
-      {/* Date Navigation & Summary Stats Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-xs">
-        <div className="flex items-center gap-2">
+      <PageHeaderActions>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => selectDate(shiftDate(selectedDate, -1))} aria-label="Previous day">
             <ChevronLeft size={16} />
           </Button>
@@ -125,6 +109,10 @@ export function PlannerPage() {
           </Button>
         </div>
 
+        <Button size="sm" variant="outline" disabled={!calendarReady || saving} onClick={() => setCreatingBlock({ start: '10:00' })}><Plus size={14}/>Add work block</Button>
+      </PageHeaderActions>
+      {/* Date Navigation & Summary Stats Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-xs">
         {/* Quick Stats */}
         <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">
           <div className="flex items-center gap-1.5" title="Meeting busy time within 09:00–18:00; overlapping periods count once">

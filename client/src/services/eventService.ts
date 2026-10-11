@@ -20,10 +20,10 @@ export function createEventService(database: BrowserDatabase, createId: () => st
       if (!saved.ok) return saved
       const draftKey = `meeting-agenda:${id}`
       if (!notes.list().some(note => note.draftKey === draftKey)) {
-        const note = notes.create({ projectId: record.projectId!, meetingId: id, title: record.title, kind: 'agenda', draftKey })
+        const note = notes.create({ projectId: record.projectId!, meetingId: id, title: record.title, kind: 'agenda', draftKey, pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
         if (!note.ok) return note
       }
-      database.dispatch({ type: 'draft', key: draftKey, value: record.agenda })
+      if (database.getState().drafts[draftKey] !== record.agenda) { const note = notes.list().find(note => note.draftKey === draftKey)!; const updated = notes.update(note.id, { createdAt: note.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }); if (!updated.ok) return updated; database.dispatch({ type: 'draft', key: draftKey, value: record.agenda }) }
       database.dispatch({ type: 'event', event: { ...record, agenda: '' } })
     } else database.dispatch({ type: 'event', event: record })
     return { ok: true, value: structuredClone(record) }

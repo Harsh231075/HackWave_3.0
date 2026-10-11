@@ -1,8 +1,9 @@
-import { projectDataService } from '@/services'
-import { DraftLibrary } from './DraftLibrary'
+import { draftService, noteService, projectDataService } from '@/services'
+import { NotesPanel } from '@/components/notes/NotesPanel'
 import { AttachmentManager } from './AttachmentManager'
 import { RecordManager } from '@/components/records/RecordManager'
 import { resourceSpec, clientSpec, projectSpec } from '@/components/records/recordSpecs'
+import { useWorkspace } from '@/state/WorkspaceProvider'
 import { useComponentView } from '@/state/ComponentViewContext'
 import { DraftEditor } from './DraftEditor'
 import { useUsageScope } from '@/state/UsageScopeContext'
@@ -12,7 +13,7 @@ import { useOverdueScope } from '@/state/OverdueScopeContext'
 import { OverdueSummary } from '@/components/tasks/OverdueWidgets'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { MeetingSummary } from './MeetingPreparationWidgets'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowUpRight, BookOpen, Check, FileText, Link2, Sparkles, Target } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,20 @@ export function EditableOutline() {
   const scope = useMeetingScope()
   const component = useComponentView()
   const key = usage ? usageDraftKey(usage.intent) : scope ? `meeting-agenda:${scope.data.meeting.id}` : component?.plan.bindings.draftKey ?? `project-outline:${component?.plan.bindings.projectId ?? projectDataService.selectedId()}`
-  return <><DraftLibrary draftKey={key}/><DraftEditor draftKey={key} label={usage ? 'Investigation notes' : scope ? 'Meeting agenda' : 'Preparation outline'} fallback={scope?.data.meeting.agenda ?? ''} /></>
+  const projectId = scope?.data.project.id ?? usage?.intent.projectId ?? component?.plan.bindings.projectId ?? projectDataService.selectedId()
+  if (projectId && (scope || usage?.intent.projectId)) return <FocusedNotes projectId={projectId} draftKey={key} fallback={scope?.data.meeting.agenda ?? ''}/>
+  if (projectId && !usage && !scope && !component?.plan.bindings.draftKey?.startsWith('google-preparation:')) return <NotesPanel key={projectId} projectId={projectId}/>
+  return <><DraftEditor draftKey={key} label={usage ? 'Investigation notes' : scope ? 'Meeting agenda' : 'Preparation outline'} fallback={scope?.data.meeting.agenda ?? ''} /></>
+}
+function FocusedNotes({ projectId, draftKey, fallback }: { projectId: string; draftKey: string; fallback: string }) {
+  const { notify } = useWorkspace()
+  useEffect(() => {
+    if (!noteService.list(projectId).some(note => note.draftKey === draftKey)) {
+      const result = draftService.save(draftKey, draftService.get(draftKey) ?? fallback)
+      if (!result.ok) notify(result.message)
+    }
+  }, [projectId, draftKey, fallback, notify])
+  return <NotesPanel projectId={projectId} focusedDraftKey={draftKey}/>
 }
 export function ContextSummary() {
   const overdue = useOverdueScope()

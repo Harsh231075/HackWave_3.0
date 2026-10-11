@@ -427,3 +427,16 @@ The organization/membership workspace feature is not part of this product. “Wo
 The historical three-goal browser recordings used the earlier fixtures. They do not certify the new project model. The remaining PS 4 continuous three-goal evaluation must run against user-created or explicitly seeded project records; the earlier unchecked end-to-end/accessibility matrix remains open.
 
 Validation for the project-only change: **316/316 unit tests passed**; production build and `git diff --check` passed; project lifecycle and Kanban browser checks passed. Lint passed with existing warnings; the build still reports the pre-existing large bundle warning.
+
+## Project notes — Keep-style UI
+
+- [x] `/notes` shows project-scoped cards, main header search and New note button, a creation form, and editor dialog.
+- [x] Shared notes components work in generated project layouts; goal-specific agendas/investigations retain their canonical body and scope.
+- [x] Text-note autosave (600 ms), pinning, duplication, Markdown export, and confirmed deletion.
+- [x] Canonical body remains in drafts; stable metadata IDs, optional timestamps, backwards-compatible pin defaults.
+- [x] Expected-content conflict checks, preserved editor buffers, route/project flush, reset epoch cancellation, and honest persistence feedback.
+- [x] Service tests and browser verification cover creation, pin/edit/reload/search and project isolation.
+- [ ] Live multi-user/cloud persistence: deferred until backend integration.
+- [ ] Archive, labels, colors, checklists, rich text and collaboration: outside this iteration.
+
+- [x] Tasks, Meetings, Notes, Resources and Planner share the right-side page action slot; reusable widget controls stay in component headers when embedded.

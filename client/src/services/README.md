@@ -156,3 +156,16 @@ Application layout writes use `workspaceDocumentService`; legacy layout factorie
 `projectDataService` owns project selection, guarded project deletion, active client associations, note metadata and Reset. `projectSeedService` is the only runtime sample-data writer and refuses nonempty databases. Tasks, local events, resources and attachments carry project IDs; service saves reject missing/unknown projects. Client identity is optional for meetings and usage, with association-based ownership. `projectSettings.version` marks the local project model; older storage requires an explicit reset rather than migration.
 
 Reset replaces both record state and all local collections, removes legacy layout/history/preferences keys, advances the database epoch and remounts local providers. Canvas undo is cleared; generation and uploads reject stale epochs. Google Calendar server sessions and remote records are not cleared. Browser storage errors keep valid changes in memory and show session-only feedback.
+
+### Project notes
+
+`noteService` owns project-scoped note listing/search, ID lookup, create/update,
+pinning, duplication and protected deletion. Updates/deletes compare the expected
+saved title/body so a stale editor cannot silently overwrite another component.
+`projectDataService.notes` delegates mutations to this service for compatibility.
+Metadata stores stable IDs, project/meeting links, pin status and optional timestamps;
+the canonical body stays in `state.drafts[draftKey]`. Older metadata without the
+new fields remains readable. Draft and meeting save paths also update note timestamps.
+The shared notes panel uses 600 ms autosave and retains failed edits in session buffers.
+Storage-unavailable feedback distinguishes session changes from durable saves.
+Note pins are independent from adaptive canvas component pins.

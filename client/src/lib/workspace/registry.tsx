@@ -21,7 +21,7 @@ const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings'
   meetings: { title: 'Meetings', reason: 'Upcoming meetings and classes are included so preparation can happen before the session.', icon: Users, component: MeetingList },
 
   recommendation: { title: 'Suggestions', reason: 'Select an outstanding task and confirm an available local focus slot.', icon: Sparkles, component: RecommendationCard },
-  outline: { title: 'Draft', reason: 'An editable outline turns preparation into work you can keep. Drafts are saved in your shared workspace.', icon: FileText, component: EditableOutline },
+  outline: { title: 'Notes', reason: 'Project notes keep your preparation and next steps together.', icon: FileText, component: EditableOutline },
   'resource-create': {title: 'Create resource', reason: 'An inline editor lets you define and save a resource without opening another dialog.', icon: BookOpen, component: ResourceCreation},
   resources: { title: 'Resources', reason: 'These linked demo materials support the selected context. Open a source to inspect its actual contents.', icon: BookOpen, component: ResourceLibrary },
   context: { title: 'Context', reason: 'Context, courses or projects, and linked resources orient the preparation workspace.', icon: Target, component: ContextSummary },

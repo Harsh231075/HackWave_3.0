@@ -157,3 +157,9 @@ Checks: `cd client && npm test && npm run test:render && npm run build && npm ru
 ## Project data verification
 
 `npm test` covers empty initialization, project ownership, multi-client associations, canonical notes/agendas, explicit sample seeding and reset/recovery. `npm run test:projects` provides optional Playwright checks for project switching, local task creation, note creation, reload, Reset/Seed and incompatible storage recovery. It uses the same `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH` overrides as the Kanban browser checks. Historical fixed fixtures live under `client/server/fixtures/`; the application does not import them.
+
+Project notes are available at `/notes`: a New note header button, creation form and Keep-style card grid,
+project-scoped search, pinning, autosaving text editor, duplication, Markdown
+export and confirmed deletion. Meeting agendas and investigation notes share
+canonical content with their adaptive components and cannot be deleted independently.
+Notes are stored locally; no cloud sync or multi-user collaboration is provided yet.

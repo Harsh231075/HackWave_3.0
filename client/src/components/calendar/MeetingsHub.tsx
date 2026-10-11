@@ -14,6 +14,7 @@ import { CalendarView } from './CalendarView'
 import { MeetingDetails, MeetingForm } from './CalendarWidgets'
 import { GoogleCalendarConnection, GoogleEventDetails } from './GoogleCalendarWidgets'
 import { GoogleMeetingForm } from './GoogleMeetingForm'
+import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -71,51 +72,17 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
 
   return (
     <section aria-label="Meetings workspace" className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className={compact?'text-lg font-semibold':'text-2xl font-bold tracking-tight'}>Meetings</h1>
-          <p className="text-sm text-muted-foreground">
-            {view==='list'?'Prepare, join and manage your upcoming meetings.':'See meetings and focus blocks across your calendar.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-
-          <Button size="sm" onClick={()=>create(date)}>
-            <Plus size={14} className="mr-1.5"/>New meeting
-          </Button>
-        </div>
-      </header>
-
-      {/* View & Source Filter Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <WidgetActions>
         <div className="flex gap-1 rounded-lg bg-muted p-1" role="group" aria-label="Meeting view">
-          <Button size="sm" variant={view==='list'?'secondary':'ghost'} aria-pressed={view==='list'} onClick={()=>changeView('list')}>
-            <List size={14} className="mr-1.5"/>List
-          </Button>
-          <Button size="sm" variant={view==='calendar'?'secondary':'ghost'} aria-pressed={view==='calendar'} onClick={()=>changeView('calendar')}>
-            <CalendarDays size={14} className="mr-1.5"/>Calendar
-          </Button>
+          <Button size="sm" variant={view==='list'?'secondary':'ghost'} aria-pressed={view==='list'} onClick={()=>changeView('list')}><List size={14}/>List</Button>
+          <Button size="sm" variant={view==='calendar'?'secondary':'ghost'} aria-pressed={view==='calendar'} onClick={()=>changeView('calendar')}><CalendarDays size={14}/>Calendar</Button>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-            Source
-            <select
-              aria-label="Meeting source"
-              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground"
-              value={source}
-              onChange={e=>{setSource(e.target.value);setSelected(null)}}
-            >
-              <option value="all">All sources</option>
-              <option value="google">Google Calendar</option>
-              <option value="local">Local</option>
-            </select>
-          </label>
-          <Button size="sm" variant="outline" disabled={remote.loading} onClick={google.refreshEvents}>
-            <RefreshCw size={14} className="mr-1.5"/>Refresh
-          </Button>
-        </div>
-      </div>
+        <select aria-label="Meeting source" className="rounded-lg border bg-card px-3 py-1.5 text-sm" value={source} onChange={event=>{setSource(event.target.value);setSelected(null)}}>
+          <option value="all">All sources</option><option value="google">Google Calendar</option><option value="local">Local</option>
+        </select>
+        <Button size="sm" variant="outline" disabled={remote.loading} onClick={google.refreshEvents}><RefreshCw size={14}/>Refresh</Button>
+        <Button size="sm" variant="outline" onClick={()=>create(date)}><Plus size={14}/>New meeting</Button>
+      </WidgetActions>
 
       {notice && <p role="status" className="rounded-lg bg-muted p-3 text-sm">{notice}</p>}
       {source!=='local' && !google.connection?.connected && <GoogleCalendarConnection/>}

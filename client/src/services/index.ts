@@ -113,3 +113,6 @@ export { makeInstance, instancesFromLayout } from './workspaceDocumentService'
 export { projectHasClient } from '../domain/projects'
 import { createProjectSeedService } from './projectSeedService'
 export const projectSeedService = createProjectSeedService(browserDatabase)
+
+import { createNoteService } from './noteService'
+export const noteService = createNoteService(browserDatabase)

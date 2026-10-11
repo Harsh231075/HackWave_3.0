@@ -1,12 +1,12 @@
+import { createNoteService } from './noteService.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { DomainSnapshot } from '../domain/types.ts'
-import { projectClientSchema, projectNoteSchema, projectSettingsSchema, type ProjectNote } from '../domain/projects.ts'
+import { projectClientSchema, projectNoteSchema, projectSettingsSchema } from '../domain/projects.ts'
 import { adaptiveProjectSchema, clientSchema } from '../domain/adaptiveData.ts'
 import { makeInstance } from '../domain/widgetInstances.ts'
 import { PRESETS } from '../lib/workspace/config.ts'
 import { emptyWorkspace } from '../domain/workspaceDocument.ts'
 import { createCollection } from './local/collection.ts'
-import type { ActionResult } from '../domain/commands.ts'
 
 export const emptyRecords = (): DomainSnapshot => ({ tasks: [], events: [], drafts: {}, dismissed: [], activity: [] })
 export function freshProjectData() {
@@ -39,7 +39,7 @@ export function createProjectDataService(database: BrowserDatabase) {
       return database.transaction(() => {
         const added = projects.create({ name: name.trim(), description })
         if (!added.ok) return added
-        const addedNote = notes.create({ projectId: added.value.id, title: 'Project notes', kind: 'general', draftKey: `project-outline:${added.value.id}` })
+        const addedNote = notes.create({ projectId: added.value.id, title: 'Project notes', kind: 'general', pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), draftKey: `project-outline:${added.value.id}` })
         return addedNote.ok ? added : addedNote
       })
     },
@@ -74,18 +74,9 @@ export function createProjectDataService(database: BrowserDatabase) {
     },
     notes: {
       list: (projectId?: string) => notes.list().filter(note => !projectId || note.projectId === projectId),
-      create(projectId: string, title: string, body = ''): ActionResult<ProjectNote> {
-        if (!projectExists(projectId)) return result('Choose an available project.')
-        if(body.length>5000)return result('Keep your note under 5000 characters.')
-        const id = crypto.randomUUID()
-        return database.transaction(() => {
-          const added = notes.save({ id, projectId, title, kind: 'general', draftKey: `note:${id}` })
-          if (added.ok) database.dispatch({ type: 'draft', key: added.value.draftKey, value: body })
-          return added
-        })
-      },
-      rename: (id: string, title: string) => notes.update(id, { title }),
-      delete(id: string) { const note = notes.getById(id); if (!note) return result('This note is unavailable.'); return database.transaction(() => { const removed = notes.delete(id); if (removed.ok) database.dispatch({ type: 'delete-draft', key: note.draftKey }); return removed }) },
+      create: (projectId: string, title: string, body = '') => createNoteService(database).create(projectId, { title, body }),
+      rename(id: string, title: string) { const service = createNoteService(database), note = service.getById(id); return note ? service.update(id, { title, body: note.body }, note) : result('This note is unavailable.') },
+      delete(id: string) { const service = createNoteService(database), note = service.getById(id); return note ? service.delete(id, note) : result('This note is unavailable.') },
     },
     reset() {
       const removed = legacyKeys.map(key => database.storage.remove(key))
