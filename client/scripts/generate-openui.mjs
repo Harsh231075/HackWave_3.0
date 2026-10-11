@@ -1,6 +1,6 @@
 import { createServer } from 'vite'
 import { mkdir, writeFile } from 'node:fs/promises'
-const server = await createServer({ server: { middlewareMode: true } })
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false } })
 try {
   const { productivityLibrary } = await server.ssrLoadModule('/src/lib/workspace/OpenUIWorkspace.tsx')
   await mkdir('src/generated', { recursive: true })

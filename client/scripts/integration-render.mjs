@@ -3,7 +3,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { createServer } from 'vite'
 import assert from 'node:assert/strict'
-const server = await createServer({ server: { middlewareMode: true } })
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false } })
 try {
   const { WorkspaceProvider } = await server.ssrLoadModule('/src/state/WorkspaceProvider.tsx')
   const { GoogleCalendarProvider } = await server.ssrLoadModule('/src/state/GoogleCalendarProvider.tsx')
