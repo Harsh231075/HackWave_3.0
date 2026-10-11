@@ -4782,7 +4782,7 @@
         "properties": {
           "children": {
             "minItems": 1,
-            "maxItems": 14,
+            "maxItems": 15,
             "type": "array",
             "items": {
               "$ref": "#/$defs/WorkspaceWidget"

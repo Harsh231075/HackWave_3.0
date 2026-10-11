@@ -1,3 +1,7 @@
+import { ComponentViewProvider } from '@/state/ComponentViewProvider'
+import { resolveComponentIntent } from '@/services/componentIntentService'
+import { componentViewSchema, type ComponentView, type ViewBindings } from '@/domain/componentIntent'
+import { adaptiveDataService, resourceService } from '@/services'
 import { ResponseWidgetsContext } from '@/state/ResponseWidgetsContext'
 import { HistoricalWorkspace } from '@/components/conversation/HistoricalWorkspace'
 import { captureWorkspaceSnapshot } from '@/lib/conversation/captureWorkspaceSnapshot'
@@ -81,6 +85,10 @@ function ClarificationForm({ question, pending, onAnswer, onCancel }: { question
 export function DynamicWorkspace() {
   const { state, draftBuffers } = useWorkspace()
   const [goal, setGoal] = useState('')
+  const [resolving, setResolving] = useState(false)
+  const resolveRequest = useRef<AbortController | null>(null)
+  const [componentQuestion, setComponentQuestion] = useState<{question:string;choices:string[]} | null>(null)
+  useEffect(() => () => resolveRequest.current?.abort(), [])
   const [conversation, setConversation] = useState<Conversation>(() => conversationService.load())
   const composer = useRef<HTMLTextAreaElement | null>(null)
   const scrollArea = useRef<HTMLElement | null>(null)
@@ -122,7 +130,8 @@ export function DynamicWorkspace() {
   const [revision, setRevision] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
   const workflow = useAdaptiveWorkspace(restored.usage?.intent ?? restored.overdue?.intent ?? restored.meeting?.intent, restored.usage?.composition.requestId ?? restored.overdue?.composition.requestId ?? restored.meeting?.composition.requestId, restored.usage?.composition)
-  const { pending, error, setError, clarification, cancel } = workflow
+  const { pending: workflowPending, error, setError, clarification, cancel } = workflow
+  const pending = workflowPending || resolving
   const speech = useSpeechToText({ value: goal, onChange: setGoal, enabled: (commandOpen || conversation.active) && !pending && !clarification })
   const canvas = useRef<HTMLElement | null>(null)
   const [componentState, setComponentState] = useState<Record<string, unknown>>({})
@@ -139,8 +148,8 @@ export function DynamicWorkspace() {
     if (!open) { speech.cancel(); workflow.cancel() }
     setCommandOpen(open)
   }
-  function completeTurn(id: string, status: Conversation['turns'][number]['status'], reply: string, visibleWidgets?: string[]) { setConversation(current => finishTurn(current, id, status, reply, visibleWidgets)) }
-  function stopConversation() { speech.cancel(); cancel(); if (activeTurn.current) completeTurn(activeTurn.current, 'cancelled', 'Stopped. Your existing workspace and edits are kept.'); activeTurn.current = null }
+  function completeTurn(id: string, status: Conversation['turns'][number]['status'], reply: string, visibleWidgets?: string[], componentPlan?: ComponentView) { setConversation(current => { const next = finishTurn(current, id, status, reply, visibleWidgets); return componentPlan ? {...next,turns:next.turns.map(turn=>turn.id===id?{...turn,componentPlan}:turn)} : next }) }
+  function stopConversation() { speech.cancel(); resolveRequest.current?.abort(); resolveRequest.current=null;setResolving(false);setComponentQuestion(null);cancel(); if (activeTurn.current) completeTurn(activeTurn.current, 'cancelled', 'Stopped. Your existing workspace and edits are kept.'); activeTurn.current = null }
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (conversation.active) { composer.current?.focus(); return }; if (commandOpen) { cancelSpeech(); cancel() }; setCommandOpen(!commandOpen) }
@@ -160,6 +169,7 @@ export function DynamicWorkspace() {
   }, [commandOpen, cancel, cancelSpeech])
   function resetLayout() {
     speech.cancel()
+    resolveRequest.current?.abort(); resolveRequest.current=null;setResolving(false);setComponentQuestion(null)
     workflow.reset()
     activeTurn.current = null; setConversation(emptyConversation()); conversationService.clear()
     setLiveRequest(null); liveCalendarLayoutService.clear(); setLayoutUndo([])
@@ -213,25 +223,46 @@ export function DynamicWorkspace() {
   }
   async function build(answer?: IntentRequest['clarificationAnswer'], demo = false, retryPrompt?: string) {
     const submittedGoal = answer?.originalGoal ?? retryPrompt ?? goal.trim()
-    if (!submittedGoal || pending) return
+    if (!submittedGoal || pending || resolveRequest.current) return
     speech.cancel()
     const id = crypto.randomUUID()
     activeTurn.current = id
     const answerText = answer ? answer.field === 'dateRange' ? `${answer.dateRange.from} through ${answer.dateRange.to}` : clarification?.choices.find(choice => choice.id === answer.selectedId)?.label ?? 'Use the selected option' : submittedGoal
     const previousTurn = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
-    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || (currentResponseWidgets ? currentResponseWidgets.includes('calendar') : /WorkspaceWidget\(\s*"calendar"/.test(response))) ? { accountId: calendar.connection.accountId } : {}) } : null
+    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || currentResponseTurn?.componentPlan?.bindings.draftKey?.startsWith('google-preparation:') || (currentResponseWidgets ? currentResponseWidgets.some(widget=>['calendar','meetings','availability'].includes(widget)) : /WorkspaceWidget\(\s*"calendar"/.test(response))) ? { accountId: calendar.connection.accountId } : {}) } : null
     setConversation(current => beginTurn(previousTurn && previousSnapshot ? archiveWorkspace(current, previousTurn, previousSnapshot) : current, id, answerText))
-    setGoal(''); setCommandOpen(false); setError('')
+    setGoal(''); setCommandOpen(false); setError(''); setComponentQuestion(null)
     if (!answer) {
       const modification = parseLayoutCommand(submittedGoal)
-      if (modification) {
+      if (modification && (modification.action === 'remove' || modification.action === 'resize' && /width|wide|narrow|resize|expand/i.test(submittedGoal))) {
         const changed = changeLayout(modification)
         const title = modification.widget === 'tasks' ? 'tasks' : modification.widget === 'outline' ? 'notes' : modification.widget
         const reply = modification.action === 'remove' ? `${title[0].toUpperCase() + title.slice(1)} removed from the working layout.` : `Here ${title === 'tasks' || title === 'notes' ? 'are' : 'is'} your ${title}.`
-        completeTurn(id, changed ? 'ready' : 'error', changed ? reply : workflow.getOutcome().error, changed ? modification.action === 'remove' ? [] : [modification.widget] : undefined)
+        completeTurn(id, changed ? 'ready' : 'error', changed ? reply : workflow.getOutcome().error, changed ? modification.action === 'remove' ? [] : [modification.widget] : undefined, changed && modification.action !== 'remove' && currentResponseTurn?.componentPlan ? {...currentResponseTurn.componentPlan,widgets:[modification.widget as ComponentView['widgets'][number]]} : undefined)
         return
       }
-      const liveKind = !demo && !useDemoCalendar ? liveCalendarGoal(submittedGoal) : null
+      const controller = new AbortController(); resolveRequest.current=controller;setResolving(true)
+      let resolved
+      try {
+        const records=adaptiveDataService.snapshot()
+        resolved=await resolveComponentIntent({goal:submittedGoal,referenceDate:calendarDate(undefined,calendar.timezone),timezone:calendar.timezone,previous:currentResponseTurn?.componentPlan,
+          catalog:{owners:[...new Set(state.tasks.map(task=>task.owner))],projects:records?.projects??[],clients:records?.clients??[],
+            draftKeys:Object.keys({...state.drafts,...draftBuffers}).filter(key=>!key.startsWith('google-preparation:')||!!calendar.connection?.accountId&&key.startsWith('google-preparation:'+calendar.connection.accountId+':')),
+            topics:[...new Set(resourceService.list().map(resource=>resource.context))]},
+        },controller.signal)
+      } catch(failure) {if(!controller.signal.aborted)completeTurn(id,'error',failure instanceof Error?failure.message:'Unable to resolve your request.');return}
+      finally {if(resolveRequest.current===controller){resolveRequest.current=null;setResolving(false)}}
+      if(controller.signal.aborted||activeTurn.current!==id)return
+      if(resolved.action==='clarify'){setComponentQuestion(resolved);completeTurn(id,'clarification',resolved.question);return}
+      if(resolved.action==='view'){
+        const next=responseForWidgets('',resolved.widgets)
+        if(!validLayout(next)){completeTurn(id,'error','The selected components could not be rendered. Try again.');return}
+        rememberLayout();setLiveRequest(null);liveCalendarLayoutService.clear();setUsage(null);setMeeting(null);setOverdue(null);setResponse(next);layoutService.save(next)
+        setComponentState({});setRevision(value=>value+1)
+        completeTurn(id,'ready',resolved.reply,resolved.widgets,resolved)
+        return
+      }
+      const liveKind = !demo && !useDemoCalendar ? resolved.kind==='meeting_preparation'?'prepare':resolved.kind==='meeting_scheduling'?'schedule':liveCalendarGoal(submittedGoal) : null
       if (liveKind) {
         rememberLayout()
         const today = calendarDate(undefined, calendar.timezone)
@@ -275,6 +306,11 @@ export function DynamicWorkspace() {
     setOverdue(session)
     if (layoutService.saveOverdue(session).status !== 'saved') setPersistenceNotice('Review filters updated for this session. Device storage is unavailable.')
   }
+  function updateComponentBindings(bindings: Partial<ViewBindings>) {
+    if(!currentResponseTurn?.componentPlan)return
+    const plan=componentViewSchema.parse({...currentResponseTurn.componentPlan,bindings:{...currentResponseTurn.componentPlan.bindings,...bindings}})
+    setConversation(current=>({...current,turns:current.turns.map(turn=>turn.id===workspaceTurnId?{...turn,componentPlan:plan}:turn)}))
+  }
   function generate(event: FormEvent) { event.preventDefault(); void build() }
   const workspaceTurnId = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
   const currentResponseTurn = conversation.turns.find(turn => turn.id === workspaceTurnId)
@@ -290,7 +326,8 @@ export function DynamicWorkspace() {
             <div className="flex justify-end"><p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-muted px-4 py-3 text-sm text-foreground">{turn.prompt}</p></div>
             <div className="flex items-start gap-3"><span className="mt-1 shrink-0"><OrloLogo size={22} /></span><div className="min-w-0 flex-1"><p className={`text-sm leading-6 ${turn.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role={turn.status === 'error' ? 'alert' : turn.status === 'pending' ? 'status' : undefined}>{turn.status === 'pending' && <LoaderCircle size={15} className="mr-2 inline animate-spin" />}{turn.reply}</p>{(turn.status === 'error' || turn.status === 'cancelled') && <Button variant="ghost" size="sm" disabled={pending} onClick={() => void build(undefined, false, turn.prompt)}>Try again</Button>}</div></div>
             {turn.snapshot && turn.id !== workspaceTurnId && <HistoricalWorkspace snapshot={turn.snapshot} turnId={turn.id} accountId={calendar.connection?.accountId} />}
-          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && (turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt))?.length !== 0 && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace"><ResponseWidgetsContext.Provider value={turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt) ?? null}>{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</ResponseWidgetsContext.Provider></section>}
+          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && (turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt))?.length !== 0 && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace"><ResponseWidgetsContext.Provider value={turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt) ?? null}>{turn.componentPlan ? <ComponentViewProvider key={turn.id} plan={turn.componentPlan} onChange={updateComponentBindings}>{renderer}</ComponentViewProvider> : <>{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</>}</ResponseWidgetsContext.Provider></section>}
+            {turn.id === conversation.turns.at(-1)?.id && componentQuestion && <div className="flex flex-wrap gap-2">{componentQuestion.choices.map(choice=><Button key={choice} variant="outline" size="sm" disabled={pending} onClick={()=>void build(undefined,false,choice)}>{choice}</Button>)}</div>}
             {turn.id === conversation.turns.at(-1)?.id && clarification && <section className="rounded-2xl border border-border bg-card p-4" aria-label="Clarify your goal"><ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={stopConversation} /></section>}
           </div>)}</div>
           {calendarSettings && <section className="space-y-3"><GoogleCalendarConnection /><Button variant="ghost" size="sm" onClick={() => setCalendarSettings(false)}>Hide connection settings</Button></section>}

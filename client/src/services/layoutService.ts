@@ -9,7 +9,7 @@ import { resolvedIntentSchema } from '../domain/intent.ts'
 export const layoutStorageKey = 'gogpt-app-layout-v1'
 const legacySchema = z.strictObject({ version: z.literal(1), response: z.string().min(1) })
 export const meetingTaskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
-  query: z.string(), status: z.enum(['all', 'pending', 'blocked', 'completed', 'overdue']),
+  query: z.string(), status: z.enum(['all', 'open', 'pending', 'blocked', 'completed', 'overdue']),
   priority: z.enum(['all', 'urgent', 'high', 'medium', 'low']), sort: z.enum(['due', 'priority']),
   from: z.union([z.literal(''), z.iso.date()]), to: z.union([z.literal(''), z.iso.date()]),
 }).refine(filters => !filters.from || !filters.to || filters.from <= filters.to, 'Task filter dates must be ordered.')

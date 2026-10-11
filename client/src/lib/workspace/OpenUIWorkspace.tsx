@@ -36,7 +36,7 @@ const WorkspaceWidget = defineComponent({
 })
 const Workspace = defineComponent({
   name: 'Workspace',
-  props: z.object({ children: z.array(WorkspaceWidget.ref).min(1).max(14) }),
+  props: z.object({ children: z.array(WorkspaceWidget.ref).min(1).max(15) }),
   description: 'The productivity canvas root. Arrange only approved WorkspaceWidget children; never invent records or task counts.',
   component: function WorkspaceView({ props, renderNode }) {
     const meeting = useMeetingScope()

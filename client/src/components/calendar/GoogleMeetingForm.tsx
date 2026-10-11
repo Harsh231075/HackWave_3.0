@@ -15,18 +15,18 @@ type Preview = { id: string; draft: EventDraft; accountId: string }
 function restoredPreview(accountId?: string): Preview | null {
   try { const parsed = JSON.parse(sessionStorage.getItem('orlo-event-preview') ?? 'null') as Preview | null; return parsed && parsed.accountId === accountId && eventDraftSchema.safeParse(parsed.draft).success ? parsed : null } catch { return null }
 }
-export function GoogleMeetingForm({ goal, onClose, onCreated }: { goal: string; onClose: () => void; onCreated: (event: CalendarEvent) => void }) {
+export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot }: { initialSlot?: {start:string;end:string}; goal: string; onClose: () => void; onCreated: (event: CalendarEvent) => void }) {
   const calendar = useGoogleCalendar()
   const [initial] = useState(() => restoredPreview(calendar.connection?.accountId))
   const [title, setTitle] = useState(initial?.draft.title ?? goal.replace(/^(?:please\s+)?(?:schedule|arrange|book|create|set up)\s+(?:a\s+)?/i, '').slice(0, 200))
-  const [date, setDate] = useState(() => initial ? calendarDate(new Date(initial.draft.start), initial.draft.timezone) : shiftDate(calendarDate(new Date(), calendar.timezone), /tomorrow/i.test(goal) ? 1 : 0))
+  const [date, setDate] = useState(() => initial ? calendarDate(new Date(initial.draft.start), initial.draft.timezone) : initialSlot ? calendarDate(new Date(initialSlot.start),calendar.timezone) : shiftDate(calendarDate(new Date(), calendar.timezone), /tomorrow/i.test(goal) ? 1 : 0))
   const [timezone, setTimezone] = useState(initial?.draft.timezone ?? calendar.timezone)
-  const [duration, setDuration] = useState(() => initial ? Math.round((Date.parse(initial.draft.end) - Date.parse(initial.draft.start)) / 60000) : Number(goal.match(/(\d+)\s*(?:minute|min)\b/i)?.[1] ?? 30))
+  const [duration, setDuration] = useState(() => initial ? Math.round((Date.parse(initial.draft.end) - Date.parse(initial.draft.start)) / 60000) : initialSlot ? Math.round((Date.parse(initialSlot.end)-Date.parse(initialSlot.start))/60000) : Number(goal.match(/(\d+)\s*(?:minute|min)\b/i)?.[1] ?? 30))
   const [emails, setEmails] = useState(initial?.draft.attendees.join(', ') ?? '')
   const [agenda, setAgenda] = useState(initial?.draft.description ?? '')
   const [time, setTime] = useState(() => initial ? new Intl.DateTimeFormat('en-GB', { timeZone: initial.draft.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(initial.draft.start)) : '')
   const [slots, setSlots] = useState<Array<{ start: string; end: string }>>([])
-  const [slot, setSlot] = useState<{ start: string; end: string } | null>(null)
+  const [slot, setSlot] = useState<{ start: string; end: string } | null>(initialSlot??null)
   const [searched, setSearched] = useState(false)
   const [preview, setPreview] = useState<Preview | null>(initial)
   const [busy, setBusy] = useState(false)

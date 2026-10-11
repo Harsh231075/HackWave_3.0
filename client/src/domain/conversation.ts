@@ -1,8 +1,9 @@
+import { componentViewSchema } from './componentIntent.ts'
 import { workspaceSnapshotSchema, type WorkspaceSnapshot } from './workspaceSnapshot.ts'
 import { z } from 'zod'
 export const conversationSchema = z.object({
   active: z.boolean(), hasWorkspace: z.boolean(), workspaceTurnId: z.string().optional(),
-  turns: z.array(z.object({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), visibleWidgets: z.array(z.string().max(40)).max(20).optional(), snapshot: workspaceSnapshotSchema.optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })).max(60),
+  turns: z.array(z.object({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), componentPlan: componentViewSchema.optional(), visibleWidgets: z.array(z.string().max(40)).max(20).optional(), snapshot: workspaceSnapshotSchema.optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })).max(60),
 })
 export type Conversation = z.infer<typeof conversationSchema>
 export const emptyConversation = (): Conversation => ({ active: false, hasWorkspace: false, turns: [] })

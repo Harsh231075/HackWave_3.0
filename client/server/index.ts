@@ -1,3 +1,4 @@
+import { componentIntentEndpoint } from './components.ts'
 import { createCalendarHandler } from './calendar/handler.ts'
 import { adaptiveEndpoint } from './adaptive.ts'
 import { createServer } from 'node:http'
@@ -12,6 +13,7 @@ const calendar = createCalendarHandler(process.env)
 createServer(async (req, res) => {
   if (await calendar(req, res)) return
   const path = new URL(req.url ?? '/', 'http://localhost').pathname
+  if (path === '/api/workspace/resolve') return componentIntentEndpoint(req, res)
   if (path === '/api/intent') return adaptiveEndpoint('intent', req, res)
   if (path === '/api/workspace/compose') return adaptiveEndpoint('compose', req, res)
   if (path === '/api/generate') return chat(req, res)
