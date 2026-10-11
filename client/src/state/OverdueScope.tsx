@@ -12,7 +12,7 @@ export function OverdueScopeProvider({ session, onFilters, children }: { session
   const component = useComponentView()
   const store = useMemo(() => createRecordStore(browserDatabase, () => overdueReviewService.load(session.intent, session.referenceDate)), [session.intent, session.referenceDate])
   const result = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-  if (result.status !== 'found') return <p role="alert">This project’s records are unavailable. Choose another workspace goal.</p>
+  if (result.status !== 'found') return <p role="alert">These records are unavailable. Choose another workspace goal.</p>
   const tasks = component ? selectViewTasks(result.value.tasks, component.plan) : filterTasks(result.value.tasks, session.filters, session.referenceDate)
   return <OverdueScopeContext.Provider value={{ data: result.value, composition: session.composition, intent: session.intent, tasks, filters: session.filters, updateFilters: patch => onFilters({ ...session.filters, ...patch }) }}>{children}</OverdueScopeContext.Provider>
 }

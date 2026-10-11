@@ -10,12 +10,11 @@ export function createUsageWorkspaceService(database: BrowserDatabase) {
     if (result.status !== 'found') return result
     const data = adaptive.snapshot()
     if (!data) return { status: 'invalid' as const }
-    const value = result.value, ids = new Set(value.projects.map(p => p.id))
-    const relationships = data.relationships.filter(r => r.sourceKind === 'project' && ids.has(r.sourceId) && r.type === 'related')
-    const belongs = (kind: 'task' | 'resource', id: string) => relationships.some(r => r.targetKind === kind && r.targetId === id) && !data.relationships.some(r => r.sourceKind === 'project' && !ids.has(r.sourceId) && r.targetKind === kind && r.targetId === id)
-    const within = (record: { clientId?: string; projectId: string; date: string }) => (!intent.clientId || record.clientId === intent.clientId) && ids.has(record.projectId) && record.date >= intent.dateRange.from && record.date <= intent.dateRange.to
-    const parsed = usageSnapshotSchema.safeParse({ query: { clientId: intent.clientId, ...(intent.projectId ? { projectId: intent.projectId } : {}), dateRange: intent.dateRange, ...(intent.constraints?.segment ? { segment: intent.constraints.segment } : {}) }, client: value.client, projects: value.projects, observations: value.observations, releases: value.releases, relationships,
-      tasks: data.tasks.filter(t => t.projectId ? ids.has(t.projectId) : belongs('task', t.id)), resources: data.resources.filter(r => r.projectId ? ids.has(r.projectId) : belongs('resource', r.id)), communications: data.communications.filter(within), issues: data.issues.filter(r => r.status === 'open' && (!intent.clientId || r.clientId === intent.clientId) && ids.has(r.projectId)) })
+    const value=result.value
+    const sources=new Set([...value.releases.map(r=>'release:'+r.id),...value.observations.map(r=>'observation:'+r.id)])
+    const relationships=data.relationships.filter(r=>sources.has(r.sourceKind+':'+r.sourceId)&&r.type==='related')
+    const linked=(kind:string,id:string)=>relationships.some(r=>r.targetKind===kind&&r.targetId===id)
+    const parsed=usageSnapshotSchema.safeParse({query:{dateRange:intent.dateRange,...(intent.constraints?.segment?{segment:intent.constraints.segment}:{})},observations:value.observations,releases:value.releases,relationships,tasks:data.tasks.filter(t=>linked('task',t.id)),resources:data.resources.filter(r=>linked('resource',r.id)),communications:data.communications.filter(r=>linked('communication',r.id)),issues:data.issues.filter(r=>r.status==='open'&&linked('issue',r.id))})
     return parsed.success ? { status: 'found' as const, value: { ...value, snapshot: parsed.data } } : { status: 'invalid' as const }
   } }
 }

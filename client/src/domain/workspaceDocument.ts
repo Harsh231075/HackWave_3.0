@@ -6,7 +6,7 @@ import { PRESETS, type WidgetType } from '../lib/workspace/config.ts'
 
 export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), source:z.enum(['ai','local']).optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
 export const workspaceDocumentSchema = z.strictObject({
-  version: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const), continuation: workspaceContinuationSchema.optional(), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
+  version: z.literal(3), continuation: workspaceContinuationSchema.optional(), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
   revision: z.number().int().nonnegative(), turns: turnSchema.array().max(60), targets: z.string().array(),
 }).superRefine((document, ctx) => {
   const ids = [...document.active, ...document.pins].map(w => w.instanceId)
@@ -17,13 +17,13 @@ export const workspaceDocumentSchema = z.strictObject({
 export type WorkspaceDocument = z.infer<typeof workspaceDocumentSchema>
 export type ConversationTurn = z.infer<typeof turnSchema>
 export const workspaceCollectionKey = 'workspaceDocument'
-export const emptyWorkspace = (): WorkspaceDocument => ({ version: 2, active: [], pins: [], revision: 0, turns: [], targets: [] })
+export const emptyWorkspace = (): WorkspaceDocument => ({ version: 3, active: [], pins: [], revision: 0, turns: [], targets: [] })
 
 export class TargetError extends Error {
   choices: Array<{ id: string; label: string }>
   constructor(type: string, instances: WidgetInstance[]) {
     super(`Choose which ${type} view to change.`)
-    this.choices = instances.map((w, index) => ({ id: w.instanceId, label: w.binding.kind === 'workspace' && !w.binding.projectId && !w.binding.clientId ? `${w.widgetType} view ${index + 1}` : w.label }))
+    this.choices = instances.map((w, index) => ({ id: w.instanceId, label: w.binding.kind === 'workspace' ? `${w.widgetType} view ${index + 1}` : w.label }))
   }
 }
 export function resolveTarget(document: WorkspaceDocument, target: string, includePins = false): WidgetInstance | undefined {

@@ -18,7 +18,8 @@ import { OverdueScopeProvider } from '@/state/OverdueScope'
 import { ComponentViewProvider } from '@/state/ComponentViewProvider'
 import { DisplayPreferencesContext } from '@/state/displayPreferencesContext'
 import { useDisplayPreferences } from '@/hooks/useDisplayPreferences'
-import { componentViewSchema, type ViewBindings } from '@/domain/componentIntent'
+import { instancePlan } from '@/domain/instanceViews'
+import { type ViewBindings } from '@/domain/componentIntent'
 import { calendarDate } from '@/domain/calendar'
 import type { PinnedWidget, WidgetInstance, WidgetViewState } from '@/domain/widgetInstances'
 import { GoogleBoundWidget } from '@/components/calendar/GoogleBoundWidget'
@@ -32,13 +33,12 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   const preferences = useDisplayPreferences()
   const binding = instance.binding, view = instance.viewState
   const date = view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : calendarDate())
-  const scopeIds = binding.kind === 'workspace' || binding.kind === 'meeting' ? { clientId: binding.clientId, projectId: binding.projectId } : binding.kind === 'usage' || binding.kind === 'overdue' ? { clientId: binding.intent.clientId, projectId: binding.intent.projectId } : {}
-  const plan = componentViewSchema.parse({ action: 'view', widgets: [instance.widgetType], bindings: { ...view, ...scopeIds, ...(binding.kind === 'workspace' ? { clientId: binding.clientId, projectId: binding.projectId, draftKey: binding.draftKey } : {}), category: view.calendarCategory }, referenceDate: date, timezone: view.timezone ?? 'Asia/Kolkata', reply: 'Instance view' })
-  const change = (patch: Partial<ViewBindings>) => { const { category, clientId: _client, projectId: _project, draftKey: _draft, ...state } = patch; update({ ...state, ...(category !== undefined ? { calendarCategory: category } : {}) }) }
+  const plan = instancePlan(instance)
+  const change = (patch: Partial<ViewBindings>) => { const { category, draftKey: _draft, ...state } = patch; update({ ...state, ...(category !== undefined ? { calendarCategory: category } : {}) }) }
   const composition = { widgets: [instance.explanation] }
   let scoped = children
   const filters = (taskFilters: WidgetViewState['taskFilters']) => update({ taskFilters, taskStatuses: undefined })
-  if (binding.kind === 'meeting') scoped = <MeetingScopeProvider session={{ meetingId: binding.meetingId, ownership: binding, taskFilters: view.taskFilters, composition }} onFilters={filters}>{children}</MeetingScopeProvider>
+  if (binding.kind === 'meeting') scoped = <MeetingScopeProvider session={{ meetingId: binding.meetingId, taskFilters: view.taskFilters, composition }} onFilters={filters}>{children}</MeetingScopeProvider>
   if (binding.kind === 'usage') scoped = <UsageScopeProvider session={{ intent: binding.intent, taskFilters: view.taskFilters, snapshotFingerprint: instance.fingerprint, composition }} onFilters={filters}>{children}</UsageScopeProvider>
   if (binding.kind === 'overdue') scoped = <OverdueScopeProvider session={{ intent: binding.intent, filters: view.taskFilters, referenceDate: binding.referenceDate, composition }} onFilters={filters}>{children}</OverdueScopeProvider>
   const actions = useContext(WorkspaceActionContext)
@@ -57,7 +57,7 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
       return workspace.deleteTask(id)
     },
     saveTask: input => {
-      if (!input.id) return binding.kind === 'workspace' && !binding.projectId && !binding.clientId ? workspace.saveTask(input) : { ok: false, message: 'Create tasks in the unscoped Tasks view.' }
+      if (!input.id) return binding.kind === 'workspace' ? workspace.saveTask(input) : { ok: false, message: 'Create tasks in the unscoped Tasks view.' }
       const prepared = workspaceActionService.prepare({ type: 'task.edit', taskId: input.id }, origin)
       return prepared.ok && prepared.value.type === 'task.edit' ? workspaceActionService.saveTask(prepared.value, input) : { ok: false, message: 'This task left the original view.' }
     },
@@ -80,7 +80,7 @@ function InstanceCard({ instance, update, remove, pageActions = false }: { remov
   if (instance.binding.kind === 'google-calendar') content = calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId ? <GoogleBoundWidget instance={instance} update={update} /> : <div className="space-y-3"><p>This view belongs to its original Google account. Connect that account to continue.</p><GoogleCalendarConnection /></div>
   if (records.status !== 'found' || !loadActionScope(browserDatabase, instance.binding)) content = <p role="alert">This view’s original records are unavailable. Restore them or remove this view.</p>
   if (isExtension(instance.widgetType) && (!extensionService.isWidgetEnabled(instance.widgetType) || instance.widgetType==='external-plugin' && !!instance.viewState.externalPluginId && !pluginImportService.getById(instance.viewState.externalPluginId)?.enabled)) content = <DisabledExtension id={instance.widgetType} remove={remove?()=>remove(instance.instanceId):undefined} />
-  const label = records.status === 'found' ? records.value.label === instance.widgetType ? '' : records.value.label : instance.binding.kind === 'workspace' && !instance.binding.clientId && !instance.binding.projectId ? '' : instance.label
+  const label = records.status === 'found' ? records.value.label === instance.widgetType ? '' : records.value.label : instance.binding.kind === 'workspace' ? '' : instance.label
   return <motion.div layout={reducedMotion ? false : 'position'} transition={{ layout: { duration: 0.3, ease: 'easeOut' } }} className={`workspace-cell span-${instance.span} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300`} data-workspace-component={instance.widgetType} data-instance-id={instance.instanceId}>
     <p className="mb-2 text-xs text-muted-foreground" hidden={!label && !('pinId' in instance)}>{'pinId' in instance ? label ? 'Pinned · ' : 'Pinned' : ''}{label}</p>
     <InstanceHost instance={instance} update={patch => update({ ...instance, viewState: { ...instance.viewState, ...patch } })}>

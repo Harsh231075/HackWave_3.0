@@ -17,7 +17,7 @@
     "test": "node --experimental-strip-types --test server/*.test.ts",
     "test:render": "node scripts/integration-render.mjs",
     "test:continuity": "node scripts/verify-continuity.mjs",
-    "test:projects": "node scripts/verify-projects.mjs",
+    "test:local-data": "node scripts/verify-local-data.mjs",
     "test:plugin-import": "node scripts/verify-plugin-import.mjs",
     "test:extensions": "node scripts/verify-extensions.mjs",
     "test:kanban": "node scripts/verify-kanban.mjs",

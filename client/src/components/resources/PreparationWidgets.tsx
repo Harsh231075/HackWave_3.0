@@ -1,8 +1,8 @@
-import { draftService, noteService, projectDataService } from '@/services'
+import { draftService, noteService } from '@/services'
 import { NotesPanel } from '@/components/notes/NotesPanel'
 import { AttachmentManager } from './AttachmentManager'
 import { RecordManager } from '@/components/records/RecordManager'
-import { resourceSpec, clientSpec, projectSpec } from '@/components/records/recordSpecs'
+import { resourceSpec } from '@/components/records/recordSpecs'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { useComponentView } from '@/state/ComponentViewContext'
 import { DraftEditor } from './DraftEditor'
@@ -35,34 +35,33 @@ export function EditableOutline() {
   const usage = useUsageScope()
   const scope = useMeetingScope()
   const component = useComponentView()
-  const key = usage ? usageDraftKey(usage.intent) : scope ? `meeting-agenda:${scope.data.meeting.id}` : component?.plan.bindings.draftKey ?? `project-outline:${component?.plan.bindings.projectId ?? projectDataService.selectedId()}`
-  const projectId = scope?.data.project.id ?? usage?.intent.projectId ?? component?.plan.bindings.projectId ?? projectDataService.selectedId()
-  if (projectId && (scope || usage?.intent.projectId)) return <FocusedNotes projectId={projectId} draftKey={key} fallback={scope?.data.meeting.agenda ?? ''}/>
-  if (projectId && !usage && !scope && !component?.plan.bindings.draftKey?.startsWith('google-preparation:')) return <NotesPanel key={projectId} projectId={projectId}/>
+  const key = usage ? usageDraftKey(usage.intent) : scope ? `meeting-agenda:${scope.data.meeting.id}` : component?.plan.bindings.draftKey
+  if(key && (scope||usage))return <FocusedNotes draftKey={key} fallback={scope?.data.meeting.agenda??''}/>
+  if(!key)return <NotesPanel/>
   return <><DraftEditor draftKey={key} label={usage ? 'Investigation notes' : scope ? 'Meeting agenda' : 'Preparation outline'} fallback={scope?.data.meeting.agenda ?? ''} /></>
 }
-function FocusedNotes({ projectId, draftKey, fallback }: { projectId: string; draftKey: string; fallback: string }) {
+function FocusedNotes({ draftKey, fallback }: {  draftKey: string; fallback: string }) {
   const { notify } = useWorkspace()
   useEffect(() => {
-    if (!noteService.list(projectId).some(note => note.draftKey === draftKey)) {
+    if (!noteService.list().some(note => note.draftKey === draftKey)) {
       const result = draftService.save(draftKey, draftService.get(draftKey) ?? fallback)
       if (!result.ok) notify(result.message)
     }
-  }, [projectId, draftKey, fallback, notify])
-  return <NotesPanel projectId={projectId} focusedDraftKey={draftKey}/>
+  }, [draftKey, fallback, notify])
+  return <NotesPanel focusedDraftKey={draftKey}/>
 }
 export function ContextSummary() {
   const overdue = useOverdueScope()
   const usage = useUsageScope()
   const scope = useMeetingScope()
   const component = useComponentView()
-  if (usage) return <><RecordManager spec={projectSpec} filter={r=>r.id===usage.intent.projectId||!usage.intent.projectId&&r.clientId===usage.intent.clientId}/><UsageSummary /></>
-  if (overdue) return <><RecordManager spec={projectSpec} filter={r=>r.id===overdue.data.project.id}/><OverdueSummary /></>
-  if (scope) return <><RecordManager spec={projectSpec} filter={r=>r.id===scope.data.project.id}/><MeetingSummary /></>
-  const info = { context: component?.projects.length === 1 ? component.projects[0].name : 'Your workspace', subtitle: 'Keep your projects, materials, and next steps together.', label: 'Shared' }
+  if (usage) return <UsageSummary/>
+  if (overdue) return <OverdueSummary/>
+  if (scope) return <MeetingSummary/>
+  const info = { context: 'Your day', subtitle: 'Tasks, meetings, notes and resources.', label: 'Shared' }
   const selectedResources=component?.resources??resourceService.list()
   const contexts = [...new Set(selectedResources.map(resource => resource.context))]
-  return <div className="flex flex-col [gap:0.85rem] [&_h3]:text-[length:1.25rem] [&_h3]:font-bold [&_p]:text-[length:0.88rem] [&_p]:text-(--muted-foreground) [&_dl]:grid [&_dl]:grid-cols-3 [&_dl]:[gap:0.65rem] [&_dl]:bg-(--muted) [&_dl]:[border:1px_solid_var(--border)] [&_dl]:p-3 [&_dl]:rounded-[var(--radius)] [&_dt]:text-[length:0.72rem] [&_dt]:text-(--muted-foreground) [&_dd]:text-[length:1.1rem] [&_dd]:font-bold"><div className="w-12 h-12 rounded-[var(--radius)] bg-(--accent) text-(--primary) inline-flex items-center justify-center"><BookOpen size={23} /></div><div className="flex flex-wrap gap-2"><RecordManager spec={clientSpec}/><RecordManager spec={projectSpec}/></div><h3>{info.context}</h3><p>{info.subtitle}</p><dl><div><dt>Current context</dt><dd>{info.label}</dd></div><div><dt>Projects / topics</dt><dd>{contexts.length}</dd></div><div><dt>Linked resources</dt><dd>{selectedResources.length}</dd></div></dl><div className="flex [gap:0.45rem] flex-wrap [&_span]:text-[length:0.76rem] [&_span]:[padding:0.25rem_0.6rem] [&_span]:bg-(--background) [&_span]:[border:1px_solid_var(--border)] [&_span]:rounded-full [&_span]:text-(--muted-foreground)">{contexts.map(context => <span key={context}>{context}</span>)}</div></div>
+  return <div className="flex flex-col [gap:0.85rem] [&_h3]:text-[length:1.25rem] [&_h3]:font-bold [&_p]:text-[length:0.88rem] [&_p]:text-(--muted-foreground) [&_dl]:grid [&_dl]:grid-cols-3 [&_dl]:[gap:0.65rem] [&_dl]:bg-(--muted) [&_dl]:[border:1px_solid_var(--border)] [&_dl]:p-3 [&_dl]:rounded-[var(--radius)] [&_dt]:text-[length:0.72rem] [&_dt]:text-(--muted-foreground) [&_dd]:text-[length:1.1rem] [&_dd]:font-bold"><div className="w-12 h-12 rounded-[var(--radius)] bg-(--accent) text-(--primary) inline-flex items-center justify-center"><BookOpen size={23} /></div><h3>{info.context}</h3><p>{info.subtitle}</p><dl><div><dt>Current context</dt><dd>{info.label}</dd></div><div><dt>Topics</dt><dd>{contexts.length}</dd></div><div><dt>Linked resources</dt><dd>{selectedResources.length}</dd></div></dl><div className="flex [gap:0.45rem] flex-wrap [&_span]:text-[length:0.76rem] [&_span]:[padding:0.25rem_0.6rem] [&_span]:bg-(--background) [&_span]:[border:1px_solid_var(--border)] [&_span]:rounded-full [&_span]:text-(--muted-foreground)">{contexts.map(context => <span key={context}>{context}</span>)}</div></div>
 }
 export function ExplanationPanel({ title, widgets }: { title: string; widgets: Array<{ title: string; reason: string }> }) {
   return <div className="bg-accent/50 [border:1px_solid_rgba(69,_106,_82,_0.25)] rounded-[var(--radius)] [padding:1.25rem_1.5rem] mb-6 flex flex-col [gap:0.85rem] [&_>_p]:text-[length:0.88rem] [&_>_p]:text-(--muted-foreground) [&_ul]:grid [&_ul]:[grid-template-columns:repeat(auto-fit,_minmax(280px,_1fr))] [&_ul]:gap-3 [&_ul]:list-none [&_li]:flex [&_li]:[gap:0.65rem] [&_li]:bg-(--card) [&_li]:[border:1px_solid_var(--border)] [&_li]:[padding:0.75rem_1rem] [&_li]:rounded-[var(--radius)] [&_li]:text-[length:0.85rem] [&_li_svg]:text-(--primary) [&_li_svg]:shrink-0 [&_li_svg]:[margin-top:0.15rem] [&_li_p]:text-[length:0.8rem] [&_li_p]:text-(--muted-foreground) [&_li_p]:[margin-top:0.2rem]"><div className="flex items-center gap-3 text-(--primary) [&_h3]:text-[length:1.05rem] [&_h3]:font-semibold [&_h3]:text-(--foreground) [&_p]:text-[length:0.8rem] [&_p]:text-(--muted-foreground)"><Sparkles size={18} /><div><h3>Why this workspace?</h3><p>Static preview · {title}</p></div></div><p>The selected preset changes what takes priority. Your edits, context, and pinned widgets stay with you.</p><ul>{widgets.map(widget => <li key={widget.title}><Target size={14} /><div><strong>{widget.title}</strong><p>{widget.reason}</p></div></li>)}</ul><div className="inline-flex items-center [gap:0.4rem] text-[length:0.78rem] text-(--muted-foreground) [padding-top:0.4rem] [border-top:1px_solid_var(--border)]"><Check size={14} /> You control record changes through the component’s forms and buttons.</div></div>

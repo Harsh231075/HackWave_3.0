@@ -21,13 +21,13 @@ function setup(blocked = false) {
   const database = createBrowserDatabase(storage, seed, collections)
   return { values, database, storage, service: createWorkspaceDocumentService(database) }
 }
-const request: ComponentRequest = { goal: '', referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', catalog: { owners: ['Maya'], projects: ADAPTIVE_DEMO.projects, clients: ADAPTIVE_DEMO.clients, draftKeys: [], topics: [] } }
+const request: ComponentRequest = { goal: '', referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', catalog: { owners: ['Maya'],   draftKeys: [], topics: [] } }
 function view(goal: string) { const result = fallbackComponentIntent({ ...request, goal }); assert.equal(result.action, 'view'); if (result.action !== 'view') throw new Error(goal); return result }
-const meeting: WidgetBinding = { kind: 'meeting', meetingId: 'northstar-meeting', clientId: 'northstar', projectId: 'atlas' }
+const meeting: WidgetBinding = { kind: 'meeting', meetingId: 'northstar-meeting',  }
 
 test('independent instances preserve scope and filters; ambiguous names require a target', () => {
-  const first = makeInstance('tasks', { kind: 'workspace', projectId: 'atlas' }, { owner: 'Maya' }, 'first')
-  const second = makeInstance('tasks', { kind: 'workspace', projectId: 'launch' }, {}, 'second')
+  const first = makeInstance('tasks', { kind: 'workspace' }, { owner: 'Maya' }, 'first')
+  const second = makeInstance('tasks', { kind: 'workspace' }, {}, 'second')
   const document = { ...emptyWorkspace(), active: [first, second] }
   assert.throws(() => resolveTarget(document, 'tasks'), TargetError)
   const next = applyComponentView(document, view('Only high priority tasks'), 'Only high priority tasks', undefined, 'first')
@@ -104,25 +104,18 @@ test('scope and revision changes reject stale task editors', () => {
   service.save(commitWorkspace(document, { active: [{ ...instance, binding: { kind: 'workspace' } }] }))
   assert.equal(actions.saveTask(prepared.value, task).ok, false)
 })
-test('legacy main layout and scoped pins migrate once without losing original storage', () => {
-  const { database, service, storage, values } = setup()
-  storage.writeJson('gogpt-app-layout-v1', { version: 1, response: 'root = Workspace([WorkspaceWidget("tasks", "wide")])' })
+test('old main layouts and managed history are not restored into the new document', () => {
+  const { service, storage, values } = setup()
+  storage.writeJson('gogpt-app-layout-v1', { version: 1, response: 'WorkspaceWidget("tasks", "wide")' })
+  storage.writeJson('orlo-continuous-workspace-v1', [{ id: 'tasks', span: 'wide' }])
+  storage.writeJson('orlo-workspace-conversation-v1', { turns: [{ id: 'old', prompt: 'tasks', reply: 'Ready', status: 'pending' }] })
   const original = values.get('gogpt-app-layout-v1')
-  const result = createPinService(database).pinWidget(makeInstance('outline', meeting)); assert.ok(result.ok)
   const initial = service.initialize()
-  assert.equal(initial.document.active[0].widgetType, 'tasks'); assert.equal(initial.document.pins[0].binding.kind, 'meeting')
-  assert.equal(values.get('gogpt-app-layout-v1'), original)
+  assert.equal(initial.document.version, 3)
+  assert.deepEqual(initial.document.active.map(w => w.widgetType), ['metrics', 'chart', 'timeline', 'activity'])
+  assert.deepEqual(initial.document.turns, [])
+  assert.equal(values.get('gogpt-app-layout-v1'), original) // The bootstrap gate owns old-key cleanup.
   assert.deepEqual(service.initialize().document, initial.document)
-})
-test('PR managed items take precedence and visual history becomes text only', () => {
-  const { service, storage } = setup()
-  storage.writeJson('orlo-continuous-workspace-v1', [{ id: 'tasks', span: 'wide', plan: { referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', bindings: { taskFilters: { query: '', status: 'open', priority: 'all', sort: 'due', from: '', to: '' }, owner: 'Maya', projectId: 'atlas' } } }])
-  storage.writeJson('gogpt-app-layout-v1', { version: 1, response: 'WorkspaceWidget("calendar", "full")' })
-  storage.writeJson('orlo-workspace-conversation-v1', { turns: [{ id: 'turn', prompt: 'tasks', reply: 'Ready', status: 'pending', snapshot: { nodes: ['private content'] } }] })
-  const initial = service.initialize()
-  assert.equal(initial.document.active.length, 1); assert.equal(initial.document.active[0].widgetType, 'tasks')
-  assert.deepEqual(initial.document.active[0].viewState.taskStatuses, ['pending', 'blocked'])
-  assert.equal(initial.document.turns[0].status, 'cancelled'); assert.equal('snapshot' in initial.document.turns[0], false)
 })
 test('invalid canonical data is preserved and blocked storage retains in-memory edits', () => {
   const { service, database } = setup()
@@ -130,7 +123,7 @@ test('invalid canonical data is preserved and blocked storage retains in-memory 
   assert.equal(service.initialize().persistence.status, 'invalid')
   assert.deepEqual(database.readCollection('workspaceDocument'), { status: 'found', value: { version: 999 } })
   const blocked = setup(true)
-  assert.equal(blocked.service.initialize().persistence.status, 'saved') // Initialization reads only; write failure is reported on the first save.
+  assert.equal(blocked.service.initialize().persistence.status, 'unavailable')
   const document = { ...emptyWorkspace(), active: [makeInstance('tasks')] }
   assert.equal(blocked.service.save(document).status, 'unavailable')
   const restored = blocked.service.load(); assert.ok(restored.status === 'found'); assert.equal(restored.value.active[0].instanceId, document.active[0].instanceId)
@@ -153,31 +146,31 @@ test('Google notes remain account-qualified and unrelated local drafts are not i
 
 test('a chosen target in a combined view does not change another widget type into it', () => {
   const first = makeInstance('tasks', undefined, {}, 'first')
-  const second = makeInstance('tasks', { kind: 'workspace', projectId: 'launch' }, {}, 'second')
+  const second = makeInstance('tasks', { kind: 'workspace' }, {}, 'second')
   const next = applyComponentView({ ...emptyWorkspace(), active: [first, second] }, view('Show calendar and tasks'), 'Show calendar and tasks', undefined, 'first')
   assert.equal(next.active.find(w => w.instanceId === 'first')?.widgetType, 'tasks')
   assert.equal(next.active.find(w => w.instanceId === 'second')?.widgetType, 'tasks')
   assert.equal(next.active.filter(w => w.widgetType === 'calendar').length, 1)
 })
-test('malformed PR entries are skipped without discarding valid entries', () => {
-  const { service, storage } = setup()
-  storage.writeJson('orlo-continuous-workspace-v1', [{ id: 'tasks', span: 'wide' }, { id: 'calendar', span: 'invalid' }])
-  const migrated = service.initialize()
-  assert.equal(migrated.document.active.length, 1)
-  assert.equal(migrated.document.active[0].widgetType, 'tasks')
-  assert.match(migrated.notice, /skipped/)
+test('older canonical document versions are rejected without replacement', () => {
+  const { service, database } = setup()
+  for (const version of [1, 2]) {
+    database.writeCollection('workspaceDocument', { ...emptyWorkspace(), version })
+    assert.equal(service.initialize().persistence.status, 'invalid')
+    const stored = database.readCollection('workspaceDocument')
+    assert.ok(stored.status === 'found')
+    assert.equal((stored.value as { version: number }).version, version)
+  }
 })
-test('a workspace project binding enforces membership for local mutations', () => {
+test('shared task actions accept existing records and reject missing IDs', () => {
   const { database } = setup()
   const actions = createWorkspaceActionService(database)
-  const binding: WidgetBinding = { kind: 'workspace', projectId: 'atlas', clientId: 'northstar' }
+  const binding: WidgetBinding = { kind: 'workspace' }
   const scope = loadActionScope(database, binding)!
-  assert.ok(scope.tasks.length)
-  const unrelated = database.getState().tasks.find(task => !scope.tasks.some(t => t.id === task.id))!
+  assert.equal(scope.tasks.length, database.getState().tasks.length)
   const origin = { binding, referenceDate: DEMO_DATE, revision: 0 }
   assert.ok(actions.prepare({ type: 'task.edit', taskId: scope.tasks[0].id }, origin).ok)
-  assert.equal(actions.prepare({ type: 'task.edit', taskId: unrelated.id }, origin).ok, false)
-  assert.equal(loadActionScope(database, { ...binding, clientId: 'westbridge' }), null)
+  assert.equal(actions.prepare({ type: 'task.edit', taskId: 'missing' }, origin).ok, false)
 })
 
 test('header reset preserves pins and history without duplicating default pinned views', () => {
@@ -204,9 +197,9 @@ test('header clear pins preserves active views and history and removes pinned ta
 
 test('route remount initialization does not write or notify an unchanged saved workspace',()=>{
  const {service,database,values}=setup();service.initialize();let notifications=0;database.subscribe(()=>notifications++)
- const before=values.get('orlo-browser-db-v1'),revision=database.getRevision()
+ const before=values.get('orlo-browser-db-v2'),revision=database.getRevision()
  for(let i=0;i<10;i++)createWorkspaceDocumentService(database).initialize()
- assert.equal(notifications,0);assert.equal(database.getRevision(),revision);assert.equal(values.get('orlo-browser-db-v1'),before)
+ assert.equal(notifications,0);assert.equal(database.getRevision(),revision);assert.equal(values.get('orlo-browser-db-v2'),before)
 })
 test('a new route reader preserves live pending turns while fresh application loads recover interrupted requests',()=>{
  const {service,database,storage}=setup();const initial=service.initialize().document

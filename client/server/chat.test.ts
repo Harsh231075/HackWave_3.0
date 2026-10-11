@@ -24,7 +24,7 @@ test('validates goals and generates UI through the server OpenAI endpoint', asyn
       assert.equal(payload.input.at(-1).content, 'Plan my day')
       return Response.json({ output: [{ content: [{ type: 'output_text', text: 'root = Card([Workspace([WorkspaceWidget("tasks", "full")])])' }] }] })
     }
-    const response = await post({ goal: 'Plan my day', context: { projects: ['Northstar'] } })
+    const response = await post({ goal: 'Plan my day', context: {  } })
     assert.equal(response.status, 200)
     const body = await response.json() as { response: string }
     assert.match(body.response, /WorkspaceWidget/)

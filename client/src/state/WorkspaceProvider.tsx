@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useSyncExternalStore, type ReactNo
 import { format } from 'date-fns'
 import type { ActionResult, EventInput, TaskInput } from '@/domain/commands'
 import type { Event, Filters, Task, WorkspaceState } from '@/domain/types'
-import { browserDatabase, draftService, eventService, recommendationService, taskService, projectDataService } from '@/services'
+import { browserDatabase, draftService, eventService, recommendationService, taskService, localDataService } from '@/services'
 interface WorkspaceContextValue {
   state: WorkspaceState; notify: (message: string) => void; notice: string
   draftBuffers: Record<string, string>; editDraft: (key: string, value: string) => void
@@ -33,10 +33,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [draftBuffers, setDraftBuffers] = useState<Record<string, string>>({})
   const [selectedDate, selectDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const editDraft = (key: string, value: string) => setDraftBuffers(current => ({ ...current, [key]: value }))
-  const resetDemo = () => { const result = projectDataService.reset(); setDraftBuffers({}); selectDate(format(new Date(), 'yyyy-MM-dd')); notify(result.status === 'saved' ? 'Local data cleared.' : 'Local data cleared for this session. Device storage is unavailable.') }
+  const resetDemo = () => { void localDataService.reset().then(result=>{setDraftBuffers({});selectDate(format(new Date(),'yyyy-MM-dd'));notify(result.ok?'Local data cleared.':result.message??'Reset failed. Retry.')}) }
   return <WorkspaceContext.Provider value={{ state, notice, notify, draftBuffers, editDraft, selectedDate, selectDate, resetDemo,
-    saveTask: input => run(() => taskService.save({ ...input, projectId: input.projectId ?? (input.id ? taskService.getById(input.id)?.projectId : projectDataService.selectedId()) })), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask: id => run(() => taskService.toggle(id)),
-    saveEvent: input => run(() => eventService.save({ ...input, projectId: input.projectId ?? (input.id ? eventService.getById(input.id)?.projectId : projectDataService.selectedId()) })), deleteEvent: id => run(() => eventService.delete(id)),
+    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask:id=>run(()=>taskService.toggle(id)),
+    saveEvent: input => run(() => eventService.save(input)),deleteEvent:id=>run(()=>eventService.delete(id)),
     saveDraft: (key, value) => run(() => draftService.save(key, value)), addFocusTime: id => run(() => recommendationService.accept(id)),
     restoreRecommendation:id=>run(()=>browserDatabase.dispatch({type:'restore-dismiss',id})),
     dismissRecommendation: id => run(() => recommendationService.dismiss(id)),

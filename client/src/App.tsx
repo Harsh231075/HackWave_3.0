@@ -1,3 +1,4 @@
+import { LocalDataGate } from '@/components/feedback/LocalDataGate'
 import { useSyncExternalStore } from 'react'
 import { browserDatabase } from '@/services'
 import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
@@ -18,7 +19,7 @@ import { ComponentGallery } from '@/pages/ComponentGallery'
 function App() {
   const epoch = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getEpoch, browserDatabase.getEpoch)
   return (
-    <BrowserRouter>
+    <LocalDataGate><BrowserRouter>
       <WorkspaceProvider key={epoch}><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
@@ -38,7 +39,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DisplayPreferencesProvider></GoogleCalendarProvider></WorkspaceProvider>
-    </BrowserRouter>
+    </BrowserRouter></LocalDataGate>
   )
 }
 

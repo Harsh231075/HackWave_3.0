@@ -1,4 +1,5 @@
-import { createProjectDataService, freshProjectData, emptyRecords } from './projectDataService'
+import { workspaceDocumentStore } from './workspaceDocumentStore'
+import { createLocalDataService, freshLocalData, emptyRecords } from './localDataService'
 import { calendarDate } from '../domain/calendar.ts'
 import { createWorkspaceActionService } from './workspaceActionService'
 import { createPinService } from './pinService'
@@ -33,8 +34,8 @@ import { createPreferencesService } from './preferencesService'
 import { createGenerationService } from './generationService'
 import { createResourceService } from './resourceService'
 const storage = createBrowserStorage()
-export const browserDatabase = createBrowserDatabase(storage, emptyRecords(), freshProjectData(), true)
-export const projectDataService = createProjectDataService(browserDatabase)
+export const browserDatabase = createBrowserDatabase(storage, emptyRecords(), freshLocalData())
+export const localDataService = createLocalDataService(browserDatabase,()=>audioStorage.clear(),()=>recordingController.reset(),()=>workspaceDocumentStore(browserDatabase).getSnapshot())
 export const workspaceService = {
   load: () => { const { tasks, events, drafts, dismissed, activity } = browserDatabase.getState(); return { status: 'found' as const, value: structuredClone({ tasks, events, drafts, dismissed, activity }) } },
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
@@ -77,11 +78,6 @@ export type { IntentService, IntentResolver } from './intentService'
 export type { IntentRequest, IntentResolution, ResolvedIntent, PartialIntent, IntentCandidates } from '../domain/intent'
 
 export const adaptiveDataService = createAdaptiveDataService(browserDatabase)
-export const projectService = { ...projectDataService.projects,
-  create: (input: { name: string; description?: string }) => projectDataService.create(input.name, input.description),
-  delete: projectDataService.delete,
-}
-export const clientService = adaptiveDataService.clients
 export const meetingService = adaptiveDataService.meetings
 export const communicationService = adaptiveDataService.communications
 export const issueService = adaptiveDataService.issues
@@ -110,9 +106,8 @@ export const workspaceActionService = createWorkspaceActionService(browserDataba
 
 export { makeInstance, instancesFromLayout } from './workspaceDocumentService'
 
-export { projectHasClient } from '../domain/projects'
-import { createProjectSeedService } from './projectSeedService'
-export const projectSeedService = createProjectSeedService(browserDatabase)
+import { createDemoSeedService } from './demoSeedService'
+export const demoSeedService = createDemoSeedService(browserDatabase)
 
 import { createNoteService } from './noteService'
 export const noteService = createNoteService(browserDatabase)
@@ -127,13 +122,6 @@ export const timerService = createTimerService(browserDatabase, extensionService
 export const audioStorage = createAudioStorage()
 export const voiceNoteService = createVoiceNoteService(browserDatabase, audioStorage)
 export const recordingController = createRecordingController(browserDatabase, extensionService)
-let extensionEpoch = browserDatabase.getEpoch()
-browserDatabase.subscribe(() => {
-  if (extensionEpoch === browserDatabase.getEpoch()) return
-  extensionEpoch = browserDatabase.getEpoch()
-  recordingController.reset()
-  void audioStorage.clear().catch(error => recordingController.reportError(error instanceof Error ? error.message : 'Audio cleanup failed. Retry resetting local data.'))
-})
 
 import { createPluginImportService } from '../extensions/external/importService'
 export const pluginImportService=createPluginImportService(browserDatabase)

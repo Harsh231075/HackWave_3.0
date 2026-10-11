@@ -29,8 +29,8 @@ function instance(type: WidgetType = 'tasks', binding: WidgetBinding = { kind: '
 }
 function list(service: ReturnType<typeof createPinService>) { const result = service.loadPins(); assert.ok(result.status === 'found'); return result.value }
 function add(service: ReturnType<typeof createPinService>, widget: WidgetInstance) { const result = service.pinWidget(widget); assert.ok(result.ok, result.ok ? '' : result.message); return result.value.at(-1)! }
-const meeting: WidgetBinding = { kind: 'meeting', meetingId: 'northstar-meeting', clientId: 'northstar', projectId: 'atlas' }
-const usage: WidgetBinding = { kind: 'usage', intent: { goalType: 'usage_investigation', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } } }
+const meeting: WidgetBinding = { kind: 'meeting', meetingId: 'northstar-meeting',  }
+const usage: WidgetBinding = { kind: 'usage', intent: { goalType: 'usage_investigation',   dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } } }
 
 test('pins initialize lazily and preserve stable IDs, order, scope and filters on reload', () => {
   const { database, pins, storage, values } = setup()
@@ -66,17 +66,17 @@ test('pin state edits validate dates and cannot change the immutable binding or 
 test('invalid pin collection is preserved until explicit Clear pins; unrelated collections remain', () => {
   const { pins, database, values } = setup()
   database.writeCollection(pinCollectionKey, { version: 99, pins: [] })
-  const raw = values.get('orlo-browser-db-v1')
+  const raw = values.get('orlo-browser-db-v2')
   assert.equal(pins.loadPins().status, 'invalid'); assert.equal(pins.pinWidget(instance()).ok, false)
-  assert.equal(values.get('orlo-browser-db-v1'), raw)
+  assert.equal(values.get('orlo-browser-db-v2'), raw)
   assert.ok(pins.clearPins().ok); assert.deepEqual(list(pins), [])
-  assert.equal(database.readCollection('clients').status, 'found')
+  assert.equal(database.readCollection('meetings').status, 'found')
 })
 test('malformed outer database is never overwritten even by Clear pins', () => {
-  const { values, storage } = setup(); values.set('orlo-browser-db-v1', '{')
+  const { values, storage } = setup(); values.set('orlo-browser-db-v2', '{')
   const pins = createPinService(createBrowserDatabase(storage, seed, collections))
   assert.equal(pins.loadPins().status, 'invalid'); assert.equal(pins.clearPins().ok, false)
-  assert.equal(values.get('orlo-browser-db-v1'), '{')
+  assert.equal(values.get('orlo-browser-db-v2'), '{')
 })
 test('blocked storage keeps pins and filter edits available in memory without domain undo entries', () => {
   const storage = createBrowserStorage(() => { throw new Error('blocked') })
@@ -86,7 +86,7 @@ test('blocked storage keeps pins and filter edits available in memory without do
   assert.ok(pins.updatePinViewState('memory-pin', { taskFilters: { ...emptyFilters(), query: 'draft' } }).ok)
   assert.equal(list(pins)[0].viewState.taskFilters.query, 'draft'); assert.equal(database.getState().history.length, 0)
 })
-test('saved meeting views retain original ownership and react to task changes, deletion and undo', () => {
+test('saved meeting views retain their selection and react to task changes, deletion and undo', () => {
   const { pins, database } = setup(); const saved = add(pins, instance('tasks', meeting))
   const preparation = createAdaptiveDataService(database)
   database.dispatch({ type: 'filters', patch: { query: 'unrelated' } })
@@ -97,21 +97,21 @@ test('saved meeting views retain original ownership and react to task changes, d
   database.dispatch({ type: 'undo' }); const restored = loadPinnedRecords(database, saved); assert.ok(restored.status === 'found'); assert.equal(restored.value.fingerprint, saved.fingerprint)
   database.dispatch({ type: 'delete-event', id: 'northstar-meeting' }); assert.equal(loadPinnedRecords(database, saved).status, 'missing')
   assert.equal(list(pins).length, 1); database.dispatch({ type: 'undo' }); assert.equal(loadPinnedRecords(database, saved).status, 'found')
-  database.writeCollection('meetings', ADAPTIVE_DEMO.meetings.map(m => m.id === 'northstar-meeting' ? { ...m, clientId: 'westbridge', projectId: 'launch', eventId: undefined } : m))
+  database.writeCollection('meetings', ADAPTIVE_DEMO.meetings.filter(m => m.id !== 'northstar-meeting'))
   assert.equal(loadPinnedRecords(database, saved).status, 'missing')
 })
-test('usage pins keep original client, date and segment; deleted owners differ from valid empty data', () => {
+test('usage pins keep their dates and segment; invalid records differ from valid empty data', () => {
   const { pins, database } = setup(); const saved = add(pins, instance('usage', usage))
-  const northstar = loadPinnedRecords(database, saved); assert.ok(northstar.status === 'found'); assert.match(northstar.value.label, /Northstar/)
-  const westbridge = createUsageWorkspaceService(database).load({ goalType: 'usage_investigation', clientId: 'westbridge', projectId: 'launch', dateRange: { from: '2026-10-05', to: '2026-10-11' } }); assert.ok(westbridge.status === 'found')
+  const northstar = loadPinnedRecords(database, saved); assert.ok(northstar.status === 'found'); assert.match(northstar.value.label, /mobile/)
+  const westbridge = createUsageWorkspaceService(database).load({ goalType: 'usage_investigation',   dateRange: { from: '2026-10-05', to: '2026-10-11' } }); assert.ok(westbridge.status === 'found')
   assert.deepEqual(list(pins)[0].binding, usage)
   database.writeCollection('usageObservations', []); assert.equal(loadPinnedRecords(database, saved).status, 'found')
-  database.writeCollection('clients', ADAPTIVE_DEMO.clients.filter(c => c.id !== 'northstar')); assert.equal(loadPinnedRecords(database, saved).status, 'missing')
+  database.writeCollection('usageObservations',[{}]); assert.equal(loadPinnedRecords(database, saved).status, 'invalid')
 })
 test('manual usage pins retain optional all-dates queries and calendar pins retain local view state', () => {
   const { pins } = setup()
-  const saved = add(pins, instance('usage', { kind: 'usage-query', query: { clientId: 'westbridge', projectId: 'launch', segment: 'mobile' } }))
-  assert.equal(saved.binding.kind, 'usage-query'); assert.match(saved.label, /Westbridge/); assert.match(saved.label, /All dates/)
+  const saved = add(pins, instance('usage', { kind: 'usage-query', query: {   segment: 'mobile' } }))
+  assert.equal(saved.binding.kind, 'usage-query'); assert.match(saved.label, /mobile/); assert.match(saved.label, /All dates/)
   const calendar = add(pins, instance('calendar'))
   assert.ok(pins.updatePinViewState(calendar.pinId, { selectedDate: '2026-10-15', calendarView: 'week', calendarCategory: 'break' }).ok)
   assert.equal(list(pins)[1].viewState.selectedDate, '2026-10-15'); assert.equal(list(pins)[1].viewState.calendarCategory, 'break')
@@ -120,7 +120,7 @@ test('unsupported bindings and missing record selections cannot be pinned', () =
   const { pins } = setup()
   assert.equal(pins.pinWidget(instance('tasks', { kind: 'google-calendar', accountId: 'test', calendarId: 'primary', mode: 'browse' })).ok, false)
   assert.equal(pins.pinWidget(instance('calendar', meeting)).ok, false)
-  assert.equal(pins.pinWidget(instance('usage', { kind: 'usage-query', query: { clientId: 'unknown' } })).ok, false)
+  assert.equal(pins.pinWidget(instance('usage', { kind: 'usage-query', query: { dateRange: { from: '2026-10-15', to: '2026-10-01' } } })).ok, false)
 })
 test('external pin store refreshes for collection-only edits without unstable snapshots', () => {
   const { pins, database } = setup(); const store = createRecordStore(database, pins.loadPins)
@@ -136,7 +136,7 @@ test('semantic equivalence ignores unrelated task filters but includes task and 
     assert.equal(widgetSelectionKey(view), widgetSelectionKey(changed))
   }
   const tasks = instance('tasks', meeting); assert.notEqual(widgetSelectionKey(tasks), widgetSelectionKey({ ...tasks, viewState: { ...tasks.viewState, taskFilters: { ...emptyFilters(), query: 'other' } } }))
-  const overdue = instance('metrics', { kind: 'overdue', intent: { goalType: 'overdue_review', projectId: 'atlas', dateRange: { from: '0001-01-01', to: '2026-10-11' } }, referenceDate: DEMO_DATE })
+  const overdue = instance('metrics', { kind: 'overdue', intent: { goalType: 'overdue_review',  dateRange: { from: '0001-01-01', to: '2026-10-11' } }, referenceDate: DEMO_DATE })
   assert.notEqual(widgetSelectionKey(overdue), widgetSelectionKey({ ...overdue, viewState: { ...overdue.viewState, taskFilters: { ...emptyFilters(), status: 'blocked' } } }))
 })
 test('canvas deduplicates exact selections, preserves different scopes and restores omitted optional widgets', () => {
@@ -162,7 +162,7 @@ test('clear and unpin preserve domain edits and remove only requested saved view
 
 test('manual and resolved usage views deduplicate when their effective queries match', () => {
   assert.ok(usage.kind === 'usage')
-  const manual = instance('usage', { kind: 'usage-query', query: { clientId: usage.intent.clientId!, projectId: usage.intent.projectId, dateRange: usage.intent.dateRange, segment: usage.intent.constraints?.segment } })
+  const manual = instance('usage', { kind: 'usage-query', query: {   dateRange: usage.intent.dateRange, segment: usage.intent.constraints?.segment } })
   assert.equal(widgetSelectionKey(manual), widgetSelectionKey(instance('usage', usage)))
   const { pins } = setup(); const first = add(pins, manual)
   assert.equal(add(pins, instance('usage', usage)).pinId, first.pinId)

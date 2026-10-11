@@ -10,7 +10,7 @@ const clearLayout = (source: StorageSource) => createLayoutService(createBrowser
 const response = 'root = Card([Workspace([WorkspaceWidget("tasks", "full")])])'
 const validate = (value: string) => value === response
 function memoryStorage() {
-  const data = new Map<string, string>([['gogpt-workspace-v1', 'existing-records']])
+  const data = new Map<string, string>([['orlo-data-v2', 'existing-records']])
   const storage: LayoutStorage = {
     getItem: key => data.get(key) ?? null,
     setItem: (key, value) => { data.set(key, value) },
@@ -23,11 +23,11 @@ test('layout persistence round-trips only the layout and preserves workspace rec
   const { source, data } = memoryStorage()
   assert.deepEqual(readLayout(source, validate), { status: 'missing' })
   assert.equal(saveLayout(source, response), true)
-  assert.deepEqual(JSON.parse(data.get(layoutStorageKey)!), { version: 1, response })
+  assert.deepEqual(JSON.parse(data.get(layoutStorageKey)!), { version: 3, response })
   assert.deepEqual(readLayout(source, validate), { status: 'found', value: response })
   assert.equal(clearLayout(source), true)
   assert.deepEqual(readLayout(source, validate), { status: 'missing' })
-  assert.equal(data.get('gogpt-workspace-v1'), 'existing-records')
+  assert.equal(data.get('orlo-data-v2'), 'existing-records')
 })
 
 test('malformed, incompatible, or rejected layouts fall back without modifying storage', () => {
@@ -57,7 +57,7 @@ test('storage acquisition, read, write, and removal failures do not throw or era
   storage.removeItem = () => { throw new Error('remove denied') }
   assert.equal(clearLayout(source), false)
   assert.equal(data.get(layoutStorageKey), original)
-  assert.equal(data.get('gogpt-workspace-v1'), 'existing-records')
+  assert.equal(data.get('orlo-data-v2'), 'existing-records')
 })
 
 test('invalid values cannot overwrite the previous saved layout', () => {

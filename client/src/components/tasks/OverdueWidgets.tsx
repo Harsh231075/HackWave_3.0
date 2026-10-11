@@ -7,12 +7,12 @@ import { overdueEvidenceRecords } from '@/domain/overdueReview'
 export function OverdueSummary() {
   const scope = useOverdueScope()
   if (!scope) return null
-  return <div className="space-y-3"><h3 className="text-xl font-semibold">{scope.data.project.name}</h3><p className="text-sm text-muted-foreground">{scope.data.client?.name} · Overdue before {format(parseISO(scope.data.referenceDate), 'd MMM')}</p><p className="text-sm">{scope.tasks.length} matching tasks · {scope.tasks.reduce((sum,t) => sum + t.duration, 0)} minutes remaining</p></div>
+  return <div className="space-y-3"><h3 className="text-xl font-semibold">Overdue work</h3><p className="text-sm text-muted-foreground">Overdue before {format(parseISO(scope.data.referenceDate), 'd MMM')}</p><p className="text-sm">{scope.tasks.length} matching tasks · {scope.tasks.reduce((sum,t) => sum + t.duration, 0)} minutes remaining</p></div>
 }
 export function OverdueEvidence({ widgetId }: { widgetId: string }) {
   const scope = useOverdueScope()
   const widget = scope?.composition.widgets.find(w => w.type === widgetId)
-  if (!scope || !widget) return <p>Explicitly linked project records.</p>
+  if (!scope || !widget) return <p>Records linked to this review.</p>
   const records = overdueEvidenceRecords(scope.data)
   return <div className="space-y-2"><p>{widget.reason}</p>{widget.evidence.map(ref => { const item = records.find(r => r.kind === ref.kind && r.record.id === ref.id); return <details key={`${ref.kind}:${ref.id}`}><summary className="cursor-pointer">{ref.kind} · {ref.id}{!item && ' · unavailable'}</summary><pre className="whitespace-pre-wrap break-words text-xs">{item ? JSON.stringify(item.record, null, 2) : 'Source is no longer available.'}</pre></details> })}</div>
 }

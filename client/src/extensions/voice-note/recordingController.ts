@@ -1,8 +1,7 @@
 import type { BrowserDatabase } from '../../services/browserDatabase.ts'
-import { validProject } from '../../services/projectOwnership.ts'
 import type { ExtensionService } from '../extensionService.ts'
 import { MAX_RECORDING_MS, MAX_AUDIO_BYTES } from './schema.ts'
-export interface RecordingDraft { projectId: string; blob: Blob; durationMs: number; title: string; text: string; epoch: number }
+export interface RecordingDraft {  blob: Blob; durationMs: number; title: string; text: string; epoch: number }
 export interface RecordingState { status: 'idle' | 'requesting' | 'recording' | 'stopping'; draft: RecordingDraft | null; error: string }
 export interface RecordingEnvironment { getStream(): Promise<MediaStream>; createRecorder(stream: MediaStream): MediaRecorder; now(): number }
 const browserEnvironment: RecordingEnvironment = {
@@ -23,9 +22,8 @@ export function createRecordingController(database: BrowserDatabase, extensions:
   return {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     getSnapshot: () => state,
-    async start(projectId: string) {
+    async start() {
       if (!extensions.isEnabled('voice-note')) { set({ error: 'Enable Voice Note first.' }); return }
-      if (!validProject(database, projectId)) { set({ error: 'Choose an available project.' }); return }
       if (state.status !== 'idle' || state.draft) { set({ error: 'Save or discard the current recording first.' }); return }
       const epoch = database.getEpoch(), current = ++token
       set({ status: 'requesting', error: '' })
@@ -40,7 +38,7 @@ export function createRecordingController(database: BrowserDatabase, extensions:
           if (current !== token || epoch !== database.getEpoch()) return
           release(); recorder = null
           const blob = new Blob(chunks, { type: active.mimeType || chunks[0]?.type || 'audio/webm' })
-          set({ status: 'idle', draft: blob.size ? { projectId, blob, durationMs: Math.min(MAX_RECORDING_MS, Math.max(0, environment.now() - startedAt)), title: '', text: '', epoch } : null, ...(blob.size ? {} : { error: 'No audio was captured. Record again.' }) })
+          set({ status: 'idle', draft: blob.size ? {  blob, durationMs: Math.min(MAX_RECORDING_MS, Math.max(0, environment.now() - startedAt)), title: '', text: '', epoch } : null, ...(blob.size ? {} : { error: 'No audio was captured. Record again.' }) })
         }
         acquired.getTracks().forEach(track => { track.onended = stop })
         active.start(1000); set({ status: 'recording' }); deadline = setTimeout(stop, MAX_RECORDING_MS)

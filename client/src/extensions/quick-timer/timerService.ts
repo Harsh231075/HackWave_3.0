@@ -1,5 +1,4 @@
 import type { BrowserDatabase } from '../../services/browserDatabase.ts'
-import { validProject } from '../../services/projectOwnership.ts'
 import { createCollection } from '../../services/local/collection.ts'
 import type { ActionResult } from '../../domain/commands.ts'
 import type { ExtensionService } from '../extensionService.ts'
@@ -14,19 +13,18 @@ export function createTimerService(database: BrowserDatabase, extensions: Extens
   extensions.beforeDisable(id => { if (id === 'quick-timer') {const result=pause();if(!result.ok)throw new Error(result.message)} })
   return {
     get, remaining, pause, sessions: () => sessions.list(),
-    start(projectId: string, durationMinutes = 25, taskId?: string): ActionResult<void> {
+    start(durationMinutes = 25, taskId?: string): ActionResult<void> {
       if (!extensions.isEnabled('quick-timer')) return fail('Enable Quick Timer first.')
-      if (!validProject(database, projectId)) return fail('Choose an available project.')
       if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 180) return fail('Choose 1–180 whole minutes.')
-      if (taskId && !database.getState().tasks.some(task => task.id === taskId && task.projectId === projectId)) return fail('Choose a task in this project.')
+      if (taskId && !database.getState().tasks.some(task => task.id === taskId)) return fail('Choose an available task.')
       const current = get(); if (current && current.status !== 'finished') return fail('Pause and reset the current timer before starting another session.')
       const raw = database.readCollection('quickTimer'); if (raw.status === 'invalid' || raw.status === 'found' && raw.value !== null && !timerSchema.safeParse(raw.value).success) return fail('Saved timer data is invalid and has been preserved.')
       const durationMs = durationMinutes * 60000, startedAt = now()
-      return write({ id: crypto.randomUUID(), projectId, taskId, durationMs, remainingMs: durationMs, status: 'running', startedAt, endAt: startedAt + durationMs })
+      return write({ id: crypto.randomUUID(),  taskId, durationMs, remainingMs: durationMs, status: 'running', startedAt, endAt: startedAt + durationMs })
     },
     resume(): ActionResult<void> {
       if (!extensions.isEnabled('quick-timer')) return fail('Enable Quick Timer first.')
-      const timer = get(); if (!timer || timer.status !== 'paused' || !validProject(database, timer.projectId)) return fail('No available paused timer.')
+      const timer = get(); if (!timer || timer.status !== 'paused') return fail('No available paused timer.')
       return write({ ...timer, status: 'running', endAt: now() + timer.remainingMs })
     },
     reset: () => write(null),
@@ -36,7 +34,7 @@ export function createTimerService(database: BrowserDatabase, extensions: Extens
       if (!extensions.isEnabled('quick-timer')) return pause()
       if (remaining(timer) > 0) return { ok: true, value: undefined }
       return database.transaction(() => {
-        if (!sessions.getById(timer.id)) { const saved = sessions.save({ id: timer.id, projectId: timer.projectId, taskId: timer.taskId, durationMs: timer.durationMs, elapsedMs: timer.durationMs, startedAt: timer.startedAt, completedAt: timer.endAt ?? now() }); if (!saved.ok) return saved }
+        if (!sessions.getById(timer.id)) { const saved = sessions.save({ id: timer.id,  taskId: timer.taskId, durationMs: timer.durationMs, elapsedMs: timer.durationMs, startedAt: timer.startedAt, completedAt: timer.endAt ?? now() }); if (!saved.ok) return saved }
         return write({ ...timer, status: 'finished', remainingMs: 0, endAt: undefined })
       })
     },

@@ -1,4 +1,3 @@
-import { projectSettingsSchema } from '../domain/projects.ts'
 import type { ActionResult } from '../domain/commands.ts'
 import { workspaceReducer, emptyFilters, type Action } from '../domain/workspace.ts'
 import type { DomainSnapshot, WorkspaceState } from '../domain/types.ts'
@@ -24,7 +23,7 @@ export interface BrowserDatabase {
 
 // One in-memory state and one persistence writer for all task/event/draft services.
 // Initialization is lazy so importing services never reads browser storage.
-export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnapshot, seedCollections: Record<string, unknown> = {}, projectMode = false): BrowserDatabase {
+export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnapshot, seedCollections: Record<string, unknown> = {}): BrowserDatabase {
   const repository = createWorkspaceService(storage)
   let state: WorkspaceState | undefined
   let revision=0
@@ -33,40 +32,26 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
   let batchPersistence:SaveResult={status:'saved'}
   const persist=(result:SaveResult)=>{persistence=result;if(batching&&result.status!=='saved')batchPersistence=result}
   let persistence: SaveResult = { status: 'saved' }
-  const collectionSchema = z.object({ version: z.literal(1), collections: z.record(z.string(), z.unknown()) })
+  const collectionSchema = z.object({ version: z.literal(2), collections: z.record(z.string(), z.unknown()) })
   let collections: Record<string, unknown> | undefined
-  const compatible = () => {
-    if (!projectMode) return true
-    const raw = storage.readJson('orlo-browser-db-v1')
-    const records = repository.load()
-    if (raw.status === 'unavailable') return records.status === 'unavailable' || records.status === 'missing'
-    if (raw.status === 'missing') return records.status === 'missing'
-    const envelope = collectionSchema.safeParse(raw.status === 'found' ? raw.value : null)
-    if (!envelope.success || records.status === 'invalid') return false
-    const data = envelope.data.collections
-    const settings = projectSettingsSchema.safeParse(data.projectSettings)
-    if (!settings.success || !Array.isArray(data.projects)) return false
-    const ids = new Set(data.projects.map(project => project && typeof project === 'object' && 'id' in project ? project.id : null))
-    if (!ids.has(settings.data.defaultProjectId) || !ids.has(settings.data.selectedProjectId)) return false
-    return records.status !== 'found' || [...records.value.tasks, ...records.value.events].every(record => !!record.projectId && ids.has(record.projectId))
-  }
+  const compatible=()=>repository.load().status!=='invalid'
   const loadCollections = (): LoadResult<Record<string, unknown>> => {
     if (collections) return { status: 'found', value: collections }
     if (!compatible()) return { status: 'invalid' }
-    const loaded = storage.readJson('orlo-browser-db-v1')
-    if (loaded.status === 'missing') { collections = structuredClone(seedCollections); if (projectMode) { const records = repository.save(initial()); const metadata = storage.writeJson('orlo-browser-db-v1', {version:1,collections}); persist(records.status === 'saved' ? metadata : records) } return { status: 'found', value: collections } }
+    const loaded = storage.readJson('orlo-browser-db-v2')
+    if (loaded.status === 'missing') { collections=structuredClone(seedCollections);return {status:'found',value:collections} }
     if (loaded.status === 'unavailable') { collections = structuredClone(seedCollections); return { status: 'found', value: collections } }
     if (loaded.status !== 'found') return loaded
     const result = collectionSchema.safeParse(loaded.value)
     if (!result.success) return { status: 'invalid' }
-    collections = projectMode ? result.data.collections : { ...structuredClone(seedCollections), ...result.data.collections }
+    collections = { ...structuredClone(seedCollections), ...result.data.collections }
     return { status: 'found', value: collections }
   }
   const log=(operation:string,kind:string,summary:string,entityId?:string,completion=false)=>{
     const loaded=loadCollections();if(loaded.status!=='found')return
     const prior=Array.isArray(loaded.value.recordActivity)?loaded.value.recordActivity:[]
     collections={...loaded.value,recordActivity:[{id:crypto.randomUUID(),at:new Date().toISOString(),operation,kind,summary,...(entityId?{entityId}:{}),completion},...prior].slice(0,1000)}
-    const result=storage.writeJson('orlo-browser-db-v1',{version:1,collections})
+    const result=storage.writeJson('orlo-browser-db-v2',{version:2,collections})
     if(result.status!=='saved')persist(result)
   }
   const listeners = new Set<() => void>()
@@ -80,7 +65,7 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
     return state
   }
   const dispatch = (action: Action) => {
-    if (projectMode && loadCollections().status !== 'found') { persistence = { status: 'invalid' }; return }
+    if (loadCollections().status !== 'found') { persistence = { status: 'invalid' }; return }
     const previous = getState()
     const next = workspaceReducer(previous, action)
     if (next === previous) return
@@ -103,7 +88,7 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
       batching=true;batchChanged=false;batchPersistence={status:'saved'}
       let result:ActionResult<T>
       try{result=operation()}catch{result={ok:false,message:'The record changes could not be completed.'}}
-      if(!result.ok){state=before;collections=savedCollections;persist(repository.save(before));persist(storage.writeJson('orlo-browser-db-v1',{version:1,collections}));revision++}
+      if(!result.ok){state=before;collections=savedCollections;persist(repository.save(before));persist(storage.writeJson('orlo-browser-db-v2',{version:2,collections}));revision++}
       batching=false
       if(batchPersistence.status!=='saved')persistence=batchPersistence
       if(batchChanged)notifyListeners()
@@ -119,8 +104,8 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
       if (loaded.status === 'invalid') return { status: 'invalid' }
       // Storage may be blocked; preserve local operations in memory for this session.
       collections = { ...(loaded.status === 'found' ? loaded.value : collections ?? {}), [key]: structuredClone(value) }
-      persist(storage.writeJson('orlo-browser-db-v1', { version: 1, collections }))
-      if(['resources','clients','projects','issues','communications','relationships','usageObservations','usageReleases','files'].includes(key)){
+      persist(storage.writeJson('orlo-browser-db-v2', { version: 2, collections }))
+      if(['resources','issues','communications','relationships','usageObservations','usageReleases','files'].includes(key)){
         const before=Array.isArray(loaded.status==='found'?loaded.value[key]:null)?loaded.status==='found'?loaded.value[key] as Array<Record<string,unknown>>:[]:[]
         const after=Array.isArray(value)?value as Array<Record<string,unknown>>:[]
         const changes=[...after.filter(r=>JSON.stringify(before.find(p=>p.id===r.id))!==JSON.stringify(r)),...before.filter(r=>!after.some(p=>p.id===r.id))]
@@ -147,7 +132,7 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
       collections = structuredClone(nextCollections)
       epoch++; revision++
       const recordsResult = repository.save(state)
-      const collectionsResult = storage.writeJson('orlo-browser-db-v1', { version: 1, collections })
+      const collectionsResult = storage.writeJson('orlo-browser-db-v2', { version: 2, collections })
       persistence = recordsResult.status === 'saved' && collectionsResult.status === 'saved' ? { status: 'saved' } : { status: 'unavailable' }
       notifyListeners()
       return persistence

@@ -1,4 +1,4 @@
-import { ProjectControls, LocalDataSettings } from '@/components/records/ProjectControls'
+import { LocalDataSettings } from '@/components/records/LocalDataSettings'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { BookOpen, FileText, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Puzzle, Settings, Users } from 'lucide-react'
@@ -29,7 +29,7 @@ export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => v
             <SidebarToggleButton open mobile={mobile} onClick={onClose} />
           </div>
         </div>
-        <ProjectControls /><nav aria-label="Workspace pages">
+        <nav aria-label="Workspace pages">
           {pages.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

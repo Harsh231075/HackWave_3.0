@@ -15,17 +15,17 @@ await page.route('**/api/intent', async route => {
   const input = route.request().postDataJSON()
   const westbridge = input.goal.includes('Westbridge')
   const intent = input.goal.includes('meeting')
-    ? { goalType: 'meeting_preparation', meetingId: westbridge ? 'westbridge-meeting' : 'northstar-meeting', clientId: westbridge ? 'westbridge' : 'northstar', projectId: westbridge ? 'launch' : 'atlas', dateRange: { from: '2026-10-13', to: '2026-10-13' } }
+    ? { goalType: 'meeting_preparation', meetingId: westbridge ? 'westbridge-meeting' : 'northstar-meeting', dateRange: { from: '2026-10-13', to: '2026-10-13' } }
     : input.goal.includes('overdue')
-      ? { goalType: 'overdue_review', projectId: 'atlas', clientId: 'northstar', dateRange: { from: '0001-01-01', to: '2026-10-11' } }
-      : { goalType: 'usage_investigation', clientId: westbridge ? 'westbridge' : 'northstar', projectId: westbridge ? 'launch' : 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } }
-  await route.fulfill({ json: { version: 1, requestId: input.requestId, originalGoal: input.goal, status: 'resolved', intent, ...(input.previousIntent?.goalType === 'usage_investigation' && intent.goalType === 'usage_investigation' ? { scopeChanges: ['clientId', 'projectId', 'segment'] } : {}) } })
+      ? { goalType: 'overdue_review', dateRange: { from: '0001-01-01', to: '2026-10-11' } }
+      : { goalType: 'usage_investigation', dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } }
+  await route.fulfill({ json: { version: 2, requestId: input.requestId, originalGoal: input.goal, status: 'resolved', intent, ...(input.previousIntent?.goalType === 'usage_investigation' && intent.goalType === 'usage_investigation' ? { scopeChanges: ['segment'] } : {}) } })
 })
 await page.route('**/api/workspace/compose', async route => {
   const input = route.request().postDataJSON()
   const types = input.preparation ? ['context', 'outline', 'tasks', 'resources'] : input.kind === 'overdue' ? ['context', 'tasks', 'metrics', 'recommendation'] : ['context', 'usage', 'tasks', 'metrics', 'outline']
-  const evidence = input.preparation ? { kind: 'meeting', id: input.intent.meetingId } : { kind: 'project', id: input.intent.projectId }
-  await route.fulfill({ json: { version: 1, requestId: input.requestId, widgets: types.map(type => ({ type, span: 'full', reason: `${input.intent.clientId} original evidence`, evidence: [evidence] })) } })
+  const evidence = input.preparation ? { kind: 'meeting', id: input.intent.meetingId } : input.kind === 'usage' ? { kind: 'observation', id: input.snapshot.observations[0].id } : { kind: 'task', id: input.review.tasks[0].id }
+  await route.fulfill({ json: { version: 2, requestId: input.requestId, widgets: types.map(type => ({ type, span: 'full', reason: 'Original record evidence', evidence: [evidence] })) } })
 })
 const retained = () => page.getByRole('region', { name: 'Pinned views' })
 const active = () => page.locator('.productivity-response')
@@ -43,6 +43,13 @@ async function options(item) {
 async function waitForPins(count) { await page.waitForFunction(n => document.querySelectorAll('[data-pin-id]').length === n, count) }
 try {
   await page.goto(base)
+
+  const { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } = await server.ssrLoadModule('/server/fixtures/demo.ts')
+  const { ADAPTIVE_DEMO } = await server.ssrLoadModule('/server/fixtures/adaptiveDemo.ts')
+  const { USAGE_DEMO } = await server.ssrLoadModule('/server/fixtures/usageDemo.ts')
+  await page.waitForSelector('[data-instance-id]')
+  await page.evaluate(async data => { const s = await import('/src/services/index.ts'); s.browserDatabase.replaceAll(data.records, { notes: [], files: [], ...data.collections }) }, { records: { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: {}, dismissed: [], activity: [] }, collections: { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES } })
+
   await goal('Prepare tomorrow Northstar meeting')
   await active().getByRole('textbox', { name: 'Meeting agenda' }).fill('Original Northstar agenda')
   await active().getByRole('button', { name: 'Save draft', exact: true }).click()
@@ -99,12 +106,12 @@ try {
   await page.goto(base)
   await waitForPins(5)
   await page.goto(`${base}/workspace/usage`)
-  await page.getByRole('combobox', { name: 'Usage client' }).click()
-  await page.getByRole('option', { name: 'Westbridge', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Usage segment' }).click()
+  await page.getByRole('option', { name: 'desktop', exact: true }).click()
   await page.locator('.widget-usage').getByRole('button', { name: /^Pin Usage/ }).click()
   await page.goto(base)
   await waitForPins(6)
-  assert.match(await retained().innerText(), /Westbridge.*All dates/)
+  assert.match(await retained().innerText(), /All dates.*desktop|desktop.*All dates/)
   await active().locator('.widget-activity').getByRole('button', { name: /^Pin Activity/ }).click()
   await waitForPins(6)
   assert.match(await page.locator('body').innerText(), /You can keep 6 pins/)

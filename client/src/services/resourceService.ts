@@ -1,9 +1,8 @@
-import { validProject } from './projectOwnership.ts'
 import { z } from 'zod'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { Resource } from '../domain/types.ts'
 export function createResourceService(resources: readonly Resource[], database?: BrowserDatabase) {
-  const schema = z.object({ id: z.string().min(1), projectId: z.string().min(1).optional(), title: z.string().trim().min(1), kind: z.string(), context: z.string(), body: z.string() })
+  const schema = z.object({ id: z.string().min(1),  title: z.string().trim().min(1), kind: z.string(), context: z.string(), body: z.string() })
   let local = structuredClone([...resources])
   const list = () => {
     if (!database) return structuredClone(local)
@@ -14,7 +13,6 @@ export function createResourceService(resources: readonly Resource[], database?:
   }
   return {
     create(input: Omit<Resource, 'id'>) {
-      if (database && !validProject(database, input.projectId)) return { ok: false as const, message: 'Choose an available project.' }
       const record = { ...input, id: crypto.randomUUID() }
       const parsed = schema.safeParse(record)
       if (!parsed.success) return { ok: false as const, message: 'Invalid resource.' }
@@ -27,7 +25,6 @@ export function createResourceService(resources: readonly Resource[], database?:
     update(id: string, patch: Partial<Omit<Resource, 'id'>>) {
       const existing = list().find(record => record.id === id)
       if (!existing) return { ok: false as const, message: 'This resource is no longer available.' }
-      if (database && !validProject(database, patch.projectId ?? existing.projectId)) return { ok: false as const, message: 'Choose an available project.' }
       const parsed = schema.safeParse({ ...existing, ...patch, id })
       if (!parsed.success) return { ok: false as const, message: 'Invalid resource.' }
       local = list().map(record => record.id === id ? parsed.data : record)

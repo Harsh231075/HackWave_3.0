@@ -12,7 +12,8 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error' && message.text().includes('useInsertionEffect')) errors.push(message.text()) })
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tasks`)
-  await page.evaluate(async () => { const {projectSeedService} = await import('/src/services/index.ts'); const result = projectSeedService.seed(); if(!result.ok)throw new Error(result.message) })
+  await page.getByRole('button', { name: 'New task', exact: true }).waitFor()
+  await page.evaluate(async () => { const {demoSeedService} = await import('/src/services/index.ts'); const result = demoSeedService.seed(); if(!result.ok)throw new Error(result.message) })
   await page.getByLabel('Task view', { exact: true }).click()
   await page.getByRole('option', { name: 'Kanban', exact: true }).click()
   const board = page.locator('[data-task-view="kanban"]')
@@ -22,7 +23,7 @@ try {
     return browserDatabase.getState().tasks.find(task => task.status === 'pending')
   })
   const handle = () => page.getByRole('button', { name: `Move ${task.title}`, exact: true })
-  const status = () => page.evaluate(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status, task.id)
+  const status = () => page.evaluate(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status, task.id)
   async function dragTo(destination) {
     const from = await handle().boundingBox()
     const to = await board.locator(`[data-kanban-column="${destination}"]`).boundingBox()
@@ -36,11 +37,11 @@ try {
     await page.waitForTimeout(350)
   }
   await dragTo('blocked')
-  await page.waitForFunction(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status === 'blocked', task.id)
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status === 'blocked', task.id)
   const changed = await page.evaluate(async id => (await import('/src/services/index.ts')).taskService.getById(id), task.id)
   assert.deepEqual(changed, { ...task, status: 'blocked' })
   await dragTo('completed')
-  await page.waitForFunction(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status === 'completed', task.id)
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status === 'completed', task.id)
   await page.reload()
   await board.waitFor()
   assert.equal(await status(), 'completed')
@@ -48,7 +49,7 @@ try {
   await page.keyboard.press('Space')
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Enter')
-  await page.waitForFunction(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status === 'blocked', task.id)
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status === 'blocked', task.id)
   await handle().focus()
   await page.keyboard.press('Space')
   await page.keyboard.press('ArrowLeft')
@@ -82,7 +83,7 @@ try {
   await touch('touchMove', touchTo.x + touchTo.width / 2, touchTo.y + 55)
   await page.waitForTimeout(100)
   await touch('touchEnd')
-  await page.waitForFunction(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status === 'pending', task.id)
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status === 'pending', task.id)
   await page.evaluate(async () => (await import('/src/services/index.ts')).browserDatabase.dispatch({ type: 'undo' }))
   assert.equal(await status(), 'blocked')
   // A pinned meeting board uses the same component and original binding checks.
@@ -93,7 +94,7 @@ try {
     const meeting = adaptiveDataService.snapshot().meetings.find(meeting => adaptiveDataService.loadPreparation(meeting.id).value?.tasks.length)
     const task = adaptiveDataService.loadPreparation(meeting.id).value.tasks[0]
     taskService.update(task.id, { status: 'pending' })
-    const binding = { kind: 'meeting', meetingId: meeting.id, clientId: meeting.clientId, projectId: meeting.projectId }
+    const binding = { kind: 'meeting', meetingId: meeting.id }
     const instance = makeInstance('tasks', binding, { taskView: 'kanban' })
     browserDatabase.writeCollection('workspaceDocument', { ...emptyWorkspace(), pins: [{ ...instance, pinId: crypto.randomUUID(), createdAt: new Date().toISOString() }] })
     return { task, binding }
@@ -105,8 +106,8 @@ try {
   await page.keyboard.press('Space')
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('Enter')
-  await page.waitForFunction(id => JSON.parse(localStorage.getItem('gogpt-workspace-v1')).tasks.find(task => task.id === id).status === 'blocked', scoped.task.id)
-  const binding = await page.evaluate(() => JSON.parse(localStorage.getItem('orlo-browser-db-v1')).collections.workspaceDocument.pins[0].binding)
+  await page.waitForFunction(id => JSON.parse(localStorage.getItem('orlo-data-v2')).tasks.find(task => task.id === id).status === 'blocked', scoped.task.id)
+  const binding = await page.evaluate(() => JSON.parse(localStorage.getItem('orlo-browser-db-v2')).collections.workspaceDocument.pins[0].binding)
   assert.deepEqual(binding, scoped.binding)
   assert.deepEqual(errors, [])
   console.log('PASS: mouse/touch/keyboard moves, cancellation, unchanged fields, reload, stale edits, undo, edit controls and pinned meeting scope')

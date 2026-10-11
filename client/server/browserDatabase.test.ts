@@ -11,7 +11,6 @@ import { createAvailabilityService } from '../src/services/availabilityService.t
 import { createSearchService } from '../src/services/searchService.ts'
 import { createResourceService } from '../src/services/resourceService.ts'
 import { createProfileService } from '../src/services/profileService.ts'
-import { createProjectService } from '../src/services/projectService.ts'
 import { createNotificationService } from '../src/services/notificationService.ts'
 import { createAuthService } from '../src/services/authService.ts'
 import { createSharingService } from '../src/services/sharingService.ts'
@@ -59,20 +58,20 @@ test('all domain services share one database, subscriptions, persistence, filter
 })
 test('database loading preserves invalid records; memory changes remain usable with blocked storage', () => {
   const { data, storage, database } = setup()
-  data.set('gogpt-workspace-v1', '{')
+  data.set('orlo-data-v2', '{')
   database.getState(); database.dispatch({ type: 'filters', patch: { query: 'hello' } })
-  assert.equal(data.get('gogpt-workspace-v1'), '{')
+  assert.equal(data.get('orlo-data-v2'), '{')
   assert.equal(database.replaceRecords({ ...seed, tasks: [{}] } as never).status, 'invalid')
-  data.set('orlo-browser-db-v1', '{')
+  data.set('orlo-browser-db-v2', '{')
   assert.equal(database.writeCollection('profiles', []).status, 'invalid')
-  assert.equal(data.get('orlo-browser-db-v1'), '{')
+  assert.equal(data.get('orlo-browser-db-v2'), '{')
   const blocked = createBrowserDatabase(createBrowserStorage(() => { throw new Error('blocked') }), seed)
   assert.equal(createTaskService(blocked, () => '2026-10-12').create(input).ok, true)
   assert.equal(blocked.getState().tasks.length, 1)
   assert.equal(blocked.getPersistenceResult().status, 'unavailable')
-  assert.equal(storage.readJson('gogpt-workspace-v1').status, 'invalid')
+  assert.equal(storage.readJson('orlo-data-v2').status, 'invalid')
 })
-test('local profiles, projects, notifications, sessions, and sharing persist in shared collections', () => {
+test('local profiles, notifications, sessions, and sharing persist in shared collections', () => {
   const { database, storage } = setup()
   const profiles = createProfileService(database)
   const result = profiles.create({ name: 'Maya', timezone: 'Asia/Kolkata' })
@@ -87,10 +86,6 @@ test('local profiles, projects, notifications, sessions, and sharing persist in 
   sharing.addLocalMember(profile.id); sharing.addLocalMember(profile.id)
   assert.equal(sharing.listMembers().length, 1)
   assert.equal(sharing.invite().ok, false)
-  const projects = createProjectService(database)
-  const project = projects.create({ name: 'Project', description: '' })
-  assert.equal(project.ok, true)
-  if (project.ok) { projects.update(project.value.id, { name: 'Renamed' }); assert.equal(projects.getById(project.value.id)?.name, 'Renamed') }
   const notifications = createNotificationService(database)
   const notification = notifications.create({ message: 'Remember', read: false, createdAt: new Date().toISOString() })
   if (notification.ok) notifications.markRead(notification.value.id)

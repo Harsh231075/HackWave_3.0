@@ -6,7 +6,7 @@ import { makeInstance } from '../src/domain/widgetInstances.ts'
 import { instancePlan } from '../src/domain/instanceViews.ts'
 import { calendarDate } from '../src/domain/calendar.ts'
 import { ADAPTIVE_DEMO } from '../server/fixtures/adaptiveDemo.ts'
-const instance = makeInstance('tasks', { kind: 'workspace', projectId: 'atlas', clientId: 'northstar' }, {}, 'atlas-tasks')
+const instance = makeInstance('tasks', { kind: 'workspace', }, {}, 'atlas-tasks')
 const server = createServer((req, res) => { void componentIntentEndpoint(req, res) })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 let failures = 0
@@ -22,7 +22,7 @@ try {
   const selected = process.env.ORLO_LIVE_CASES ? cases.filter(item => process.env.ORLO_LIVE_CASES.split('|').includes(item.goal)) : cases
   for (const item of selected) {
     let diagnostic
-    const input = { goal: item.goal, referenceDate: calendarDate(), timezone: 'Asia/Kolkata', previous: instancePlan(instance), instances: [instance], componentPlans: [instancePlan(instance)], workspaceWidgets: ['tasks'], lastTargetIds: [instance.instanceId], catalog: { owners: ['Maya'], projects: ADAPTIVE_DEMO.projects, clients: ADAPTIVE_DEMO.clients, topics: [], draftKeys: [] } }
+    const input = { goal: item.goal, referenceDate: calendarDate(), timezone: 'Asia/Kolkata', previous: instancePlan(instance), instances: [instance], componentPlans: [instancePlan(instance)], workspaceWidgets: ['tasks'], lastTargetIds: [instance.instanceId], catalog: { owners: ['Maya'], topics: [], draftKeys: [] } }
     try {
       const response = await fetch('http://127.0.0.1:' + server.address().port, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: AbortSignal.timeout(20000) })
       const result = await response.json()
