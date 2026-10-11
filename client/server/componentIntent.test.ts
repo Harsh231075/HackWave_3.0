@@ -100,3 +100,35 @@ test('explicit combined commands resolve as ordered management operations',async
  assert.equal(result.status,200);assert.equal(result.body.action,'manage')
  assert.deepEqual(result.body.operations,[{type:'keep',widgets:['meetings']},{type:'add',widgets:['tasks']}])
 })
+
+test('AI is attempted first even for an exact keyword management command',async()=>{
+ const original=globalThis.fetch;let calls=0
+ try{globalThis.fetch=async()=>{calls++;return Response.json({choices:[{message:{content:JSON.stringify({action:'manage',operations:[{type:'clear'}],reply:'Workspace cleared.'})}}]})};const result=await endpoint('Remove all',{MODEL_PROVIDER:'groq',GROQ_API_KEY:'test-only',GROQ_MODEL:'test-model'});assert.equal(calls,1);assert.equal(result.body.source,'ai');assert.equal(result.body.action,'manage')}finally{globalThis.fetch=original}
+})
+test('AI outage reports keyword source for management and clarification results',async()=>{
+ const original=globalThis.fetch;let calls=0
+ try{globalThis.fetch=async()=>{calls++;throw new Error('Provider down')};const env={MODEL_PROVIDER:'groq',GROQ_API_KEY:'test-only',GROQ_MODEL:'test-model'};const result=await endpoint('Remove all',env);assert.equal(calls,1);assert.equal(result.body.source,'local');assert.equal(result.body.action,'manage');const uncertain=await endpoint('How do I remove all',env);assert.equal(uncertain.body.source,'local');assert.equal(uncertain.body.action,'clarify')}finally{globalThis.fetch=original}
+})
+test('questions, negation and conditions never authorize a clear operation',()=>{
+ const clear={action:'manage',operations:[{type:'clear'}],reply:'Cleared'}
+ for(const goal of ['How do I remove all','If I remove all','I don’t want to remove all','I do not want to remove all','Never automatically remove all','calendar mat hatao','Show tasks with clear priorities','Remove suggestions']){assert.equal(validateComponentResolution(clear,{...input,goal}).success,false,goal);const local=fallbackComponentIntent({...input,goal});if(local.action==='manage')assert.equal(local.operations.some(op=>op.type==='clear'),false,goal)}
+ assert.equal(validateComponentResolution(clear,{...input,goal:'Can you please remove all'}).success,true)
+})
+test('AI cannot remove a different named component than the user requested',()=>{assert.equal(validateComponentResolution({action:'manage',operations:[{type:'remove',widgets:['calendar']}],reply:'Removed'},{...input,goal:'Remove suggestions'}).success,false)})
+
+test('valid AI date filters are normalized rather than silently discarded',async()=>{
+ const original=globalThis.fetch
+ try{globalThis.fetch=async()=>Response.json({choices:[{message:{content:JSON.stringify({action:'view',widgets:['tasks'],bindings:{taskFilters:{status:'pending',from:input.referenceDate,to:input.referenceDate}},reply:'Your pending tasks',referenceDate:input.referenceDate,timezone:input.timezone})}}]});const result=await endpoint('Show pending tasks today',{MODEL_PROVIDER:'groq',GROQ_API_KEY:'test-only',GROQ_MODEL:'test-model'});assert.equal(result.body.source,'ai');assert.deepEqual(result.body.bindings.dateRange,{from:input.referenceDate,to:input.referenceDate})}finally{globalThis.fetch=original}
+})
+test('equivalent timezone aliases preserve AI source but incompatible zones are rejected',async()=>{
+ const {normalizeModelIntent}=await import('./componentModelIntent.ts')
+ const request={...input,timezone:'Asia/Calcutta'},candidate={...view('Show tasks'),timezone:'Asia/Kolkata'}
+ assert.equal(validateComponentResolution(normalizeModelIntent(candidate,request),request).success,true)
+ assert.equal(validateComponentResolution(normalizeModelIntent({...candidate,timezone:'UTC'},request),request).success,false)
+})
+test('compact model context omits repeated saved clocks and default filters',async()=>{
+ const {componentModelInput}=await import('./componentModelIntent.ts');const previous=view('Show tasks')
+ const model=componentModelInput({...input,previous,componentPlans:[previous]})
+ assert.equal(model.referenceDate,input.referenceDate);assert.equal(model.previous?.bindings.taskFilters&&Object.keys(model.previous.bindings.taskFilters).length,0)
+ assert.equal('referenceDate' in model.previous!,false)
+})

@@ -1,3 +1,8 @@
+import { MeetingDetails } from '@/components/calendar/CalendarWidgets'
+import { useWorkspace } from '@/state/WorkspaceProvider'
+import { calendarDate } from '@/domain/calendar'
+import { RecordManager } from '@/components/records/RecordManager'
+import { issueSpec, communicationSpec } from '@/components/records/recordSpecs'
 import { useComponentView } from '@/state/ComponentViewContext'
 import { useUsageScope } from '@/state/UsageScopeContext'
 import { useEffect, useState } from 'react'
@@ -23,10 +28,13 @@ export function MeetingSummary() {
   return <div className="space-y-3"><h3 className="text-xl font-semibold">{client.name}</h3><p className="text-sm text-muted-foreground">{project.name} · {meeting.date} · {meeting.start}–{meeting.end}</p><p className="text-sm">{client.description}</p><p className="text-sm text-muted-foreground">{tasks.length} linked tasks · {issues.length} open issues</p></div>
 }
 export function SelectedMeeting() {
+  const {state}=useWorkspace()
+  const [editing,setEditing]=useState(false)
   const scope = useMeetingScope()
   if (!scope) return null
   const { meeting, previousMeeting } = scope.data
-  return <div className="space-y-4"><div><h3 className="font-medium">{meeting.title}</h3><p className="text-sm text-muted-foreground">{meeting.date} · {meeting.start}–{meeting.end}</p><p className="text-sm">{meeting.participants.join(', ')}</p></div>{previousMeeting && <div className="rounded-md bg-muted p-3"><h4 className="text-sm font-medium">Previous meeting · {previousMeeting.date}</h4><p className="mt-2 whitespace-pre-wrap text-sm">{previousMeeting.agenda}</p></div>}</div>
+  const event=state.events.find(e=>e.id===meeting.eventId)
+  return <div className="space-y-4"><div><h3 className="font-medium">{meeting.title}</h3><p className="text-sm text-muted-foreground">{meeting.date} · {meeting.start}–{meeting.end}</p><p className="text-sm">{meeting.participants.join(', ')}</p></div>{event&&<Button variant="outline" size="sm" onClick={()=>setEditing(true)}>Manage linked event</Button>}{editing&&<MeetingDetails event={event} onClose={()=>setEditing(false)}/>} {previousMeeting && <div className="rounded-md bg-muted p-3"><h4 className="text-sm font-medium">Previous meeting · {previousMeeting.date}</h4><p className="mt-2 whitespace-pre-wrap text-sm">{previousMeeting.agenda}</p></div>}</div>
 }
 export function MeetingRecordList({ kind }: { kind: 'communications' | 'issues' }) {
   const usage = useUsageScope()
@@ -38,7 +46,7 @@ export function MeetingRecordList({ kind }: { kind: 'communications' | 'issues' 
   if (!scope) return <p className="text-sm text-muted-foreground">Choose a meeting to view these records.</p>
   const records = scope.data[kind]
   const record = records.find(item => item.id === selected)
-  return <><div className="space-y-2">{!records.length && <p className="text-sm text-muted-foreground">No matching {kind}.</p>}{records.map(item => <button className="w-full rounded-md border p-3 text-left hover:bg-muted" key={item.id} onClick={() => setSelected(item.id)}><span className="block text-sm font-medium">{'subject' in item ? item.subject : item.title}</span><span className="text-xs text-muted-foreground">{'sender' in item ? `${item.sender} · ${item.date}` : `${item.owner} · ${item.status}`}</span></button>)}</div><Dialog open={!!record} onOpenChange={open => { if (!open) setSelected(undefined) }}><DialogContent onKeyDownCapture={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSelected(undefined) } }}><DialogHeader><DialogTitle>{record && ('subject' in record ? record.subject : record.title)}</DialogTitle><DialogDescription>Synthetic source · {scope.data.client.name}</DialogDescription></DialogHeader><p className="whitespace-pre-wrap text-sm">{record && ('body' in record ? record.body : record.description)}</p></DialogContent></Dialog></>
+  return <><div className="mb-3 flex flex-wrap gap-2">{kind==='issues'&&!meeting&&!usage&&component&&<select aria-label="Issue status" className="rounded border p-2 text-sm" value={component.plan.bindings.issueStatus??'all'} onChange={e=>component.change({issueStatus:e.target.value==='all'?undefined:e.target.value as 'open'|'closed'})}><option value="all">All issues</option><option value="open">Open issues</option><option value="closed">Closed issues</option></select>}<RecordManager spec={kind==='issues'?issueSpec:communicationSpec} filter={r=>records.some(item=>item.id===r.id)} defaults={{clientId:meeting?.data.client.id??usage?.data.client.id??component?.plan.bindings.clientId,projectId:meeting?.data.project.id??usage?.intent.projectId??component?.plan.bindings.projectId,meetingId:meeting?.data.meeting.id,status:'open',date:component?.plan.referenceDate??calendarDate()}} locked={meeting?['clientId','projectId','meetingId']:usage?['clientId',...(usage.intent.projectId?['projectId']:[])]:component?.plan.bindings.projectId?['projectId','clientId']:[]}/></div><div className="space-y-2">{!records.length && <p className="text-sm text-muted-foreground">No matching {kind}.</p>}{records.map(item => <button className="w-full rounded-md border p-3 text-left hover:bg-muted" key={item.id} onClick={() => setSelected(item.id)}><span className="block text-sm font-medium">{'subject' in item ? item.subject : item.title}</span><span className="text-xs text-muted-foreground">{'sender' in item ? `${item.sender} · ${item.date}` : `${item.owner} · ${item.status}`}</span></button>)}</div><Dialog open={!!record} onOpenChange={open => { if (!open) setSelected(undefined) }}><DialogContent onKeyDownCapture={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSelected(undefined) } }}><DialogHeader><DialogTitle>{record && ('subject' in record ? record.subject : record.title)}</DialogTitle><DialogDescription>Local record · {scope.data.client.name}</DialogDescription></DialogHeader><p className="whitespace-pre-wrap text-sm">{record && ('body' in record ? record.body : record.description)}</p></DialogContent></Dialog></>
 }
 export const Communications = () => <MeetingRecordList kind="communications" />
 export const Issues = () => <MeetingRecordList kind="issues" />

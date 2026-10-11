@@ -14,7 +14,7 @@ import { ComponentViewProvider } from '@/state/ComponentViewProvider'
 import { DisplayPreferencesContext } from '@/state/displayPreferencesContext'
 import { useDisplayPreferences } from '@/hooks/useDisplayPreferences'
 import { componentViewSchema, type ViewBindings } from '@/domain/componentIntent'
-import { DEMO_DATE } from '@/data/demo'
+import { calendarDate } from '@/domain/calendar'
 import type { PinnedWidget, WidgetInstance, WidgetViewState } from '@/domain/widgetInstances'
 import { GoogleBoundWidget } from '@/components/calendar/GoogleBoundWidget'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
@@ -26,7 +26,7 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   const workspace = useWorkspace()
   const preferences = useDisplayPreferences()
   const binding = instance.binding, view = instance.viewState
-  const date = view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : DEMO_DATE)
+  const date = view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : calendarDate())
   const scopeIds = binding.kind === 'workspace' || binding.kind === 'meeting' ? { clientId: binding.clientId, projectId: binding.projectId } : binding.kind === 'usage' || binding.kind === 'overdue' ? { clientId: binding.intent.clientId, projectId: binding.intent.projectId } : {}
   const plan = componentViewSchema.parse({ action: 'view', widgets: [instance.widgetType], bindings: { ...view, ...scopeIds, ...(binding.kind === 'workspace' ? { clientId: binding.clientId, projectId: binding.projectId, draftKey: binding.draftKey } : {}), category: view.calendarCategory }, referenceDate: date, timezone: view.timezone ?? 'Asia/Kolkata', reply: 'Instance view' })
   const change = (patch: Partial<ViewBindings>) => { const { category, clientId: _client, projectId: _project, draftKey: _draft, ...state } = patch; update({ ...state, ...(category !== undefined ? { calendarCategory: category } : {}) }) }
@@ -45,6 +45,11 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
       const expected = workspace.state.tasks.find(t => t.id === id)
       if (!expected || !workspaceActionService.checkTask(origin, expected).ok) return { ok: false, message: 'This task left the original view.' }
       return workspace.toggleTask(id)
+    },
+    deleteTask: id => {
+      const expected=workspace.state.tasks.find(t=>t.id===id)
+      if(!expected||!workspaceActionService.checkTask(origin,expected).ok)return {ok:false,message:'This task left the original view.'}
+      return workspace.deleteTask(id)
     },
     saveTask: input => {
       if (!input.id) return binding.kind === 'workspace' && !binding.projectId && !binding.clientId ? workspace.saveTask(input) : { ok: false, message: 'Create tasks in the unscoped Tasks view.' }

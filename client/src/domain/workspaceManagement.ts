@@ -10,16 +10,30 @@ export const workspaceOperationSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('add'),widgets:z.array(z.enum(widgetTypes)).min(1)}),
 ])
 export type WorkspaceOperation=z.infer<typeof workspaceOperationSchema>
-export const managementSchema=z.object({action:z.literal('manage'),operations:z.array(workspaceOperationSchema).min(1).max(20),reply:z.string().min(1).max(1000)})
+export const managementSchema=z.object({action:z.literal('manage'),operations:z.array(workspaceOperationSchema).min(1).max(20),reply:z.string().min(1).max(1000),source:z.enum(['ai','local']).optional()})
 export const recordMutationGoal = (goal: string) => /\b(?:delete|remove)\s+(?:(?:the|a|an|my)\s+)?(?:event|record|task|meeting|appointment)\b/i.test(goal) && !/\b(card|widget|component|view|panel)\b/i.test(goal)
-export const destructiveGoal=(goal:string)=>!/(?:do not|dont|don't|never)\s+(?:remove|clear|delete|hide|replace|reset)/i.test(goal)&&/\b(remove|clear|delete|hide|replace|reset|keep only)\b|हटाओ|hatao|saaf karo/i.test(goal)
+const removalWords=/\b(remove|clear|delete|hide|replace|reset|keep only|only keep|hatao|saaf karo)\b|हटाओ|हटा|साफ/i
+export function destructiveGoal(goal:string){
+  const text=goal.toLowerCase().replace(/[’‘]/g,"'").replace(/[’‘]/g,"'").trim()
+  if(/\b(how|why|what happens|what would|explain|tell me|suppose|imagine)\b|\b(if|unless|in case)\b/.test(text))return false
+  if(/\b(do not|don't|dont|never|without|avoid|not|mat|nahi|shouldn't|should not)\b|नहीं|मत/.test(text))return false
+  return text.split(/\s+(?:and then|and|then)\s+|[,;]\s*/).some(clause=>{
+    const command=clause.trim().replace(/^(?:(?:please|kindly|can you|could you|would you|i want you to|i want to|i would like you to|i would like to)\s+)+/,'')
+    return /^(?:remove|clear|delete|hide|replace|reset|keep only|only keep)\b/.test(command)||/(?:hatao|हटाओ|saaf karo)\s*[.!]?$/i.test(command)
+  })
+}
+export function authorizesClear(goal:string){
+  if(!destructiveGoal(goal))return false
+  return /\b(?:remove|clear|delete|reset)\s+(?:(?:all|everything)(?:\s+(?:components|cards|widgets|views))?|(?:(?:the|my|entire|whole)\s+)?workspace)\s*(?:[.!?]|$|and\b|then\b)/i.test(goal)
+}
+export const removalNeedsClarification=(goal:string)=>removalWords.test(goal)&&!destructiveGoal(goal)
 const aliases:Record<string,string[]>={metrics:['overview','summary','metrics'],tasks:['tasks','task','todo','deadlines','kaam'],timeline:['timeline','planner'],meetings:['meetings','meeting'],recommendation:['suggestions','suggestion','recommendations','recommendation'],outline:['notes','outline'],resources:['resources','documents'],context:['context','background'],calendar:['calendar','calender'],availability:['availability','free slots'],chart:['chart','productivity','progress'],activity:['activity'],usage:['usage'],communications:['messages','communications','emails'],issues:['issues','risks']}
 export function namedWidgets(text:string):typeof widgetTypes[number][] {
   return widgetTypes.filter(id=>aliases[id].some(alias=>new RegExp('\\b'+alias+'\\b','i').test(text))).flatMap(id=>id==='metrics'&&/overview/i.test(text)?['metrics','tasks','timeline','meetings'] as typeof widgetTypes[number][]:[id]).filter((id,index,all)=>all.indexOf(id)===index)
 }
 export function localManagement(goal:string) {
  const text=goal.toLowerCase().replace(/\s+(?:including pins|including pinned views|and pins|and pinned views)$/i,''), operations:WorkspaceOperation[]=[]
- if(recordMutationGoal(text))return null
+ if(recordMutationGoal(text)||removalNeedsClarification(text))return null
  if(/(?:do not|dont|don't|never)\s+(?:remove|clear|delete|hide|replace|reset)/i.test(text))return null
  const combined=text.split(/\s+(?:and|then|and then)\s+(?=(?:add|show|remove|clear|replace|move|hide)\b)/)
  if(combined.length>1){

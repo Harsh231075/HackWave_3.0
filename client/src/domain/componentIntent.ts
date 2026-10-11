@@ -1,5 +1,5 @@
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
-import { managementSchema, localManagement, destructiveGoal, recordMutationGoal } from './workspaceManagement.ts'
+import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal } from './workspaceManagement.ts'
 import { z } from 'zod'
 import { widgetTypes } from '../lib/workspace/config.ts'
 import { shiftDate } from './calendar.ts'
@@ -26,8 +26,8 @@ export const componentViewSchema = z.object({
 export type ComponentView = z.infer<typeof componentViewSchema>
 export type ViewBindings = z.infer<typeof viewBindingsSchema>
 export const componentResolutionSchema = z.discriminatedUnion('action', [componentViewSchema, managementSchema,
-  z.object({ action:z.literal('clarify'), question:z.string().min(1).max(1000), choices:z.array(z.string().max(4000)).max(6) }),
-  z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']) }),
+  z.object({ action:z.literal('clarify'), question:z.string().min(1).max(1000), choices:z.array(z.string().max(4000)).max(6),source:z.enum(['ai','local']).optional() }),
+  z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),source:z.enum(['ai','local']).optional() }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
 export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
@@ -43,6 +43,9 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if (!result.success) return result
   if (result.data.action === 'manage') {
     if (recordMutationGoal(input.goal)) return componentResolutionSchema.safeParse(null)
+    if(result.data.operations.some(op=>op.type==='clear')&&!authorizesClear(input.goal))return componentResolutionSchema.safeParse(null)
+    const named=namedWidgets(input.goal)
+    for(const op of result.data.operations){if(op.type==='remove'||op.type==='replace'||op.type==='keep'){const targets=op.widgets.map(id=>input.instances?.find(w=>w.instanceId===id)?.widgetType??id);if(named.length&&targets.some(id=>!named.includes(id as typeof widgetTypes[number])))return componentResolutionSchema.safeParse(null)}}
     const allowed = new Set<string>([...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
     for (const op of result.data.operations) {
       const targets = op.type === 'clear' || op.type === 'add' ? [] : op.type === 'move' ? [op.widget, ...(op.relativeTo ? [op.relativeTo] : [])] : op.type === 'resize' ? [op.widget] : op.widgets
@@ -73,7 +76,9 @@ export function selectViewEvents(events: Event[], view: ComponentView) {
   return events.filter(e=>(!b.dateRange || (e.date>=b.dateRange.from && e.date<=b.dateRange.to)) && (!b.category || b.category==='all' || e.category===b.category))
 }
 const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Project context',recommendation:'Suggestions'}
-export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {
+export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {return {...keywordComponentIntent(input),source:'local'}}
+function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
+  if(removalNeedsClarification(input.goal))return {action:'clarify',question:'Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.',choices:['Show my tasks','Show my calendar']}
   const management=localManagement(input.goal);if(management)return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()

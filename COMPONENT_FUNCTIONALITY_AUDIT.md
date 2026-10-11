@@ -1,5 +1,7 @@
 # UI Component Functionality Audit
 
+Implementation update: see [MANUAL_COMPONENT_IMPLEMENTATION.md](MANUAL_COMPONENT_IMPLEMENTATION.md). The findings below describe the pre-implementation audit baseline.
+
 Audit date: 11 October 2026. Scope: the current repository, including generated workspace instances, pinned instances, component controls, action handlers and data services.
 
 ## 1. Product boundary and conclusion

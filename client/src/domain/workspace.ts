@@ -22,8 +22,9 @@ export type Action =
   | { type: 'filters'; patch: Partial<Filters> }
   | { type: 'task'; task: Task } | { type: 'toggle'; id: string }
   | { type: 'delete-event'; id: string } | { type: 'delete-task'; id: string } | { type: 'delete-draft'; key: string }
+  | { type:'rename-draft';key:string;newKey:string }
   | { type: 'event'; event: Event } | { type: 'draft'; key: string; value: string }
-  | { type: 'dismiss'; id: string }
+  | { type: 'dismiss'; id: string } | {type:'restore-dismiss';id:string}
   | { type: 'undo' } | { type: 'reset'; state: WorkspaceState }
 function snapshot(state: WorkspaceState): DomainSnapshot {
   return { tasks: state.tasks, events: state.events, drafts: state.drafts, dismissed: state.dismissed, activity: state.activity }
@@ -60,12 +61,14 @@ export function workspaceReducer(state: WorkspaceState, action: Action): Workspa
     if (!target) return state
     next = { ...next, tasks: state.tasks.filter(task => task.id !== action.id) }; message = `Deleted “${target.title}”`
   }
+  if(action.type==='rename-draft'){if(!Object.hasOwn(state.drafts,action.key)||Object.hasOwn(state.drafts,action.newKey))return state;const drafts={...state.drafts,[action.newKey]:state.drafts[action.key]};delete drafts[action.key];next={...next,drafts};message='Renamed your note'}
   if (action.type === 'delete-draft') {
     if (!Object.hasOwn(state.drafts, action.key)) return state
     const drafts = { ...state.drafts }; delete drafts[action.key]
     next = { ...next, drafts }; message = 'Deleted your preparation outline'
   }
   if (action.type === 'draft') { next = { ...next, drafts: { ...state.drafts, [action.key]: action.value } }; message = 'Saved your preparation outline' }
+  if(action.type==='restore-dismiss'){if(!state.dismissed.includes(action.id))return state;next={...next,dismissed:state.dismissed.filter(id=>id!==action.id)};message='Restored a recommendation'}
   if (action.type === 'dismiss') { next = { ...next, dismissed: [...state.dismissed, action.id] }; message = 'Dismissed a recommendation' }
   return { ...state, ...next, activity: [message, ...state.activity].slice(0, 12), history: [...state.history, snapshot(state)].slice(-20) }
 }

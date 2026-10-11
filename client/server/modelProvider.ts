@@ -8,7 +8,8 @@ export function resolveProvider(env: NodeJS.ProcessEnv) {
 }
 export class ProviderError extends Error {
   readonly status: number
-  constructor(status: number, message: string) { super(message); this.status = status }
+  readonly code?: string
+  constructor(status: number, message: string, code?:string) { super(message); this.status = status;this.code=code }
 }
 export async function modelText(env: NodeJS.ProcessEnv, instructions: string, input: Array<{ role: 'user' | 'assistant'; content: string }>, signal: AbortSignal, structured = false) {
   const config = resolveProvider(env)
@@ -25,8 +26,9 @@ export async function modelText(env: NodeJS.ProcessEnv, instructions: string, in
   })
   if (!response.ok) {
     let detail = ''
-    try { const error = await response.json() as { error?: { message?: string } }; if (error.error?.message) detail = `: ${error.error.message}` } catch { /* Provider may return a non-JSON error. */ }
-    throw new ProviderError(response.status, `Model provider (${config.provider}) returned ${response.status}${detail || '. Check your model name and API key.'}`)
+    let code:string|undefined
+    try { const error = await response.json() as { error?: { message?: string;code?:string } }; code=error.error?.code;if (error.error?.message) detail = `: ${error.error.message}` } catch { /* Provider may return a non-JSON error. */ }
+    throw new ProviderError(response.status, `Model provider (${config.provider}) returned ${response.status}${detail || '. Check your model name and API key.'}`,code)
   }
   const result = await response.json() as { choices?: Array<{ message?: { content?: string } }>; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }
   const text = chat ? result.choices?.[0]?.message?.content : result.output?.flatMap(item => item.content ?? []).filter(part => part.type === 'output_text').map(part => part.text ?? '').join('')

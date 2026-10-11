@@ -47,3 +47,6 @@ export function displayEventTime(event: CalendarEvent, timezone: string) {
   const options: Intl.DateTimeFormatOptions = { timeZone: timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
   return `${new Date(event.start).toLocaleString('en-IN', options)} – ${new Date(event.end).toLocaleString('en-IN', options)} · ${timezone}`
 }
+
+export const eventEditSchema=z.union([eventDraftSchema,z.strictObject({allDay:z.literal(true),title:z.string().trim().min(1).max(200),description:z.string().max(5000),start:z.iso.date(),end:z.iso.date(),timezone:z.string().refine(value=>{try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}),attendees:z.array(z.email()).max(30)}).refine(d=>d.end>d.start&&Date.parse(d.end)-Date.parse(d.start)<=31*86400000,'Choose an exclusive end date after the start, within 31 days.')])
+export type EventEditDraft=z.infer<typeof eventEditSchema>

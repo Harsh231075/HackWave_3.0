@@ -1,3 +1,6 @@
+import { UsageImport } from './UsageImport'
+import { RecordManager } from '@/components/records/RecordManager'
+import { observationSpec, releaseSpec } from '@/components/records/recordSpecs'
 import { useWidgetSelection } from '@/lib/workspace/WidgetSelectionContext'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { format, parseISO } from 'date-fns'
@@ -12,6 +15,7 @@ function UsageSelect({ label, value, items, onChange }: { label: string; value: 
   return <Select items={items} value={value} onValueChange={next => { if (next !== null) onChange(next) }}><SelectTrigger aria-label={label} size="sm" className="w-full min-w-0"><SelectValue placeholder={items.find(item => item.value === value)?.label ?? label} /></SelectTrigger><SelectContent>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select>
 }
 export function DataUsageExplorer({ initialQuery, boundQuery }: { initialQuery?: UsageQuery; boundQuery?: UsageQuery }) {
+  const [entryDate]=useState(()=>format(new Date(),'yyyy-MM-dd'))
   const registerSelection = useWidgetSelection()
   const [clientId, setClientId] = useState(initialQuery?.clientId ?? '')
   const [projectId, setProjectId] = useState(initialQuery?.projectId ?? '')
@@ -35,7 +39,7 @@ export function DataUsageExplorer({ initialQuery, boundQuery }: { initialQuery?:
   const chartData = value?.series.map(row => ({ date: row.date, ...Object.fromEntries(value.segments.map((name,index) => [`segment-${index}`, row.values[name]])) })) ?? []
   const dateLabel = value?.dateRange ? `${format(parseISO(value.dateRange.from), 'd MMM yyyy')} – ${format(parseISO(value.dateRange.to), 'd MMM yyyy')}` : 'No measurement dates'
   const partialDate = !boundQuery && (!!from !== !!to)
-  return <div className="space-y-4 min-w-0">
+  return <div className="space-y-4 min-w-0"><div className="flex flex-wrap gap-2"><UsageImport clientId={query.clientId} projectId={query.projectId}/><RecordManager spec={observationSpec} defaults={{clientId:query.clientId,projectId:query.projectId,source:'manual',sessions:0,date:entryDate}} filter={r=>r.clientId===query.clientId&&(!query.projectId||r.projectId===query.projectId)} locked={boundQuery?['clientId',...(query.projectId?['projectId']:[])]:[]}/><RecordManager spec={releaseSpec} defaults={{clientId:query.clientId,projectId:query.projectId,source:'manual',segments:[],date:entryDate}} filter={r=>r.clientId===query.clientId&&(!query.projectId||r.projectId===query.projectId)} locked={boundQuery?['clientId',...(query.projectId?['projectId']:[])]:[]}/></div>
     {!boundQuery && <><div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
       <UsageSelect label="Usage client" value={selectedClient} items={catalog.value.clients.map(c => ({ value: c.id, label: c.name }))} onChange={next => { setClientId(next); setProjectId(''); setSegment(''); setFrom(''); setTo('') }} />
       <UsageSelect label="Usage project" value={projectId} items={[{ value: '', label: 'All projects' }, ...projects.map(p => ({ value: p.id, label: p.name }))]} onChange={next => { setProjectId(next); setSegment(''); setFrom(''); setTo('') }} />

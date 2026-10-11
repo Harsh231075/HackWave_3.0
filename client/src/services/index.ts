@@ -1,3 +1,4 @@
+import { calendarDate } from '../domain/calendar.ts'
 import { createWorkspaceActionService } from './workspaceActionService'
 import { createPinService } from './pinService'
 import { createUsageWorkspaceService } from './usageWorkspaceService'
@@ -43,7 +44,7 @@ export const preferencesService = createPreferencesService(browserDatabase.stora
 export const generationService = createGenerationService()
 export const resourceService = createResourceService(RESOURCES, browserDatabase)
 
-export const taskService = createTaskService(browserDatabase, () => DEMO_DATE)
+export const taskService = createTaskService(browserDatabase, () => calendarDate())
 
 export const eventService = createEventService(browserDatabase)
 
@@ -91,7 +92,7 @@ export const meetingCompositionService = createMeetingCompositionService()
 
 export const overdueReviewService = createOverdueReviewService(browserDatabase)
 export const overdueCompositionService = createOverdueCompositionService()
-export const focusSchedulingService = createFocusSchedulingService(browserDatabase, () => DEMO_DATE)
+export const focusSchedulingService = createFocusSchedulingService(browserDatabase, () => calendarDate())
 
 export const usageDataService = createUsageDataService(browserDatabase)
 export const usageObservationService = usageDataService.observations

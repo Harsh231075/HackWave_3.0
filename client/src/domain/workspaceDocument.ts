@@ -3,7 +3,7 @@ import { MAX_CANVAS_WIDGETS, MAX_PINS, pinnedWidgetSchema, widgetInstanceSchema,
 import type { WorkspaceOperation } from './workspaceManagement.ts'
 import { PRESETS, type WidgetType } from '../lib/workspace/config.ts'
 
-export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
+export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), source:z.enum(['ai','local']).optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
 export const workspaceDocumentSchema = z.strictObject({
   version: z.literal(1), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
   revision: z.number().int().nonnegative(), turns: turnSchema.array().max(60), targets: z.string().array(),

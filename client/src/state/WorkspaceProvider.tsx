@@ -8,17 +8,20 @@ interface WorkspaceContextValue {
   draftBuffers: Record<string, string>; editDraft: (key: string, value: string) => void
   selectedDate: string; selectDate: (date: string) => void; resetDemo: () => void
   saveTask: (input: TaskInput) => ActionResult<Task>
+  deleteTask: (id: string) => ActionResult<void>
   toggleTask: (id: string) => ActionResult<Task>
   saveEvent: (input: EventInput) => ActionResult<Event>
   addFocusTime: (taskId: string) => ActionResult<Event>
   deleteEvent: (id: string) => ActionResult<void>
   saveDraft: (key: string, value: string) => ActionResult<void>
+  restoreRecommendation: (id: string) => void
   dismissRecommendation: (id: string) => void
   updateFilters: (patch: Partial<Filters>) => void
   undo: () => void
 }
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  useSyncExternalStore(browserDatabase.subscribe,browserDatabase.getRevision,browserDatabase.getRevision)
   const state = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getState, browserDatabase.getState)
   const [notice, setNotice] = useState('')
   const notify = (message: string) => setNotice(message && browserDatabase.getPersistenceResult().status !== 'saved' ? 'Device storage is unavailable. Changes will last until reload.' : message)
@@ -32,9 +35,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const editDraft = (key: string, value: string) => setDraftBuffers(current => ({ ...current, [key]: value }))
   const resetDemo = () => { run(() => browserDatabase.reset()); pinService.clearPins(); setDraftBuffers({}); selectDate(format(new Date(), 'yyyy-MM-dd')); if (browserDatabase.getPersistenceResult().status === 'saved') notify('Demo restored. All local changes have been reset.') }
   return <WorkspaceContext.Provider value={{ state, notice, notify, draftBuffers, editDraft, selectedDate, selectDate, resetDemo,
-    saveTask: input => run(() => taskService.save(input)), toggleTask: id => run(() => taskService.toggle(id)),
+    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask: id => run(() => taskService.toggle(id)),
     saveEvent: input => run(() => eventService.save(input)), deleteEvent: id => run(() => eventService.delete(id)),
     saveDraft: (key, value) => run(() => draftService.save(key, value)), addFocusTime: id => run(() => recommendationService.accept(id)),
+    restoreRecommendation:id=>run(()=>browserDatabase.dispatch({type:'restore-dismiss',id})),
     dismissRecommendation: id => run(() => recommendationService.dismiss(id)),
     updateFilters: patch => browserDatabase.dispatch({ type: 'filters', patch }),
     undo: () => run(() => browserDatabase.dispatch({ type: 'undo' })),
