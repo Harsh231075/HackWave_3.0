@@ -117,10 +117,21 @@ Synthetic Northstar/Westbridge values live only in `data/usageDemo.ts`, added to
 - `layoutService.saveUsage(session)` stores version-2 intent/composition, isolated task filters and an evidence fingerprint, not record/metric snapshots. Reload restores previous usage composition for follow-ups and recomputes data. Valid empty selections retain the usage layout.
 - UsageScopeProvider subscribes to domain and collection changes. Bound controls cannot silently switch to another client/project; scope changes go through the command window. The independent UsageExplorer still provides dependent selectors.
 - Equal-period averages compare the first and last floor(days/2) days; odd middle days are excluded. Missing coverage makes a period average unavailable, and zero baselines never produce a percentage. Endpoint comparisons are separately labeled.
-- Investigation drafts use `usage-investigation:<clientId>:<projectId-or-all>`; they never overwrite meeting agendas. Supported pins inherit current usage scope; original pin bindings and persistent pins remain pending.
+- Investigation drafts use `usage-investigation:<clientId>:<projectId-or-all>`; they never overwrite meeting agendas. Usage pins preserve the original client/project, dates and segment across goals and reloads, while continuing to read current records.
 
 ### Meeting task filters
 
 MeetingScopeProvider applies the saved meeting session’s taskFilters directly to retrieved meeting-linked tasks using the demo clock. Dedicated/global filters are neither read nor updated. Context, agenda, resources and evidence continue using the complete preparation snapshot.
 
 Version-2 meeting sessions now include validated taskFilters; missing filters in older sessions default to emptyFilters without rewriting storage. Explicit invalid values/dates are rejected, preserving raw data. saveMeeting accepts MeetingLayoutInput for older callers, while loadSession returns normalized MeetingLayout. Filters persist on reload and successful same-meeting follow-ups; switching meetings or returning after a different goal starts fresh. Local changes do not remount the canvas or clear draft buffers. Save failures retain the in-memory selection and display a persistence notice.
+
+
+### Persistent pinned views
+
+`pinService` owns `loadPins`, `pinWidget`, `unpinWidget`, `updatePinViewState` and `clearPins`. Mutations return either an actionable failure or the updated pins plus their persistence result. A storage failure keeps accepted operations in memory. Invalid pin collections remain untouched until explicit Clear pins; a malformed outer database is never overwritten.
+
+Pins capture validated selections, filters, layout span and provenance rather than record snapshots. Stable UUIDs survive local filter edits and reloads. Meeting agendas and investigation notes use their original entity-specific draft keys. Calendar changes inside pins remain local; List/Kanban remains shared. Deleted or reassigned meeting records produce an unavailable card rather than silently changing scope.
+
+The adaptive canvas reserves six pin slots within a fourteen-widget limit, deduplicates equivalent views, preserves required active widgets, and trims optional content in requested order. The stored response is retained so omitted widgets return after unpinning. Dedicated pages do not append pins. Reset layout preserves pins; Clear pins and demo reset remove them.
+
+Verification: run `npm test`, `npm run build` and `npm run lint` from `client`. The optional browser harness runs with `node scripts/verify-pins.mjs` when Playwright is available. Otherwise set `ORLO_PLAYWRIGHT_MODULE` to an installed Playwright module path and optionally `ORLO_CHROME_PATH` to a Chromium executable. The harness starts/stops its own Vite server, uses a fresh browser context and mocks model endpoints; it does not require an API key or modify the user's browser data.

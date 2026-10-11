@@ -11,4 +11,4 @@ export type Event = {
 export type Resource = { id: string; title: string; kind: string; context: string; body: string }
 export type Filters = { query: string; status: string; priority: string; sort: 'due' | 'priority'; from: string; to: string }
 export type DomainSnapshot = { tasks: Task[]; events: Event[]; drafts: Record<string, string>; dismissed: string[]; activity: string[] }
-export type WorkspaceState = DomainSnapshot & { filters: Filters; pins: string[]; history: DomainSnapshot[] }
+export type WorkspaceState = DomainSnapshot & { filters: Filters; history: DomainSnapshot[] }

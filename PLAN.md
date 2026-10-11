@@ -14,11 +14,12 @@ The overall PS 4 milestone is **not complete**. Completed slices are meeting pre
 
 - [x] Move usage observations/releases into browserDatabase and provide reusable filtered retrieval and a record-derived usage explorer.
 - [x] Connect usage intent to validated AI composition, goal-bound widgets/metrics, editable investigation notes, follow-ups and saved usage sessions.
-- [ ] Complete stable widget identities, original pin-binding preservation and deterministic capacity handling.
+- [x] Complete stable widget identities, original pin-binding preservation and deterministic capacity handling (6 pins, 14 registered widgets).
 - [ ] Implement validated generic generated-action dispatch and semantic checks for the general generation path.
 - [x] Isolate meeting task filters from dedicated/global, usage and overdue filters; persist the active meeting selection.
 - [ ] Enforce broader follow-up intent scope inheritance, including paraphrases.
-- [ ] Persist/restore scoped pins, compatible component state and valid pending clarification.
+- [x] Persist/restore scoped pins with independent view state and live records.
+- [ ] Persist/restore broader compatible component state and valid pending clarification.
 - [ ] Complete retrieval/catalog bounds, stronger stale-content handling and restoration of composition continuity.
 - [ ] Commit a reproducible browser/evaluation harness and finish the three-task negative-case, keyboard/focus and accessibility evaluation.
 
@@ -33,12 +34,12 @@ The following foundations exist in the codebase; this inventory does not certify
 | Shared shell, sidebar, optional page actions | `client/src/App.tsx`, `components/shell/WorkspaceLayout.tsx` | Completed; preserve minimal design |
 | Structured intent and clarification | `domain/intent.ts`, `services/intentService.ts`, `hooks/useAdaptiveWorkspace.ts` | Completed contract and continuation; broader follow-up semantics remain |
 | Model endpoints and provider transport | `server/adaptive.ts`, `server/modelProvider.ts`, `server/chat.ts` | Intent and scoped composition implemented; provider quota errors handled |
-| Registered OpenUI components | `lib/workspace/OpenUIWorkspace.tsx`, `registry.tsx` | Meeting/usage/overdue providers bind data; explicit widget instance/binding props remain |
+| Registered OpenUI components | `lib/workspace/OpenUIWorkspace.tsx`, `registry.tsx` | Application-owned instances and validated bindings preserve scoped pins; model widget props remain backward compatible |
 | Semantic composition validation | `domain/adaptiveData.ts`, `domain/overdueReview.ts`, `lib/workspace/layoutValidation.ts` | Meeting/usage/overdue evidence, scope, uniqueness and spans validated; generic action contracts remain |
 | Shared domain and mutations | `domain/`, `state/WorkspaceProvider.tsx` | Shared edits, scheduling, drafts and undo implemented |
 | Linked local records and retrieval | `data/adaptiveDemo.ts`, `services/adaptiveDataService.ts`, `services/overdueReviewService.ts` | Meeting/usage/overdue retrieval implemented; usage includes comparable periods and linked project work |
 | Scoped widgets | `state/MeetingScope.tsx`, `state/OverdueScope.tsx`, existing widgets | Meeting/usage/overdue widgets bind to resolved scope; usage task filters are isolated |
-| Saved adaptive layouts | `services/layoutService.ts` | Legacy + version-2 meeting/usage/overdue sessions restore; pins, pending clarification and broader component state are not persisted |
+| Saved adaptive layouts | `services/layoutService.ts` | Legacy + version-2 sessions restore; scoped pins persist separately in browserDatabase; pending clarification and broader component state remain |
 | Validation | `server/*.test.ts`, browser and live-provider runs | 105 tests passed; scoped usage and continuous three-goal mocked checks passed; full live/accessibility evaluation remains |
 
 
@@ -175,10 +176,10 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 
 ### 7. Enforce continuity and working actions
 
-- [x] Append omitted pins in application code for scoped meeting/usage/overdue compositions; label incompatible widgets as all-workspace records.
-- [ ] Enforce pins consistently in general generated layouts as well.
-- [ ] Preserve each pinned widget’s original binding and stable identity across entity changes; compatible pins currently adopt the new active scope.
-- [ ] Enforce deterministic capacity limits when pins are appended and explain any resulting capacity decision.
+- [x] Render retained pins independently on `/` using their original meeting/usage/overdue/workspace bindings; dedicated pages can pin without appending saved views.
+- [x] Enforce pins consistently in default, general and scoped generated layouts.
+- [x] Preserve each pin’s original binding and persistent identity across goals/reloads; keep live records, pin-local filters and original explanation evidence.
+- [x] Enforce 6 pins/14 registered widgets; reserve pins and required goal widgets, omit optional widgets in requested order, and explain omissions.
 - [x] Key agendas by meeting ID; preserve draft buffers and saved agendas when switching goals/meetings, and send only the matching agenda to meeting composition.
 - [ ] Restrict unrelated draft exposure in the general generation path.
 - [ ] Replace the generic Renderer `onAction` handler with validated generated-action dispatch. Current registered widgets perform their own service-backed actions; generic actions still open the command window.
@@ -191,7 +192,8 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 ### 8. Persist and migrate the adaptive session safely
 
 - [x] Persist version-2 meeting/usage/overdue compositions, resolved intent, serialized response and scoped identity; overdue sessions also save cutoff and local filter refinements. Keep domain records in existing storage.
-- [ ] Persist compatible component state and scoped pin bindings; pins currently remain session-only.
+- [x] Persist validated scoped pin bindings, local task/calendar selections, order, stable IDs and original provenance; Reset layout preserves pins.
+- [ ] Persist other compatible generated component state.
 - [x] Read valid response-only version-1 layouts and version-2 meeting/general layouts without inventing bindings.
 - [ ] Persist/restore pending clarification only when its version and candidates remain valid.
 - [x] Restore previous usage composition alongside intent/request ID for usage follow-ups after reload.
@@ -223,7 +225,7 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 | 1 | Open `/` | Generic dashboard with working shared data | ✅ Implemented |
 | 2 | “Prepare tomorrow's meeting” | Focused clarification if multiple meetings match; dashboard retained | ✅ Meeting clarification verified |
 | 3 | Select Northstar | Client/meeting overview, relevant communications/issues, linked tasks/resources, editable agenda | ✅ Scoped meeting flow verified |
-| 4 | Edit and save agenda; pin a relevant widget | Saved draft and explicit pin state | ✅ Agenda save and pin controls verified; cross-goal binding preservation remains in phase 7 |
+| 4 | Edit and save agenda; pin a relevant widget | Saved draft and explicit pin state | ✅ Agenda save, stable cross-goal pin bindings and pin-local editing verified |
 | 5 | “Investigate Northstar's product usage drop” | Real seeded usage periods/segments, supporting evidence, investigation actions; pin retained | ☑ Scoped usage workflow implemented; original pin-binding evaluation remains |
 | 6 | Inspect evidence | Source record is visible; causal hypotheses are identified as hypotheses | ☑ Usage source inspection verified with mocked composition; model reasons require live evaluation |
 | 7 | “Review overdue Atlas project work” | Outstanding overdue Atlas tasks, blockers/owners, scoped counts, recovery actions | ✅ Scoped overdue flow verified |
@@ -332,7 +334,8 @@ Comparisons include both explicitly labeled endpoints and equal-length early/lat
 - [x] Complete snapshot comparison rejects source edits during generation. A stored content fingerprint identifies later evidence changes and replaces stale generated reasons with a current-record notice.
 - [x] Mocked browser checks: client clarification, client isolation, segment follow-ups, previous-composition restoration, draft/filter reload, invalid evidence and changed-source preservation, empty-result reload and mobile rendering.
 - [x] Live usage intent/composition, reload and segment follow-up passed against the configured provider.
-- [ ] Commit the browser harness and complete the full live three-goal accessibility/pin evaluation.
+- [x] Add a reproducible mocked pin browser harness.
+- [ ] Complete the full live three-goal accessibility evaluation.
 
 ## Implemented milestone: meeting task filter isolation
 
@@ -342,3 +345,16 @@ Comparisons include both explicitly labeled endpoints and equal-length early/lat
 - [x] Filter updates keep the canvas and unsaved agenda mounted; shared task mutations/undo and List/Kanban remain intact.
 - [x] Automated regression coverage passed, including schema compatibility, malformed storage, filter continuity, shared updates and unavailable storage.
 - [x] Mocked browser verification passed: global isolation, local reset/status, reload/legacy defaults, same-meeting retention, meeting/goal switches, provider failure, completion/undo, one Kanban, agenda/node retention and mobile/keyboard interaction.
+
+
+## Scoped pin implementation and verification
+
+- [x] Add `domain/widgetInstances.ts`, `services/pinService.ts` and a versioned `workspacePins` browserDatabase collection; remove legacy string pin state.
+- [x] Preserve original meeting ownership, usage client/project/date/segment and overdue intent/reference date; unavailable records retain an Unpin action.
+- [x] Keep retained pins outside active providers/renderer revisions; isolate local task filters and calendar dates/views/categories while keeping task presentation preferences shared.
+- [x] Deduplicate matching effective selections; keep different scopes/filters separate. A duplicate-producing pin edit is rejected without overwriting either view.
+- [x] Preserve raw invalid storage, support in-memory operations with blocked storage, and separate pins from domain undo. Clear pins is explicit; demo reset clears pins.
+- [x] Add an optional reproducible mocked browser harness at `client/scripts/verify-pins.mjs`: meeting → usage → overdue, reload IDs, local filters/agendas, cross-client records, dedicated/manual usage views, cap feedback, deletion/undo, Reset/Clear, keyboard focus, mobile, timeline date isolation and gallery controls.
+- [ ] Complete the broader live-provider/accessibility evaluation; the mocked pin harness does not certify the entire PS 4 milestone.
+
+Validation for scoped pins: **121 automated tests passed** (16 new pin/service/canvas tests), production build passed, lint passed with 9 existing warnings, and the mocked browser harness passed with no page errors. The production bundle-size warning remains. Live-provider evaluation and comprehensive accessibility auditing remain unchecked.
