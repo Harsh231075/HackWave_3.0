@@ -201,3 +201,18 @@ test('header clear pins preserves active views and history and removes pinned ta
   assert.deepEqual(cleared.targets, [active.instanceId])
   assert.equal(cleared.revision, document.revision + 1)
 })
+
+test('route remount initialization does not write or notify an unchanged saved workspace',()=>{
+ const {service,database,values}=setup();service.initialize();let notifications=0;database.subscribe(()=>notifications++)
+ const before=values.get('orlo-browser-db-v1'),revision=database.getRevision()
+ for(let i=0;i<10;i++)createWorkspaceDocumentService(database).initialize()
+ assert.equal(notifications,0);assert.equal(database.getRevision(),revision);assert.equal(values.get('orlo-browser-db-v1'),before)
+})
+test('a new route reader preserves live pending turns while fresh application loads recover interrupted requests',()=>{
+ const {service,database,storage}=setup();const initial=service.initialize().document
+ service.save({...initial,turns:[{id:'running',prompt:'Show tasks',reply:'Preparing',status:'pending'}]})
+ assert.equal(createWorkspaceDocumentService(database).initialize().document.turns[0].status,'pending')
+ const fresh=createBrowserDatabase(storage,seed,collections),recovered=createWorkspaceDocumentService(fresh).initialize()
+ assert.equal(recovered.document.turns[0].status,'cancelled')
+ assert.equal(createWorkspaceDocumentService(fresh).initialize().document.turns[0].status,'cancelled')
+})

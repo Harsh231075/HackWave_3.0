@@ -41,30 +41,35 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   }
   const result = componentResolutionSchema.safeParse(value)
   if (!result.success) return result
+  const reject=(message:string,path:string[]=[])=>({success:false as const,error:new z.ZodError([{code:'custom',message,path}])})
   if (result.data.action === 'manage') {
-    if (recordMutationGoal(input.goal)) return componentResolutionSchema.safeParse(null)
-    if(result.data.operations.some(op=>op.type==='clear')&&!authorizesClear(input.goal))return componentResolutionSchema.safeParse(null)
+    if (recordMutationGoal(input.goal)) return reject('Record mutation is not a workspace layout operation.',['operations'])
+    if(result.data.operations.some(op=>op.type==='clear')&&!authorizesClear(input.goal))return reject('Clearing the workspace was not explicitly authorized.',['operations'])
     const named=namedWidgets(input.goal)
-    for(const op of result.data.operations){if(op.type==='remove'||op.type==='replace'||op.type==='keep'){const targets=op.widgets.map(id=>input.instances?.find(w=>w.instanceId===id)?.widgetType??id);if(named.length&&targets.some(id=>!named.includes(id as typeof widgetTypes[number])))return componentResolutionSchema.safeParse(null)}}
+    for(const op of result.data.operations){if(op.type==='remove'||op.type==='replace'||op.type==='keep'){const targets=op.widgets.map(id=>input.instances?.find(w=>w.instanceId===id)?.widgetType??id);if(named.length&&targets.some(id=>!named.includes(id as typeof widgetTypes[number])))return reject('Removal targets do not match the requested components.',['operations'])}}
     const allowed = new Set<string>([...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
     for (const op of result.data.operations) {
       const targets = op.type === 'clear' || op.type === 'add' ? [] : op.type === 'move' ? [op.widget, ...(op.relativeTo ? [op.relativeTo] : [])] : op.type === 'resize' ? [op.widget] : op.widgets
-      if (targets.some(target => !allowed.has(target))) return componentResolutionSchema.safeParse(null)
+      if (targets.some(target => !allowed.has(target))) return reject('The model referenced an unknown component or instance.',['operations'])
     }
-    if (result.data.operations.some(op=>['clear','keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return componentResolutionSchema.safeParse(null)
+    if (result.data.operations.some(op=>['clear','keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return reject('Component removal was not explicitly authorized.',['operations'])
     return result
   }
   if (result.data.action !== 'view') return result
   const view = result.data, b = view.bindings
-  if (view.referenceDate !== input.referenceDate || view.timezone !== input.timezone) return componentResolutionSchema.safeParse(null)
-  if ((b.projectId && !input.catalog.projects.some(p=>p.id===b.projectId)) || (b.clientId && !input.catalog.clients.some(c=>c.id===b.clientId)) || (b.owner && !input.catalog.owners.includes(b.owner)) || (b.draftKey && b.draftKey !== 'outline' && !input.catalog.draftKeys.includes(b.draftKey))) return componentResolutionSchema.safeParse(null)
-  if (b.projectId && b.clientId && input.catalog.projects.find(p=>p.id===b.projectId)?.clientId !== b.clientId) return componentResolutionSchema.safeParse(null)
+  if (view.referenceDate !== input.referenceDate) return reject('The model used a different reference date.',['referenceDate'])
+  if(view.timezone!==input.timezone)return reject('The model used a different timezone.',['timezone'])
+  if(b.projectId&&!input.catalog.projects.some(p=>p.id===b.projectId))return reject('The model selected a project outside the available catalog.',['bindings','projectId'])
+  if(b.clientId&&!input.catalog.clients.some(c=>c.id===b.clientId))return reject('The model selected a client outside the available catalog.',['bindings','clientId'])
+  if(b.owner&&!input.catalog.owners.includes(b.owner))return reject('The model selected an owner outside the available catalog.',['bindings','owner'])
+  if(b.draftKey&&b.draftKey!=='outline'&&!input.catalog.draftKeys.includes(b.draftKey))return reject('The model selected an unavailable draft.',['bindings','draftKey'])
+  if(b.projectId&&b.clientId&&input.catalog.projects.find(p=>p.id===b.projectId)?.clientId!==b.clientId)return reject('The selected project does not belong to the selected client.',['bindings','projectId'])
   // A recognized date must survive model interpretation, including Hinglish “aaj”.
   const local = fallbackComponentIntent(input)
   if (local.action === 'view' && local.bindings.dateRange) {
     const expected = local.bindings.dateRange
-    if (b.dateRange?.from !== expected.from || b.dateRange?.to !== expected.to) return componentResolutionSchema.safeParse(null)
-    if (view.widgets.some(widget => widget === 'tasks' || widget === 'metrics') && b.taskFilters.status !== 'overdue' && (b.taskFilters.from !== expected.from || b.taskFilters.to !== expected.to)) return componentResolutionSchema.safeParse(null)
+    if (b.dateRange?.from !== expected.from || b.dateRange?.to !== expected.to) return reject('The model did not preserve the requested date range.',['bindings','dateRange'])
+    if (view.widgets.some(widget => widget === 'tasks' || widget === 'metrics') && b.taskFilters.status !== 'overdue' && (b.taskFilters.from !== expected.from || b.taskFilters.to !== expected.to)) return reject('Task date filters do not match the requested date range.',['bindings','taskFilters'])
   }
   return result
 }
