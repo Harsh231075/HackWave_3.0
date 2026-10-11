@@ -355,3 +355,5 @@
 .goal-command-dialog .command-hint { padding: 14px 20px 2px; font-size: 12px; gap: 16px; }
 .workspace-history-dialog { width: min(720px, calc(100vw - 32px)); max-width: min(720px, calc(100vw - 32px)); max-height: 80dvh; grid-template-rows: auto minmax(0, 1fr); }
 @media (max-width: 640px) { .goal-command-dialog { padding: 12px; }.goal-command-dialog .goal-input-row { padding: 12px 4px; gap: 8px; }.goal-command-dialog .goal-input-row input { font-size: 14px; }.goal-command-dialog .goal-form > p { padding: 0 4px 12px; font-size: 12px; }.goal-command-dialog .command-hint { padding: 12px 4px 0; font-size: 10px; } }
+
+.generated-canvas.workspace-has-status { padding-top: 16px; }
