@@ -1,9 +1,12 @@
+import { isMailWidget } from '../domain/mail.ts'
 import { logKeywordFallback } from './intentDiagnostics.ts'
 import { isServiceError } from './serviceErrors.ts'
 import { componentRequestSchema, validateComponentResolution, fallbackComponentIntent, type ComponentRequest } from '../domain/componentIntent.ts'
 import { createHttpClient } from './api/httpClient.ts'
 export async function resolveComponentIntent(input: ComponentRequest, signal?: AbortSignal) {
   const parsed=componentRequestSchema.parse(input)
+  const local = fallbackComponentIntent(parsed)
+  if (local.action === 'view' && local.widgets.some(isMailWidget) || /\b(gmail|inbox|mails?|emails?)\b/i.test(parsed.goal)) return local
   try {
     const value=await createHttpClient().requestJson('/api/workspace/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed),signal})
     const result=validateComponentResolution(value,parsed)

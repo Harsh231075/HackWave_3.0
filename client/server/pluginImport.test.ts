@@ -9,7 +9,7 @@ import { createExtensionService } from '../src/extensions/extensionService.ts'
 import { componentRequestSchema, fallbackComponentIntent, validateComponentResolution } from '../src/domain/componentIntent.ts'
 import { applyComponentView } from '../src/domain/instanceViews.ts'
 import { emptyWorkspace } from '../src/domain/workspaceDocument.ts'
-function setup(){const raw=new Map<string,string>(),storage=createBrowserStorage(()=>({getItem:key=>raw.get(key)??null,setItem:(key,value)=>{raw.set(key,value)},removeItem:key=>{raw.delete(key)}}));const database=createBrowserDatabase(storage,emptyRecords(),freshLocalData(),true);return {database,plugins:createPluginImportService(database),extensions:createExtensionService(database)}}
+function setup(){const raw=new Map<string,string>(),storage=createBrowserStorage(()=>({getItem:key=>raw.get(key)??null,setItem:(key,value)=>{raw.set(key,value)},removeItem:key=>{raw.delete(key)}}));const database=createBrowserDatabase(storage,emptyRecords(),freshLocalData());return {database,plugins:createPluginImportService(database),extensions:createExtensionService(database)}}
 function file(name:string,content:string):PluginFile {const blob=new Blob([content]);return {name,webkitRelativePath:`demo/${name}`,size:blob.size,type:'',text:()=>blob.text(),arrayBuffer:()=>blob.arrayBuffer()}}
 const manifest={version:1,id:'demo-plugin',name:'Demo Tool',description:'A local tool',entry:'index.html'}
 function folder(html='<button>Press</button><script src="app.js"></script>'){return [file('orlo-plugin.json',JSON.stringify(manifest)),file('index.html',html),file('app.js','document.querySelector("button").onclick=()=>{}')]}

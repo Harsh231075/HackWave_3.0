@@ -27,6 +27,7 @@ export function loadPinnedRecords(database: BrowserDatabase, pin: Pick<PinnedWid
     const result = createOverdueReviewService(database).load(binding.intent, binding.referenceDate)
     return result.status !== 'found' ? result : { status: 'found', value: { fingerprint: fingerprint(result.value), label: `${binding.intent.dateRange.from}–${binding.intent.dateRange.to}` } }
   }
+  if (binding.kind === 'gmail') return { status: 'found', value: { fingerprint: fingerprint(binding), label: 'Gmail' } }
   if (binding.kind === 'google-calendar') return { status: 'found', value: { fingerprint: fingerprint(binding), label: 'Google Calendar · ' + binding.accountId } }
   const scope = loadActionScope(database, binding)
   if (!scope) return { status: 'missing' }

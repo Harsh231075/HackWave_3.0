@@ -1,3 +1,4 @@
+import { MailBoundWidget } from '@/extensions/mail/MailWidgets'
 import { DisabledExtension } from '@/extensions/DisabledExtension'
 import { isExtension } from '@/extensions/catalog'
 import { extensionService, pluginImportService } from '@/services'
@@ -77,6 +78,7 @@ function InstanceCard({ instance, update, remove, pageActions = false }: { remov
   const records = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const Widget = registry[instance.widgetType].component
   let content: ReactNode = instance.binding.kind === 'usage-query' ? <DataUsageExplorer boundQuery={instance.binding.query} /> : <Widget key={isExtension(instance.widgetType)?JSON.stringify([instance.binding,instance.viewState.timerDurationMinutes,instance.viewState.selectedTaskId,instance.viewState.externalPluginId]):undefined} />
+  if (instance.binding.kind === 'gmail') content = <MailBoundWidget instance={instance} update={update}/>
   if (instance.binding.kind === 'google-calendar') content = calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId ? <GoogleBoundWidget instance={instance} update={update} /> : <div className="space-y-3"><p>This view belongs to its original Google account. Connect that account to continue.</p><GoogleCalendarConnection /></div>
   if (records.status !== 'found' || !loadActionScope(browserDatabase, instance.binding)) content = <p role="alert">This view’s original records are unavailable. Restore them or remove this view.</p>
   if (isExtension(instance.widgetType) && (!extensionService.isWidgetEnabled(instance.widgetType) || instance.widgetType==='external-plugin' && !!instance.viewState.externalPluginId && !pluginImportService.getById(instance.viewState.externalPluginId)?.enabled)) content = <DisabledExtension id={instance.widgetType} remove={remove?()=>remove(instance.instanceId):undefined} />

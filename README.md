@@ -15,7 +15,7 @@ There are no project, client, organization, or membership containers. Tasks, not
 - Usage investigation: stored observations/releases filtered by date and segment, derived comparisons, missing-data disclosure and evidence-linked work. Release timing does not establish causation.
 - Overdue review: outstanding overdue tasks filtered by dates, owner, status and priority; resources linked to selected tasks.
 - Saved layouts: stable widget instances, scoped pins, independent view filters, history and follow-up clarification survive reloads without regenerating on navigation.
-- Optional extensions: Quick Timer, Voice Note and Calculator, OFF initially. Disabled saved widgets offer enable/remove controls. Imported static HTML plugins run in isolated frames. Stopwatch and Whiteboard are Coming Soon.
+- Optional extensions: Quick Timer, Voice Note, Calculator and Mail, OFF initially. Disabled saved widgets offer enable/remove controls. Imported static HTML plugins run in isolated frames. Stopwatch and Whiteboard are Coming Soon.
 
 ## Local data and demo
 
@@ -40,6 +40,7 @@ The project/client data model was intentionally retired. The first initializatio
 | `/` | Generic dashboard and adaptive canvas |
 | `/landing` | Landing page |
 | `/tasks`, `/notes`, `/meetings`, `/resources`, `/planner` | Shared local records and tools |
+| `/mail` | Gmail inbox, drafts and composer |
 | `/plugins` | Enable built-ins and import external plugins |
 | `/calendar` | Redirect to Meetings calendar view |
 | `/workspace/:mode` | Predefined component previews |
@@ -83,3 +84,9 @@ Optional browser checks: `npm run test:local-data`, `npm run test:kanban`, `npm 
 `npm run test:intent:live` is an opt-in provider evaluation. A complete live three-goal demonstration, comprehensive accessibility audit and physical microphone/mobile-browser checks remain separate acceptance work. Existing production bundle-size and lint warnings remain.
 
 See [PLAN.md](PLAN.md) and [services documentation](client/src/services/README.md). External plugin packaging is described in [examples/plugins/README.md](examples/plugins/README.md).
+
+## Gmail Mail extension
+
+Mail provides browser-only Gmail access: inbox/folders/search, message reading, plain-text compose, Gmail drafts, reply/forward, attachments and mailbox actions. Enable it in Plugins and use the Mail sidebar page or dashboard commands (“show my inbox”, “show sent mail”, “write an email”). Sending requires the composer’s Send button.
+
+Set the public `VITE_GOOGLE_CLIENT_ID` in `client/.env.local`; Mail adds no backend endpoints or server credentials. Google consent is required, and expired tokens require a user-triggered reconnect. See [Mail setup and verification](client/src/extensions/mail/README.md) for Google configuration, privacy/storage behavior and demo limitations.

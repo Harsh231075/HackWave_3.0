@@ -60,7 +60,7 @@ export function createWorkspaceActionService(database: BrowserDatabase) {
     },
     checkTask,
     createTask(origin:ActionOrigin,input:TaskInput):ActionResult<Task>{
-      if(input.id||!scope(origin)||origin.binding.kind==='google-calendar')return {ok:false,message:'This task creation view is unavailable.'}
+      if(input.id||!scope(origin)||(origin.binding.kind==='google-calendar'||origin.binding.kind==='gmail'))return {ok:false,message:'This task creation view is unavailable.'}
       const data=createAdaptiveDataService(database),binding=origin.binding
       if(binding.kind!=='workspace'&&binding.kind!=='meeting')return {ok:false,message:'Create tasks from Tasks or a meeting view.'}
       return database.transaction(()=>{

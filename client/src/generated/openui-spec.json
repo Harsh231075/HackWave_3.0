@@ -338,7 +338,7 @@
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
-      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"resource-create\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\" | \"quick-timer\" | \"voice-note\" | \"calculator\" | \"external-plugin\", span: \"wide\" | \"narrow\" | \"full\")",
+      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"resource-create\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\" | \"quick-timer\" | \"voice-note\" | \"calculator\" | \"external-plugin\" | \"mail-inbox\" | \"mail-message\" | \"mail-compose\", span: \"wide\" | \"narrow\" | \"full\")",
       "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
     },
     "Workspace": {
@@ -562,7 +562,7 @@
         "outline: Project notes keep your preparation and next steps together.",
         "resources: These linked demo materials support the selected context. Open a source to inspect its actual contents.",
         "resource-create: An inline editor lets you define and save a resource without opening another dialog.",
-        "context: Context, courses or projects, and linked resources orient the preparation workspace.",
+        "context: Context and current goals, and linked resources orient the preparation workspace.",
         "calendar: Month, week, day, and agenda views share event records and deadlines. Includes quick creation, event editing, deletion with undo, category filters, and an optional availability panel. Use this single calendar widget instead of adding duplicate meetings or availability widgets for a calendar goal.",
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
         "chart: Completion activity comes from recorded task transitions; allocation uses local calendar events.",
@@ -573,7 +573,10 @@
         "quick-timer: Time a focused work session linked to your project.",
         "voice-note: Capture a spoken idea as a project note.",
         "calculator: Calculate totals and arithmetic directly in your current view.",
-        "external-plugin: An imported tool selected for your goal."
+        "external-plugin: An imported tool selected for your goal.",
+        "mail-inbox: Browse Gmail messages and folders. Requires user authorization; account-scoped.",
+        "mail-message: Read the selected Gmail message. Email contents are not available to the model.",
+        "mail-compose: User-controlled Gmail composer. Commands never send mail."
       ]
     }
   ],
@@ -4837,7 +4840,10 @@
               "quick-timer",
               "voice-note",
               "calculator",
-              "external-plugin"
+              "external-plugin",
+              "mail-inbox",
+              "mail-message",
+              "mail-compose"
             ]
           },
           "span": {

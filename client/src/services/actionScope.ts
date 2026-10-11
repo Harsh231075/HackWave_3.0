@@ -7,6 +7,7 @@ import { createOverdueReviewService } from './overdueReviewService.ts'
 import { usageDraftKey } from '../domain/usageComposition.ts'
 import type { Task } from '../domain/types.ts'
 export function loadActionScope(database: BrowserDatabase, binding: WidgetBinding): { tasks: Task[]; draft?: { key: string; label: string; fallback: string } } | null {
+  if (binding.kind === 'gmail') return { tasks: [] }
   if (binding.kind === 'google-calendar') return { tasks: [], ...(binding.eventId ? { draft: { key: `google-preparation:${binding.accountId}:${binding.calendarId}:${binding.eventId}`, label: 'Meeting preparation notes', fallback: '' } } : {}) }
   if (binding.kind === 'workspace') {
     return {tasks:database.getState().tasks,draft:{key:binding.draftKey??'outline',label:'Notes',fallback:''}}

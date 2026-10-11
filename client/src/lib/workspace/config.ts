@@ -1,7 +1,8 @@
+import { mailWidgetIds } from '../../domain/mail.ts'
 import { extensionIds } from '../../extensions/contracts.ts'
 import { z } from 'zod'
 
-export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'recommendation', 'outline', 'resources', 'resource-create', 'context', 'calendar', 'availability', 'chart', 'activity', 'usage', 'communications', 'issues', ...extensionIds] as const
+export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'recommendation', 'outline', 'resources', 'resource-create', 'context', 'calendar', 'availability', 'chart', 'activity', 'usage', 'communications', 'issues', ...extensionIds.filter((id): id is Exclude<typeof extensionIds[number], 'mail'> => id !== 'mail'), ...mailWidgetIds] as const
 export type WidgetType = typeof widgetTypes[number]
 export const configSchema = z.object({
   version: z.literal(1), id: z.string(), title: z.string(), description: z.string(),

@@ -1,3 +1,4 @@
+import { isMailWidget, mailFolders } from './mail.ts'
 import { requestsRemovedScope } from './intent.ts'
 import { extensionIds } from '../extensions/contracts.ts'
 import { capabilityAllowed, isExtension } from '../extensions/catalog.ts'
@@ -11,6 +12,7 @@ import { emptyFilters, filterTasks } from './workspace.ts'
 import type { Task, Event } from './types.ts'
 
 export const viewBindingsSchema = z.strictObject({
+  mailFolder: z.enum(mailFolders).optional(),
   externalPluginId:z.string().optional(), timerDurationMinutes: z.number().int().min(1).max(180).optional(), selectedTaskId: z.string().optional(),
   taskFilters: taskFiltersSchema.default(emptyFilters),
   taskStatuses: z.array(z.enum(['pending','blocked','completed'])).min(1).max(3).optional(), issueStatus: z.enum(['open','closed']).optional(),
@@ -52,7 +54,7 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if ('continuation' in result.data && result.data.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id))) return componentResolutionSchema.safeParse(null)
   const additions = result.data.action === 'view' ? result.data.widgets : result.data.action === 'manage' ? result.data.operations.flatMap(op => op.type === 'add' ? op.widgets : op.type === 'replace' ? op.with : []) : []
   if (additions.some(id => !capabilityAllowed(id,input.enabledExtensions))) return reject('Enable this extension in Plugins before adding it.')
-  if (result.data.action === 'view' && result.data.widgets.some(isExtension)) {
+  if (result.data.action === 'view' && result.data.widgets.some(id => isExtension(id) && !isMailWidget(id))) {
     const b=result.data.bindings
     if(result.data.widgets.includes('external-plugin') && (!b.externalPluginId || !input.catalog.externalPlugins?.some(p=>p.id===b.externalPluginId)))return reject('Choose an enabled imported plugin.')
     if (b.selectedTaskId && !(input.catalog.tasks??[]).some(t=>t.id===b.selectedTaskId)) return reject('Select an available task.')
@@ -141,10 +143,15 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
 }
 function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   if(removalNeedsClarification(input.goal))return {action:'clarify',question:'Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.',choices:['Show my tasks','Show my calendar']}
-  if (!destructiveGoal(input.goal) && resourceCreationGoal(input.goal)) return componentViewSchema.parse({action:'view',widgets:['resource-create'],bindings:{},reply:'Fill in the resource details and save it when ready.',referenceDate:input.referenceDate,timezone:input.timezone})
+  if (!destructiveGoal(input.goal) && resourceCreationGoal(input.goal) && !/\b(mail|email|gmail)\b/i.test(input.goal)) return componentViewSchema.parse({action:'view',widgets:['resource-create'],bindings:{},reply:'Fill in the resource details and save it when ready.',referenceDate:input.referenceDate,timezone:input.timezone})
   const management=localManagement(input.goal);if(management && !(management.operations.length===1 && management.operations[0].type==='add' && management.operations[0].widgets.length===1 && isExtension(management.operations[0].widgets[0])))return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
+  if (/\b(gmail|inbox|mails?|emails?|sent mail|drafts)\b/.test(text) && !/\b(communications|linked|project messages)\b/.test(text)) {
+    const composing = /\b(write|compose|send|reply|forward|new email|new mail)\b/.test(text)
+    const folder = /\bsent\b/.test(text) ? 'Sent' : /\bdrafts?\b/.test(text) ? 'Drafts' : /\btrash\b/.test(text) ? 'Trash' : /\ball (?:mails?|emails?)\b/.test(text) ? 'All Mail' : 'Inbox'
+    return componentViewSchema.parse({action:'view',widgets:[composing?'mail-compose':/mail message|email viewer/.test(text)?'mail-message':'mail-inbox'],bindings:{mailFolder:folder},reply:composing?'Review your message and use Send when ready.':'Browse Gmail using the mail controls.',referenceDate:input.referenceDate,timezone:input.timezone})
+  }
   const plugins=input.catalog.externalPlugins??[]
   const genericPlugin=/external plugin|imported plugin/.test(text)
   const matches=plugins.filter(p=>text.includes(p.name.toLowerCase()))

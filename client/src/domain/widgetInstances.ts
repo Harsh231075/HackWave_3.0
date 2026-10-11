@@ -1,3 +1,4 @@
+import { isMailWidget, mailFolders, mailWidgetIds } from './mail.ts'
 import { compositionActionsSchema } from './workspaceActions.ts'
 import { meetingWidgetTypes } from './adaptiveData.ts'
 import { usageWidgetTypes } from './usageComposition.ts'
@@ -9,7 +10,7 @@ import { resolvedIntentSchema } from './intent.ts'
 import { usageQuerySchema } from './usage.ts'
 import { emptyFilters } from './workspace.ts'
 
-export const widgetBindingKinds = ['workspace', 'meeting', 'usage', 'usage-query', 'overdue', 'google-calendar'] as const
+export const widgetBindingKinds = ['workspace', 'meeting', 'usage', 'usage-query', 'overdue', 'google-calendar', 'gmail'] as const
 export const MAX_PINS = 6
 export const MAX_CANVAS_WIDGETS = 14
 export const taskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
@@ -19,6 +20,7 @@ export const taskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
 }).refine(f => !f.from || !f.to || f.from <= f.to, 'Task filter dates must be ordered.')
 export const timezoneSchema = z.string().refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true } catch { return false } }, 'Choose a valid timezone.')
 export const widgetBindingSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('gmail'), accountId: z.string().min(1).optional(), messageId: z.string().min(1).optional(), draftId: z.string().min(1).optional() }),
   z.strictObject({ kind: z.literal('workspace'), draftKey: z.string().min(1).optional() }),
   z.strictObject({ kind: z.literal('google-calendar'), accountId: z.string().min(1), calendarId: z.literal('primary'), eventId: z.string().min(1).optional(), mode: z.enum(['browse', 'prepare', 'schedule']).default('browse') }),
   z.strictObject({ kind: z.literal('meeting'), meetingId: z.string().min(1) }),
@@ -27,6 +29,7 @@ export const widgetBindingSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('overdue'), intent: resolvedIntentSchema.refine(i => i.goalType === 'overdue_review'), referenceDate: z.iso.date() }),
 ])
 export const widgetViewStateSchema = z.strictObject({
+  mailFolder: z.enum(mailFolders).optional(),
   taskFilters: taskFiltersSchema.default(emptyFilters), selectedDate: z.iso.date().optional(),
   calendarView: z.enum(['month', 'week', 'day', 'agenda']).optional(),
   calendarCategory: z.enum(['all', 'meeting', 'class', 'focus', 'break']).optional(),
@@ -53,7 +56,8 @@ export type WidgetViewState = z.infer<typeof widgetViewStateSchema>
 export type WidgetInstance = z.infer<typeof widgetInstanceSchema>
 export type PinnedWidget = WidgetInstance & { pinId: string; createdAt: string }
 const bindings: Record<WidgetBinding['kind'], readonly WidgetType[]> = {
-  workspace: widgetTypes,
+  workspace: widgetTypes.filter(type => !isMailWidget(type)),
+  gmail: mailWidgetIds,
   'google-calendar': ['calendar', 'meetings', 'availability', 'context', 'outline'],
   meeting: meetingWidgetTypes,
   usage: usageWidgetTypes,
@@ -76,7 +80,7 @@ export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' |
   const filtersMatter = type === 'tasks' || (binding.kind === 'overdue' && ['context', 'metrics', 'recommendation'].includes(type))
   const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && (binding.kind === 'workspace' || binding.kind === 'google-calendar')
   const effectiveBinding = type === 'usage' && binding.kind === 'usage' ? { kind: 'usage-query', query: { dateRange: binding.intent.dateRange, segment: binding.intent.constraints?.segment } } : binding
-  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(type==='external-plugin'?{externalPluginId:viewState.externalPluginId}:{}), ...(type === 'resource-create' ? {formId:instance.instanceId} : {}), ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
+  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(isMailWidget(type) ? {mailFolder:viewState.mailFolder} : {}), ...(type==='external-plugin'?{externalPluginId:viewState.externalPluginId}:{}), ...(type === 'resource-create' ? {formId:instance.instanceId} : {}), ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
 }
 export function activeInstanceId(type: WidgetType, binding: WidgetBinding) { return `active:${type}:${fingerprint(binding)}` }
 export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[], kind: WidgetBinding['kind'] = 'workspace') {
@@ -91,5 +95,6 @@ export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[],
 }
 
 export function makeInstance(widgetType: WidgetType, binding: WidgetBinding = { kind: 'workspace' }, viewState: Partial<WidgetViewState> = {}, id: string = crypto.randomUUID()): WidgetInstance {
+  if (isMailWidget(widgetType) && binding.kind === 'workspace') binding = { kind: 'gmail' }
   return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? widgetType : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
 }
