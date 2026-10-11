@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
 import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
 import { WorkspaceProvider } from '@/state/WorkspaceProvider'
+import { PluginsPage } from '@/pages/PluginsPage'
 import { NotesPage } from '@/pages/NotesPage'
 import { ResourcesPage } from '@/pages/ResourcesPage'
 import { MeetingsPage } from '@/pages/MeetingsPage'
@@ -24,6 +25,7 @@ function App() {
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/plugins" element={<PluginsPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/meetings" element={<MeetingsPage />} />

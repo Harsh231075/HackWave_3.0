@@ -42,6 +42,8 @@ export function createNoteService(database: BrowserDatabase) {
     delete(id: string, expected: NoteSnapshot): ActionResult<void> {
       const note = getById(id)
       if (!note) return fail('This note is unavailable.')
+      const voice=database.readCollection('voiceNotes')
+      if(voice.status==='found'&&Array.isArray(voice.value)&&voice.value.some(item=>item.noteId===id))return fail('Delete this voice note through its audio service.')
       if (!editable(note)) return fail('Linked notes cannot be deleted independently.')
       if (note.title !== expected.title || note.body !== expected.body) return fail('This note changed. Review it before deleting.')
       return database.transaction(() => { const result = records.delete(id); if (result.ok) database.dispatch({ type: 'delete-draft', key: note.draftKey }); return result })

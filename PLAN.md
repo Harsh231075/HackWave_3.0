@@ -442,3 +442,16 @@ Validation for the project-only change: **316/316 unit tests passed**; productio
 - [x] Tasks, Meetings, Notes, Resources and Planner share the right-side page action slot; reusable widget controls stay in component headers when embedded.
 
 - [x] Expand explicit seed: 8 tasks, 10 local calendar events, 10 populated notes, 4 tagged/linked resources, 4 communications and 3 issues per sample project; today’s planner and past/future calendar dates are populated without replacing user data.
+
+## Optional extensions — Quick Timer and Voice Note
+
+- [x] Keep shared contracts/catalog/runtime in `client/src/extensions`; each extension owns its definition, services, schema and component in its own subfolder.
+- [x] `/plugins` lists exactly these two extensions, both OFF initially, with persisted toggles and previews.
+- [x] Enabled capabilities inform intent routing and OpenUI generation; validate additions against availability and recheck before installation. Keep known widget IDs for saved-layout decoding.
+- [x] Disabled saved widgets show an enable/remove placeholder instead of mounting their controls. Toggle changes preserve their IDs, bindings and layout positions.
+- [x] Quick Timer: explicit Start/Pause/Resume/Reset, project ownership, optional task, configurable 1–180 minutes, persisted end time, route/reload continuity, one completion record per timer. Disabling pauses; re-enabling requires Resume. It never completes tasks automatically.
+- [x] Voice Note: explicit microphone permission, compatible browser recording, two-minute/5 MB limits, playback, Download, and optional manually entered text. OFF/route changes release the microphone and preserve a captured draft in memory.
+- [x] Save voice-note text through canonical Notes and store audio in IndexedDB, with metadata in browserDatabase; existing audio remains playable with the extension OFF. Handle stale saves, optimistic note deletion, storage errors and local reset.
+- [x] Verify capability gating, timer timing/deduplication, audio failure/reset races, microphone release/final chunks, saved-layout placeholders, route/reload continuity and audio playback using service tests and Chromium's simulated microphone.
+- [ ] Physical microphone and browser-specific mobile/Safari permission/playback checks. Automated Chromium recording has passed; it does not certify other browsers or physical devices.
+- [ ] Backend/cloud audio storage and automatic transcription are deferred. Unsaved recording drafts survive in-app navigation only; save or download before closing/reloading the tab.

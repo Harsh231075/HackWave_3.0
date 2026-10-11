@@ -1,3 +1,4 @@
+import { capabilityAllowed, enabledCapabilityDescriptions } from '../src/extensions/catalog.ts'
 import { clearExistingBeforeAdding } from '../src/domain/workspaceManagement.ts'
 import { continuationInstructions } from '../src/domain/intentChanges.ts'
 import type { ComponentRequest } from '../src/domain/componentIntent.ts'
@@ -57,3 +58,5 @@ export function normalizeModelIntent(value:unknown,input:ComponentRequest):unkno
  try{if(typeof timezone==='string'&&new Intl.DateTimeFormat('en',{timeZone:timezone}).resolvedOptions().timeZone===new Intl.DateTimeFormat('en',{timeZone:input.timezone}).resolvedOptions().timeZone)timezone=input.timezone}catch{/* Validator rejects invalid zones. */}
  return {...raw,...(continuation ? { continuation } : {}),referenceDate:raw.referenceDate??input.referenceDate,timezone,bindings:{...bindings,taskFilters:filters}}
 }
+
+export function availableComponentInstructions(input:ComponentRequest){return componentModelInstructions.replace(`Registered IDs: ${widgetTypes.join(', ')}`,`Registered IDs: ${widgetTypes.filter(id=>capabilityAllowed(id,input.enabledExtensions)).join(', ')}`)+`\nEnabled extensions: ${JSON.stringify(enabledCapabilityDescriptions(input.enabledExtensions??[]))}. Disabled extensions cannot be added. Extension widgets require projectId from catalog or selectedProjectId. quick-timer accepts timerDurationMinutes (1–180) and selectedTaskId from catalog.tasks in that project. For a timer request with duration/task/project configuration, use view with bindings rather than manage/add. Render controls; never start timers or recording automatically. Selected project: ${input.selectedProjectId??'none'}.` }

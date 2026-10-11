@@ -1,0 +1,2 @@
+import type { ExtensionDefinition } from '../contracts.ts'
+export const voiceNoteDefinition: ExtensionDefinition = { id: 'voice-note', widgetId: 'voice-note', title: 'Voice Note', description: 'Record audio and save it as a project note.', aiDescription: 'A user-controlled audio recording form. Select when the user wants to capture a spoken idea. Requires a project. Never activate the microphone or claim to transcribe audio.', supportedBindings: ['workspace'] }

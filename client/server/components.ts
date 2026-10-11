@@ -1,5 +1,5 @@
 import { safeIntentError } from './intentDiagnostics.ts'
-import { componentModelInstructions, componentModelInput, normalizeModelIntent } from './componentModelIntent.ts'
+import { availableComponentInstructions, componentModelInput, normalizeModelIntent } from './componentModelIntent.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { componentRequestSchema, validateComponentResolution, fallbackComponentIntent } from '../src/domain/componentIntent.ts'
 import { modelText } from './modelProvider.ts'
@@ -21,7 +21,7 @@ export async function componentIntentEndpoint(req: IncomingMessage,res: ServerRe
     let fallbackMessage:string|undefined
     let validationIssues:Array<{path:string;message:string}>|undefined
     try {
-      const text=await modelText(env,componentModelInstructions,[{role:'user',content:JSON.stringify(componentModelInput(input))}],AbortSignal.any([controller.signal,AbortSignal.timeout(12000)]),true)
+      const text=await modelText(env,availableComponentInstructions(input),[{role:'user',content:JSON.stringify(componentModelInput(input))}],AbortSignal.any([controller.signal,AbortSignal.timeout(12000)]),true)
       let candidate:unknown;try{candidate=JSON.parse(text)}catch{fallbackReason='invalid_json';fallbackMessage='The AI response was not valid JSON.';throw new Error('Invalid intent JSON')}
       const validated=validateComponentResolution(normalizeModelIntent(candidate,input),input)
       if(validated.success)result={...validated.data,source:'ai' as const}

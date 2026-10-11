@@ -1,3 +1,6 @@
+import { QuickTimer } from '@/extensions/quick-timer/QuickTimer'
+import { VoiceNote } from '@/extensions/voice-note/VoiceNote'
+import { extensionService } from '@/services'
 import type { WorkspaceAction } from '@/domain/workspaceActions'
 import { supportsBinding, widgetBindingKinds, type WidgetBinding } from '@/domain/widgetInstances'
 import { Communications, Issues } from '@/components/resources/MeetingPreparationWidgets'
@@ -13,6 +16,8 @@ import { widgetTypes, type WidgetType } from './config'
 
 export type WidgetDefinition = { title: string; reason: string; icon: typeof ListTodo; component: ComponentType; supportedBindings: readonly WidgetBinding['kind'][]; supportedActions: readonly WorkspaceAction['type'][] }
 const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings' | 'supportedActions'>> = {
+  'quick-timer': { title: 'Quick Timer', reason: 'Time a focused work session linked to your project.', icon: Clock3, component: QuickTimer },
+  'voice-note': { title: 'Voice Note', reason: 'Capture a spoken idea as a project note.', icon: FileText, component: VoiceNote },
   communications: { title: 'Communications', reason: 'Recent communications linked to the selected meeting and project.', icon: FileText, component: Communications },
   issues: { title: 'Issues', reason: 'Open issues linked to the selected meeting and project.', icon: ListTodo, component: Issues },
   metrics: { title: 'Summary', reason: 'Counts come from the tasks and focus sessions in your workspace.', icon: LayoutGrid, component: Metrics },
@@ -33,3 +38,5 @@ const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings'
 }
 export const registry = Object.fromEntries(widgetTypes.map(type => [type, { ...definitions[type], supportedActions: type === 'tasks' || type === 'recommendation' ? ['task.edit', 'focus.schedule'] : type === 'outline' ? ['draft.edit'] : [], supportedBindings: widgetBindingKinds.filter(kind => supportsBinding(type, kind)) }])) as unknown as Record<WidgetType, WidgetDefinition>
 export function widgetTitle(id: WidgetType) { return registry[id].title }
+
+export function activeRegistry() { return Object.fromEntries(Object.entries(registry).filter(([id]) => extensionService.isWidgetEnabled(id))) }

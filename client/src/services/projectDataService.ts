@@ -47,10 +47,11 @@ export function createProjectDataService(database: BrowserDatabase) {
       if (settings()?.defaultProjectId === id) return result('The Default project cannot be deleted.')
       const state = database.getState()
       if ([...state.tasks, ...state.events].some(record => record.projectId === id) || notes.list().some(note => note.projectId === id && (state.drafts[note.draftKey] ?? '').length)) return result('Move or remove this project’s records first.')
-      for (const key of ['meetings', 'resources', 'issues', 'communications', 'usageObservations', 'usageReleases', 'files']) {
+      for (const key of ['meetings', 'resources', 'issues', 'communications', 'usageObservations', 'usageReleases', 'files', 'voiceNotes', 'timerSessions']) {
         const data = database.readCollection(key)
         if (data.status === 'found' && Array.isArray(data.value) && data.value.some(record => record.projectId === id)) return result('Move or remove this project’s records first.')
       }
+      const timer=database.readCollection('quickTimer');if(timer.status==='found'&&timer.value&&typeof timer.value==='object'&&'projectId' in timer.value&&timer.value.projectId===id)return result('Reset this project’s timer first.')
       return database.transaction(() => {
         const deleted = projects.delete(id)
         if (!deleted.ok) return deleted

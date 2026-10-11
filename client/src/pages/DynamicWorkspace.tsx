@@ -1,3 +1,6 @@
+import { projectDataService } from '@/services'
+import { extensionService } from '@/services'
+import { isExtension } from '@/extensions/catalog'
 import { fingerprint } from '@/domain/widgetInstances'
 import { validateSavedContinuation } from '@/services/continuationService'
 import type { PendingClarification, SuccessfulContinuation } from '@/domain/workspaceContinuation'
@@ -129,7 +132,7 @@ export function DynamicWorkspace() {
       const types = namedWidgets(submitted)
       const previousForType = () => { try { return types.length === 1 ? resolveTarget(current.current, types[0], false) : current.current.active.find(w => current.current.targets.includes(w.instanceId)) } catch (error) { if (error instanceof TargetError) return undefined; throw error } }
       const previous = /\b(another|second|additional|separate)\b/i.test(submitted) ? undefined : exactTarget ? all.find(w => w.instanceId === exactTarget) : previousForType()
-      const input = { goal: submitted, referenceDate: offered && (answer || exactTarget) ? offered.referenceDate : calendarDate(undefined, calendar.timezone), timezone: offered && (answer || exactTarget) ? offered.timezone : calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all.map(w => ({ ...w, pinned: 'pinId' in w })), componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { owners: [...new Set(state.tasks.map(t => t.owner))], projects: records?.projects ?? [], clients: records?.clients ?? [], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
+      const input = { enabledExtensions:extensionService.getSettings().enabled, selectedProjectId:projectDataService.selectedId(), goal: submitted, referenceDate: offered && (answer || exactTarget) ? offered.referenceDate : calendarDate(undefined, calendar.timezone), timezone: offered && (answer || exactTarget) ? offered.timezone : calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all.map(w => ({ ...w, pinned: 'pinId' in w })), componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { tasks:state.tasks.map(t=>({id:t.id,title:t.title,projectId:t.projectId})), owners: [...new Set(state.tasks.map(t => t.owner))], projects: records?.projects ?? [], clients: records?.clients ?? [], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
       let resolved = answer ? null : exactTarget && offered?.kind === 'component' && offered.proposed ? { ...offered.proposed, continuation: offered.proposed.continuation ? { ...offered.proposed.continuation, targetInstanceIds: [exactTarget] } : undefined } : await resolveComponentIntent({ ...input, lastTargetIds: restored.lastSuccess?.targetInstanceIds }, controller.signal)
       proposed = resolved?.action === 'view' ? resolved : undefined
       if (resolved?.action === 'view' && resolved.continuation?.relationship === 'refinement') {
@@ -152,10 +155,12 @@ export function DynamicWorkspace() {
       if (!valid()) return
       if(resolved?.source)save({...current.current,turns:current.current.turns.map(t=>t.id===id?{...t,source:resolved.source}:t)},false)
       if (resolved?.action === 'clarify') { ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: [], useDemo, question: resolved.question, choices: resolved.choices.map(label => ({ label })) }); finish(id, 'clarification', resolved.question); setCommandOpen(true); return }
+      if(resolved?.action==='view' && resolved.widgets.some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')
+      if(resolved?.action==='manage' && resolved.operations.flatMap(op=>op.type==='add'?op.widgets:op.type==='replace'?op.with:[]).some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')
       if (resolved?.action === 'manage') {
         const operations = exactTarget ? resolved.operations.map(op => op.type === 'remove' || op.type === 'keep' || op.type === 'replace' ? { ...op, widgets: op.widgets.map(type => previous?.widgetType === type ? exactTarget : type) } : op.type === 'move' || op.type === 'resize' ? { ...op, widget: previous?.widgetType === op.widget ? exactTarget : op.widget } : op) : resolved.operations
         const includePins = /\b(including pins|pinned|all pins)\b/i.test(submitted)
-        const next = applyInstanceOperations(current.current, operations, type => makeInstance(type, { kind: 'workspace' }, { referenceDate: input.referenceDate, timezone: input.timezone }), includePins)
+        const next = applyInstanceOperations(current.current, operations, type => { if(isExtension(type)&&!input.selectedProjectId)throw new Error('Select a project first.'); return makeInstance(type, { kind: 'workspace', ...(isExtension(type)?{projectId:input.selectedProjectId}:{}) }, { referenceDate: input.referenceDate, timezone: input.timezone }) }, includePins)
         install(next, next.continuation?.lastSuccess)
         finish(id, 'ready', resolved.reply); return
       }
@@ -186,7 +191,8 @@ export function DynamicWorkspace() {
         const clarification = workflow.getOutcome().clarification
         if (clarification) save({ ...current.current, continuation: { ...current.current.continuation, pending: { kind: 'adaptive', requestId: clarification.requestId, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: restored.lastSuccess?.targetInstanceIds ?? [], question: clarification, continuation: resolved && 'continuation' in resolved ? resolved.continuation : undefined } } }, false)
         finish(id, workflow.getOutcome().clarification ? 'clarification' : 'error', workflow.getOutcome().error || 'Choose the details needed to continue.'); setCommandOpen(true); return }
-      const instances = result.kind === 'general' ? extractActiveWidgets(result.response, productivityLibrary.toJSONSchema(), productivityLibrary.root).map(w => ({ ...makeInstance(w.id), span: w.span })) : instancesFromLayout(result.session)
+      if(result.kind==='general' && extractActiveWidgets(result.response,productivityLibrary.toJSONSchema(),productivityLibrary.root).some(w=>!extensionService.isWidgetEnabled(w.id)))throw new Error('The generated layout includes a disabled extension.')
+      const instances = result.kind === 'general' ? extractActiveWidgets(result.response, productivityLibrary.toJSONSchema(), productivityLibrary.root).map(w => ({ ...makeInstance(w.id,{kind:'workspace',...(isExtension(w.id)?{projectId:input.selectedProjectId}:{})}), span: w.span })) : instancesFromLayout(result.session)
       let next = current.current
       const installedTargets: string[] = []
       for (const instance of instances) {
@@ -239,7 +245,7 @@ export function DynamicWorkspace() {
       <main className={`generated-canvas${latest ? ' workspace-has-status' : ''}`} aria-label="Context-aware workspace">
         {workspace.notice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground"><span>{workspace.notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setNotice('')}><X size={14} /></Button></div>}
         {latest && <div className="mb-4 flex items-start gap-3" aria-label="Workspace status"><OrloLogo size={22} /><p role={latest.status === 'error' ? 'alert' : 'status'} className={`min-w-0 flex-1 text-sm leading-6 ${latest.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{pending && <LoaderCircle className="mr-2 inline animate-spin" size={15} />}{latest.reply}</p>{!pending&&latest.source&&<span className="shrink-0 text-xs leading-6 text-muted-foreground" aria-label="Intent routing source">{latest.source==='ai'?'AI':'Keyword'}</span>}{pending && <Button size="sm" variant="ghost" onClick={stop}>Stop</Button>}</div>}
-        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace"><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} />
+        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace"><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} remove={id=>save({...current.current,active:current.current.active.filter(w=>w.instanceId!==id),pins:current.current.pins.filter(w=>w.instanceId!==id),targets:current.current.targets.filter(target=>target!==id)})} />
           {!document.active.length && !document.pins.length && <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"><p>Your workspace is empty.</p><Button className="mt-4" variant="outline" onClick={() => close(true)}>Press Ctrl / Cmd + K to add components</Button></div>}
         </section>
 

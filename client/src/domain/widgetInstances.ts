@@ -35,7 +35,7 @@ export const widgetViewStateSchema = z.strictObject({
   dateRange: z.object({ from: z.iso.date(), to: z.iso.date() }).refine(r => r.from <= r.to).optional(),
   taskView: z.enum(['list', 'kanban']).optional(), chartType: z.enum(['trend', 'comparison', 'allocation']).optional(),
   resourceQuery: z.string().max(160).optional(), recordQuery: z.string().max(160).optional(), issueStatus: z.enum(['open', 'closed']).optional(),
-  goal: z.string().max(4000).optional(),
+  goal: z.string().max(4000).optional(), timerDurationMinutes: z.number().int().min(1).max(180).optional(), selectedTaskId: z.string().min(1).optional(),
 })
 export const widgetExplanationSchema = z.strictObject({ type: z.enum(widgetTypes), reason: z.string().max(5000), evidence: z.array(z.strictObject({ kind: z.string().min(1), id: z.string().min(1) })).max(20) })
 export type WidgetExplanation = z.infer<typeof widgetExplanationSchema>

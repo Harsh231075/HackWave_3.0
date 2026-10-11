@@ -1,7 +1,7 @@
 import { ProjectControls, LocalDataSettings } from '@/components/records/ProjectControls'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BookOpen, FileText, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Settings, Users } from 'lucide-react'
+import { BookOpen, FileText, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Puzzle, Settings, Users } from 'lucide-react'
 import { SidebarToggleButton } from './SidebarToggleButton'
 import { Brand } from './AppShell'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,6 +14,7 @@ const pages = [
   { to: '/notes', label: 'Notes', icon: FileText },
   { to: '/resources', label: 'Resources', icon: BookOpen },
   { to: '/planner', label: 'Planner', icon: Clock3 },
+  { to: '/plugins', label: 'Plugins', icon: Puzzle },
 ]
 
 export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => void; mobile?: boolean }) {
