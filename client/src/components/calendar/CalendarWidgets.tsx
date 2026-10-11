@@ -51,7 +51,7 @@ export function MeetingList({ displayState }: { displayState?: DisplayState }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string>()
   const scope = useMeetingScope()
-  const events = eventService.list({ from: DEMO_DATE }).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
+  const events = state.events.filter(event => event.date >= DEMO_DATE).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
   if (scope) return <SelectedMeeting />
   return <><WidgetActions><span className="text-[length:0.78rem] text-(--muted-foreground)">{events.length} upcoming sessions</span><Button variant="outline" size="sm" onClick={() => setOpen(true)}><Plus size={14} /> Schedule</Button></WidgetActions><DataState state={displayState ?? (events.length ? 'ready' : 'empty')}><div className="flex flex-col [gap:0.65rem]">{events.map(event => <MeetingCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}</div></DataState><MeetingForm key={`${open}-${selectedDate}`} open={open} onClose={() => setOpen(false)} date={selectedDate} /><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }

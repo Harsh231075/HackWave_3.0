@@ -18,7 +18,9 @@ export type Clarification = Extract<IntentResolution, { status: 'needs_clarifica
 export type AdaptiveResult = { kind: 'usage'; session: UsageLayout } | { kind: 'overdue'; session: OverdueLayout } | { kind: 'meeting'; session: MeetingLayout } | { kind: 'general'; response: string }
 export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequestId?: string, initialUsageComposition?: UsageComposition) {
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setErrorState] = useState('')
+  const lastError = useRef('')
+  const setError = (value: string) => { lastError.current = value; setErrorState(value) }
   const [clarification, setClarification] = useState<Clarification | null>(null)
   const request = useRef<AbortController | null>(null)
   const previousUsageComposition = useRef(initialUsageComposition)
@@ -116,5 +118,5 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
       return null
     } finally { if (request.current === controller) { request.current = null; setPending(false) } }
   }
-  return { pending, error, setError, clarification, run, cancel, reset }
+  return { pending, error, setError, clarification, run, cancel, reset, getOutcome: () => ({ error: lastError.current, clarification: question.current }) }
 }

@@ -17,7 +17,7 @@ export function useWidgetInstanceFactory() {
   const preferences = useDisplayPreferences()
   return (type: WidgetType, span: WidgetInstance['span'] = 'full', query?: UsageQuery | null): WidgetInstance | null => {
     let binding: WidgetBinding = { kind: 'workspace' }
-    let label = 'All workspace records'
+    let label: string = type
     let data: unknown = { tasks: state.tasks, events: state.events, drafts: state.drafts }
     if (usage) {
       binding = { kind: 'usage', intent: usage.intent }

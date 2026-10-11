@@ -4,7 +4,7 @@ export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'recomme
 export type WidgetType = typeof widgetTypes[number]
 export const configSchema = z.object({
   version: z.literal(1), id: z.string(), title: z.string(), description: z.string(),
-  widgets: z.array(z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) })).max(14),
+  widgets: z.array(z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) })).max(widgetTypes.length),
 }).superRefine((config, ctx) => {
   if (new Set(config.widgets.map(widget => widget.id)).size !== config.widgets.length) ctx.addIssue({ code: 'custom', message: 'Widget IDs must be unique.' })
 })

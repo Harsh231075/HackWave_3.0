@@ -1,3 +1,4 @@
+import { compositionActionsSchema } from './workspaceActions.ts'
 import { meetingWidgetTypes } from './adaptiveData.ts'
 import { usageWidgetTypes } from './usageComposition.ts'
 import { overdueWidgetTypes } from './overdueReview.ts'
@@ -8,7 +9,7 @@ import { resolvedIntentSchema } from './intent.ts'
 import { usageQuerySchema } from './usage.ts'
 import { emptyFilters } from './workspace.ts'
 
-export const widgetBindingKinds = ['workspace', 'meeting', 'usage', 'usage-query', 'overdue'] as const
+export const widgetBindingKinds = ['workspace', 'meeting', 'usage', 'usage-query', 'overdue', 'google-calendar'] as const
 export const MAX_PINS = 6
 export const MAX_CANVAS_WIDGETS = 14
 export const taskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
@@ -16,8 +17,10 @@ export const taskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
   priority: z.enum(['all', 'urgent', 'high', 'medium', 'low']), sort: z.enum(['due', 'priority']),
   from: z.union([z.literal(''), z.iso.date()]), to: z.union([z.literal(''), z.iso.date()]),
 }).refine(f => !f.from || !f.to || f.from <= f.to, 'Task filter dates must be ordered.')
+export const timezoneSchema = z.string().refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true } catch { return false } }, 'Choose a valid timezone.')
 export const widgetBindingSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('workspace') }),
+  z.strictObject({ kind: z.literal('workspace'), clientId: z.string().min(1).optional(), projectId: z.string().min(1).optional(), draftKey: z.string().min(1).optional() }),
+  z.strictObject({ kind: z.literal('google-calendar'), accountId: z.string().min(1), calendarId: z.literal('primary'), eventId: z.string().min(1).optional(), mode: z.enum(['browse', 'prepare', 'schedule']).default('browse') }),
   z.strictObject({ kind: z.literal('meeting'), meetingId: z.string().min(1), clientId: z.string().min(1), projectId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('usage'), intent: resolvedIntentSchema.refine(i => i.goalType === 'usage_investigation') }),
   z.strictObject({ kind: z.literal('usage-query'), query: usageQuerySchema }),
@@ -27,10 +30,17 @@ export const widgetViewStateSchema = z.strictObject({
   taskFilters: taskFiltersSchema.default(emptyFilters), selectedDate: z.iso.date().optional(),
   calendarView: z.enum(['month', 'week', 'day', 'agenda']).optional(),
   calendarCategory: z.enum(['all', 'meeting', 'class', 'focus', 'break']).optional(),
+  referenceDate: z.iso.date().optional(), timezone: timezoneSchema.optional(),
+  owner: z.string().max(160).optional(), taskStatuses: z.array(z.enum(['pending', 'blocked', 'completed'])).min(1).max(3).optional(),
+  dateRange: z.object({ from: z.iso.date(), to: z.iso.date() }).refine(r => r.from <= r.to).optional(),
+  taskView: z.enum(['list', 'kanban']).optional(), chartType: z.enum(['trend', 'comparison', 'allocation']).optional(),
+  resourceQuery: z.string().max(160).optional(), recordQuery: z.string().max(160).optional(), issueStatus: z.enum(['open', 'closed']).optional(),
+  goal: z.string().max(4000).optional(),
 })
 export const widgetExplanationSchema = z.strictObject({ type: z.enum(widgetTypes), reason: z.string().max(5000), evidence: z.array(z.strictObject({ kind: z.string().min(1), id: z.string().min(1) })).max(20) })
 export type WidgetExplanation = z.infer<typeof widgetExplanationSchema>
 const instanceShape = {
+  actions: compositionActionsSchema,
   instanceId: z.string().min(1), widgetType: z.enum(widgetTypes), span: z.enum(['full', 'wide', 'narrow']),
   binding: widgetBindingSchema, viewState: widgetViewStateSchema,
   explanation: widgetExplanationSchema, fingerprint: z.string(), label: z.string().min(1),
@@ -43,7 +53,8 @@ export type WidgetViewState = z.infer<typeof widgetViewStateSchema>
 export type WidgetInstance = z.infer<typeof widgetInstanceSchema>
 export type PinnedWidget = WidgetInstance & { pinId: string; createdAt: string }
 const bindings: Record<WidgetBinding['kind'], readonly WidgetType[]> = {
-  workspace: widgetTypes.filter(t => t !== 'communications' && t !== 'issues'),
+  workspace: widgetTypes,
+  'google-calendar': ['calendar', 'meetings', 'availability', 'context', 'outline'],
   meeting: meetingWidgetTypes,
   usage: usageWidgetTypes,
   'usage-query': ['usage'], overdue: overdueWidgetTypes,
@@ -62,18 +73,22 @@ export function fingerprint(value: unknown) {
 export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' | 'binding' | 'viewState'>) {
   const { widgetType: type, binding, viewState } = instance
   const filtersMatter = type === 'tasks' || (binding.kind === 'overdue' && ['context', 'metrics', 'recommendation'].includes(type))
-  const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && binding.kind === 'workspace'
+  const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && (binding.kind === 'workspace' || binding.kind === 'google-calendar')
   const effectiveBinding = type === 'usage' && binding.kind === 'usage' ? { kind: 'usage-query', query: { clientId: binding.intent.clientId, projectId: binding.intent.projectId, dateRange: binding.intent.dateRange, segment: binding.intent.constraints?.segment } } : binding
-  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(filtersMatter ? { filters: viewState.taskFilters } : {}), ...(calendar ? { date: viewState.selectedDate, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
+  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
 }
 export function activeInstanceId(type: WidgetType, binding: WidgetBinding) { return `active:${type}:${fingerprint(binding)}` }
 export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[], kind: WidgetBinding['kind'] = 'workspace') {
   const saved = new Set(pins.map(widgetSelectionKey))
   const seen = new Set<string>()
-  const distinct = active.filter(w => { if (seen.has(w.widgetType)) return false; seen.add(w.widgetType); return !saved.has(widgetSelectionKey(w)) })
+  const distinct = active.filter(w => { if (seen.has(w.instanceId)) return false; seen.add(w.instanceId); return !saved.has(widgetSelectionKey(w)) })
   const required = kind === 'meeting' ? ['context', 'outline'] : kind === 'usage' ? ['context', 'usage'] : kind === 'overdue' ? ['context', 'tasks'] : [distinct[0]?.widgetType, 'tasks', 'context', 'usage', 'outline']
   const mandatory = distinct.filter(w => required.includes(w.widgetType))
   const optional = distinct.filter(w => !required.includes(w.widgetType))
   const chosen = new Set([...mandatory, ...optional.slice(0, Math.max(0, MAX_CANVAS_WIDGETS - pins.length - mandatory.length))].map(w => w.instanceId))
   return { active: distinct.filter(w => chosen.has(w.instanceId)), pins, omitted: distinct.length - chosen.size }
+}
+
+export function makeInstance(widgetType: WidgetType, binding: WidgetBinding = { kind: 'workspace' }, viewState: Partial<WidgetViewState> = {}, id: string = crypto.randomUUID()): WidgetInstance {
+  return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? widgetType : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
 }

@@ -7,7 +7,14 @@ import { createOverdueReviewService } from './overdueReviewService.ts'
 import { usageDraftKey } from '../domain/usageComposition.ts'
 import type { Task } from '../domain/types.ts'
 export function loadActionScope(database: BrowserDatabase, binding: WidgetBinding): { tasks: Task[]; draft?: { key: string; label: string; fallback: string } } | null {
-  if (binding.kind === 'workspace') return { tasks: database.getState().tasks, draft: { key: 'outline', label: 'Preparation outline', fallback: '' } }
+  if (binding.kind === 'google-calendar') return { tasks: [], ...(binding.eventId ? { draft: { key: `google-preparation:${binding.accountId}:${binding.calendarId}:${binding.eventId}`, label: 'Meeting preparation notes', fallback: '' } } : {}) }
+  if (binding.kind === 'workspace') {
+    const records = createAdaptiveDataService(database).snapshot()
+    if ((binding.clientId || binding.projectId) && (!records || (binding.clientId && !records.clients.some(c => c.id === binding.clientId)) || (binding.projectId && !records.projects.some(p => p.id === binding.projectId && (!binding.clientId || p.clientId === binding.clientId))))) return null
+    const projects = new Set((records?.projects ?? []).filter(p => (!binding.projectId || p.id === binding.projectId) && (!binding.clientId || p.clientId === binding.clientId)).map(p => p.id))
+    const tasks = database.getState().tasks.filter(t => (!binding.projectId && !binding.clientId) || records?.relationships.some(r => r.sourceKind === 'project' && projects.has(r.sourceId) && r.targetKind === 'task' && r.targetId === t.id))
+    return { tasks, draft: { key: binding.draftKey ?? 'outline', label: 'Preparation outline', fallback: '' } }
+  }
   if (binding.kind === 'meeting') {
     const data = createAdaptiveDataService(database).loadPreparation(binding.meetingId)
     if (data.status !== 'found' || data.value.client.id !== binding.clientId || data.value.project.id !== binding.projectId) return null

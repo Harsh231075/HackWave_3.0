@@ -1,3 +1,4 @@
+import { useComponentView } from '@/state/ComponentViewContext'
 import { useUsageScope } from '@/state/UsageScopeContext'
 import { useEffect, useState } from 'react'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
@@ -30,7 +31,8 @@ export function SelectedMeeting() {
 export function MeetingRecordList({ kind }: { kind: 'communications' | 'issues' }) {
   const usage = useUsageScope()
   const meeting = useMeetingScope()
-  const scope = usage ? { data: { ...usage.data.snapshot, client: usage.data.client } } : meeting
+  const component = useComponentView()
+  const scope = !usage && !meeting && component ? {data:{communications:component.communications,issues:component.issues,client:{name:component.clients[0]?.name??'Local workspace'}}} : usage ? { data: { ...usage.data.snapshot, client: usage.data.client } } : meeting
   const [selected, setSelected] = useState<string>()
   useEscapeDismiss(!!selected, () => setSelected(undefined))
   if (!scope) return <p className="text-sm text-muted-foreground">Choose a meeting to view these records.</p>

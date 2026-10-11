@@ -1,3 +1,4 @@
+import { useComponentView } from '@/state/ComponentViewContext'
 import { DraftEditor } from './DraftEditor'
 import { useUsageScope } from '@/state/UsageScopeContext'
 import { UsageSummary } from '@/components/insights/UsageWorkspaceWidgets'
@@ -19,23 +20,26 @@ export function ResourceList({ displayState }: { displayState?: DisplayState }) 
   const usage = useUsageScope()
   const scope = useMeetingScope()
   const overdue = useOverdueScope()
-  const resources = usage ? usage.data.snapshot.resources : overdue ? overdue.data.resources : scope ? scope.data.resources : resourceService.list()
+  const component = useComponentView()
+  const resources = usage ? usage.data.snapshot.resources : overdue ? overdue.data.resources : scope ? scope.data.resources : component?.resources ?? resourceService.list()
   return <><DataState state={displayState ?? (resources.length ? 'ready' : 'empty')}><div className="flex flex-col [gap:0.65rem]">{resources.map(resource => <article key={resource.id} className="flex items-center [gap:0.85rem] [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [&_div]:flex-1 [&_div]:flex [&_div]:flex-col [&_button]:text-left [&_button]:font-semibold [&_button]:text-[length:0.88rem] [&_small]:text-[length:0.76rem] [&_small]:text-(--muted-foreground)"><span className="text-(--primary)"><FileText size={19} /></span><div><button onClick={() => setSelected(resource)}>{resource.title}</button><small>{resource.kind} · {resource.context}</small><EvidenceLinks resource={resource} onOpen={() => setSelected(resource)} /></div></article>)}</div></DataState><Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(undefined) }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{selected?.title}</DialogTitle><DialogDescription>{selected?.kind} · synthetic demo source</DialogDescription></DialogHeader><p className="text-[length:0.88rem] leading-[1.6] text-(--foreground) bg-(--muted) p-4 rounded-[var(--radius)] [border:1px_solid_var(--border)]">{selected?.body}</p><p className="text-[length:0.78rem] text-(--muted-foreground)">This source is part of the deterministic demo dataset, not a live integration.</p></DialogContent></Dialog></>
 }
 export function EditableOutline() {
   const usage = useUsageScope()
   const scope = useMeetingScope()
-  const key = usage ? usageDraftKey(usage.intent) : scope ? `meeting-agenda:${scope.data.meeting.id}` : 'outline'
+  const component = useComponentView()
+  const key = usage ? usageDraftKey(usage.intent) : scope ? `meeting-agenda:${scope.data.meeting.id}` : component?.plan.bindings.draftKey ?? 'outline'
   return <DraftEditor draftKey={key} label={usage ? 'Investigation notes' : scope ? 'Meeting agenda' : 'Preparation outline'} fallback={scope?.data.meeting.agenda ?? ''} />
 }
 export function ContextSummary() {
   const overdue = useOverdueScope()
   const usage = useUsageScope()
   const scope = useMeetingScope()
+  const component = useComponentView()
   if (usage) return <UsageSummary />
   if (overdue) return <OverdueSummary />
   if (scope) return <MeetingSummary />
-  const info = { context: 'Your workspace', subtitle: 'Keep your projects, materials, and next steps together.', label: 'Shared' }
+  const info = { context: component?.projects.length === 1 ? component.projects[0].name : 'Your workspace', subtitle: 'Keep your projects, materials, and next steps together.', label: 'Shared' }
   const contexts = [...new Set(resourceService.list().map(resource => resource.context))]
   return <div className="flex flex-col [gap:0.85rem] [&_h3]:text-[length:1.25rem] [&_h3]:font-bold [&_p]:text-[length:0.88rem] [&_p]:text-(--muted-foreground) [&_dl]:grid [&_dl]:grid-cols-3 [&_dl]:[gap:0.65rem] [&_dl]:bg-(--muted) [&_dl]:[border:1px_solid_var(--border)] [&_dl]:p-3 [&_dl]:rounded-[var(--radius)] [&_dt]:text-[length:0.72rem] [&_dt]:text-(--muted-foreground) [&_dd]:text-[length:1.1rem] [&_dd]:font-bold"><div className="w-12 h-12 rounded-[var(--radius)] bg-(--accent) text-(--primary) inline-flex items-center justify-center"><BookOpen size={23} /></div><h3>{info.context}</h3><p>{info.subtitle}</p><dl><div><dt>Current context</dt><dd>{info.label}</dd></div><div><dt>Projects / topics</dt><dd>{contexts.length}</dd></div><div><dt>Linked resources</dt><dd>{resourceService.list().length}</dd></div></dl><div className="flex [gap:0.45rem] flex-wrap [&_span]:text-[length:0.76rem] [&_span]:[padding:0.25rem_0.6rem] [&_span]:bg-(--background) [&_span]:[border:1px_solid_var(--border)] [&_span]:rounded-full [&_span]:text-(--muted-foreground)">{contexts.map(context => <span key={context}>{context}</span>)}</div></div>
 }

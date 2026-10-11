@@ -4,7 +4,7 @@ export const emptyFilters = (): Filters => ({ query: '', status: 'all', priority
 export const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 }
 export function filterTasks(tasks: Task[], filters: Filters, today: string) {
   return tasks.filter(task => `${task.title} ${task.description} ${task.owner}`.toLowerCase().includes(filters.query.toLowerCase())
-    && (filters.status === 'all' || (filters.status === 'overdue' ? task.due < today && task.status !== 'completed' : task.status === filters.status))
+    && (filters.status === 'all' || (filters.status === 'open' ? task.status !== 'completed' : filters.status === 'overdue' ? task.due < today && task.status !== 'completed' : task.status === filters.status))
     && (filters.priority === 'all' || task.priority === filters.priority)
     && (!filters.from || task.due >= filters.from) && (!filters.to || task.due <= filters.to))
     .sort((a, b) => filters.sort === 'priority' ? priorityOrder[a.priority] - priorityOrder[b.priority] : a.due.localeCompare(b.due))

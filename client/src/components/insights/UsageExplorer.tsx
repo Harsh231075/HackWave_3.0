@@ -1,6 +1,5 @@
 import { useWidgetSelection } from '@/lib/workspace/WidgetSelectionContext'
-import { WidgetCanvasContext } from '@/lib/workspace/WidgetCanvasContext'
-import { useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { format, parseISO } from 'date-fns'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { browserDatabase, usageDataService, usageInvestigationService } from '@/services'
@@ -13,21 +12,19 @@ function UsageSelect({ label, value, items, onChange }: { label: string; value: 
   return <Select items={items} value={value} onValueChange={next => { if (next !== null) onChange(next) }}><SelectTrigger aria-label={label} size="sm" className="w-full min-w-0"><SelectValue placeholder={items.find(item => item.value === value)?.label ?? label} /></SelectTrigger><SelectContent>{items.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select>
 }
 export function DataUsageExplorer({ initialQuery, boundQuery }: { initialQuery?: UsageQuery; boundQuery?: UsageQuery }) {
-  const canvas = useContext(WidgetCanvasContext)
   const registerSelection = useWidgetSelection()
-  initialQuery = initialQuery ?? canvas?.usageQuery ?? undefined
   const [clientId, setClientId] = useState(initialQuery?.clientId ?? '')
   const [projectId, setProjectId] = useState(initialQuery?.projectId ?? '')
   const [segment, setSegment] = useState(initialQuery?.segment ?? '')
   const [from, setFrom] = useState(initialQuery?.dateRange?.from ?? '')
   const [to, setTo] = useState(initialQuery?.dateRange?.to ?? '')
   const catalogStore = useMemo(() => createRecordStore(browserDatabase, usageDataService.loadCatalog), [])
-  const catalog = useSyncExternalStore(catalogStore.subscribe, catalogStore.getSnapshot)
+  const catalog = useSyncExternalStore(catalogStore.subscribe, catalogStore.getSnapshot, catalogStore.getSnapshot)
   const selectedClient = clientId || (catalog.status === 'found' ? catalog.value.clients[0]?.id : '') || ''
   const localQuery = useMemo(() => ({ clientId: selectedClient, ...(projectId ? { projectId } : {}), ...(segment ? { segment } : {}), ...(from && to ? { dateRange: { from, to } } : {}) }), [selectedClient, projectId, segment, from, to])
   const query = boundQuery ?? localQuery
   const resultStore = useMemo(() => createRecordStore(browserDatabase, () => usageInvestigationService.load(query)), [query])
-  const result = useSyncExternalStore(resultStore.subscribe, resultStore.getSnapshot)
+  const result = useSyncExternalStore(resultStore.subscribe, resultStore.getSnapshot, resultStore.getSnapshot)
   useEffect(() => {
     if (!boundQuery) registerSelection?.(result.status === 'found' && (!!from === !!to) ? query : null)
   }, [boundQuery, registerSelection, result.status, query, from, to])

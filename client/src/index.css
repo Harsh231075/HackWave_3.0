@@ -150,16 +150,16 @@
 
 .dynamic-workspace { height: 100dvh; width: 100%; overflow: hidden; }
 .productivity-response { display: grid; gap: 20px; min-width: 0; }
-.productivity-response .workspace-grid, .pinned-workspace .workspace-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
-.productivity-response .workspace-cell, .pinned-workspace .workspace-cell { min-width: 0; }
-.productivity-response .span-full, .pinned-workspace .span-full { grid-column: span 12; }
-.productivity-response .span-wide, .pinned-workspace .span-wide { grid-column: span 8; }
-.productivity-response .span-narrow, .pinned-workspace .span-narrow { grid-column: span 4; }
+.workspace-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+.workspace-grid > .workspace-cell { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.workspace-grid > .workspace-cell > section { flex: 1; height: auto; }
+.workspace-grid > .span-full { grid-column: span 12; }
+.workspace-grid > .span-wide { grid-column: span 8; }
+.workspace-grid > .span-narrow { grid-column: span 4; }
 @media (max-width: 900px) {
-  .productivity-response .span-wide, .productivity-response .span-narrow, .pinned-workspace .span-narrow { grid-column: span 12; }
+  .workspace-grid { gap: 16px; }
+  .workspace-grid > .span-wide, .workspace-grid > .span-narrow { grid-column: span 12; }
 }
-.pinned-workspace .workspace-cell { display: flex; flex-direction: column; overflow-wrap: anywhere; }
-.pinned-workspace .workspace-cell > section { flex: 1; height: auto; }
 .goal-workspace { min-height: 100dvh; background: #ffffff; color: #252936; }
 .goal-welcome { max-width: 760px; min-height: 100dvh; margin: auto; padding: 24px; display: flex; flex-direction: column; justify-content: center; }
 .goal-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 22px; line-height: 1.2; font-weight: 650; letter-spacing: -.5px; }
@@ -189,7 +189,7 @@
 .canvas-goal { flex: 1; min-width: 0; font-size: 13px; color: #717787; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-trigger { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #e4e6ec; border-radius: 8px; font-size: 11px; color: #717787; }
 .generated-canvas { padding: 32px; max-width: 1440px; margin: auto; outline: none; }
-.goal-command-dialog { top: 14vh; translate: 0 0; transform: translateX(-50%); max-width: min(720px, calc(100vw - 32px)); padding: 12px; border-radius: 20px; background: #ffffffed; backdrop-filter: blur(24px); box-shadow: 0 24px 100px #141a3433; }
+.goal-command-dialog { top: 14vh; background: #ffffffed; backdrop-filter: blur(24px); box-shadow: 0 24px 100px #141a3433; }
 .goal-command-dialog .goal-input-row { border: 0; box-shadow: none; background: transparent; }
 .command-hint { display: flex; justify-content: space-between; border-top: 1px solid #e4e6ec; padding: 10px 16px 2px; color: #858a98; font-size: 11px; }
 @media (max-width: 640px) { .canvas-header { min-height: 60px; padding: 10px 16px; gap: 12px; }.generated-canvas { padding: 20px 16px; }.canvas-goal { display: none; }.command-trigger { margin-left: auto; }.goal-input-row { gap: 10px; padding: 12px; }.goal-input-row input { font-size: 13px; } }
@@ -347,3 +347,11 @@
   .calendar-selected-agenda { display: block; margin-top: 12px; }
   .calendar-time-grid.is-week { min-width: 640px; }
 }
+
+.goal-command-dialog { width: min(920px, calc(100vw - 32px)); max-width: min(920px, calc(100vw - 32px)); translate: -50% 0; transform: none; gap: 12px; padding: 28px 16px 16px; border-radius: 24px; }
+.goal-command-dialog .goal-input-row { padding: 24px 20px 16px; }
+.goal-command-dialog .goal-input-row input { font-size: 18px; }
+.goal-command-dialog .goal-form > p { padding: 0 20px 20px; font-size: 14px; }
+.goal-command-dialog .command-hint { padding: 14px 20px 2px; font-size: 12px; gap: 16px; }
+.workspace-history-dialog { width: min(720px, calc(100vw - 32px)); max-width: min(720px, calc(100vw - 32px)); max-height: 80dvh; grid-template-rows: auto minmax(0, 1fr); }
+@media (max-width: 640px) { .goal-command-dialog { padding: 12px; }.goal-command-dialog .goal-input-row { padding: 12px 4px; gap: 8px; }.goal-command-dialog .goal-input-row input { font-size: 14px; }.goal-command-dialog .goal-form > p { padding: 0 4px 12px; font-size: 12px; }.goal-command-dialog .command-hint { padding: 12px 4px 0; font-size: 10px; } }

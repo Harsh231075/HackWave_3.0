@@ -1,3 +1,4 @@
+import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
 import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
@@ -10,7 +11,7 @@ import { ComponentGallery } from '@/pages/ComponentGallery'
 function App() {
   return (
     <BrowserRouter>
-      <WorkspaceProvider><DisplayPreferencesProvider>
+      <WorkspaceProvider><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route element={<WorkspaceLayout />}>
@@ -21,7 +22,7 @@ function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </DisplayPreferencesProvider></WorkspaceProvider>
+      </DisplayPreferencesProvider></GoogleCalendarProvider></WorkspaceProvider>
     </BrowserRouter>
   )
 }

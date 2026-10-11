@@ -1,3 +1,4 @@
+import { loadActionScope } from './actionScope.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import { createAdaptiveDataService } from './adaptiveDataService.ts'
 import { createUsageWorkspaceService } from './usageWorkspaceService.ts'
@@ -27,6 +28,10 @@ export function loadPinnedRecords(database: BrowserDatabase, pin: Pick<PinnedWid
     const result = createOverdueReviewService(database).load(binding.intent, binding.referenceDate)
     return result.status !== 'found' ? result : { status: 'found', value: { fingerprint: fingerprint(result.value), label: `${result.value.project.name} · ${binding.intent.dateRange.from}–${binding.intent.dateRange.to}` } }
   }
-  const { tasks, events, drafts } = database.getState()
-  return { status: 'found', value: { fingerprint: fingerprint({ tasks, events, drafts }), label: pin.viewState.selectedDate && ['calendar', 'timeline', 'availability', 'meetings'].includes(pin.widgetType) ? `Workspace · ${pin.viewState.selectedDate}` : 'All workspace records' } }
+  if (binding.kind === 'google-calendar') return { status: 'found', value: { fingerprint: fingerprint(binding), label: 'Google Calendar · ' + binding.accountId } }
+  const scope = loadActionScope(database, binding)
+  if (!scope) return { status: 'missing' }
+  const { events, drafts } = database.getState()
+  const tasks = scope.tasks
+  return { status: 'found', value: { fingerprint: fingerprint({ tasks, events, drafts }), label: pin.viewState.selectedDate && ['calendar', 'timeline', 'availability', 'meetings'].includes(pin.widgetType) ? `Workspace · ${pin.viewState.selectedDate}` : binding.projectId ?? binding.clientId ?? pin.widgetType } }
 }

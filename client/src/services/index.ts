@@ -28,10 +28,8 @@ import { createDraftService } from './draftService'
 import { createEventService } from './eventService'
 import { createTaskService } from './taskService'
 import { DEMO_DATE, INITIAL_TASKS, INITIAL_EVENTS, INITIAL_DRAFTS, RESOURCES } from '../data/demo'
-import { validLayout } from '../lib/workspace/layoutValidation'
 import { createBrowserStorage } from './local/browserStorage'
 import { createBrowserDatabase } from './browserDatabase'
-import { createLayoutService } from './layoutService'
 import { createPreferencesService } from './preferencesService'
 import { createGenerationService } from './generationService'
 import { createResourceService } from './resourceService'
@@ -41,7 +39,6 @@ export const workspaceService = {
   load: () => { const { tasks, events, drafts, dismissed, activity } = browserDatabase.getState(); return { status: 'found' as const, value: structuredClone({ tasks, events, drafts, dismissed, activity }) } },
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
 }
-export const layoutService = createLayoutService(browserDatabase.storage, validLayout)
 export const preferencesService = createPreferencesService(browserDatabase.storage)
 export const generationService = createGenerationService()
 export const resourceService = createResourceService(RESOURCES, browserDatabase)
@@ -107,3 +104,5 @@ export const usageCompositionService = createUsageCompositionService()
 export const pinService = createPinService(browserDatabase)
 
 export const workspaceActionService = createWorkspaceActionService(browserDatabase)
+
+export { makeInstance, instancesFromLayout } from './workspaceDocumentService'

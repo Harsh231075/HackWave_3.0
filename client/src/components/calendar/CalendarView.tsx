@@ -1,4 +1,4 @@
-import { eventService } from '@/services'
+import { useComponentView } from '@/state/ComponentViewContext'
 import { useDisplayPreferences } from '@/hooks/useDisplayPreferences'
 import { useEffect, useState } from 'react'
 import { addDays, addMonths, addWeeks, eachDayOfInterval, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from 'date-fns'
@@ -18,7 +18,12 @@ const timeLabel = (value: number) => `${String(Math.floor(value / 60)).padStart(
 
 export function CalendarView() {
   const { state, selectedDate, selectDate, undo } = useWorkspace()
-  const { calendarView: view, setCalendarView: setView, calendarCategory: category, setCalendarCategory: setCategory } = useDisplayPreferences()
+  const preferences = useDisplayPreferences()
+  const component = useComponentView()
+  const view = component?.plan.bindings.calendarView ?? preferences.calendarView
+  const category = component?.plan.bindings.category ?? preferences.calendarCategory
+  const setView = (mode: CalendarMode) => component ? component.change({calendarView:mode}) : preferences.setCalendarView(mode)
+  const setCategory = (category: typeof categories[number]) => component ? component.change({category}) : preferences.setCalendarCategory(category)
   const [selected, setSelected] = useState<string>()
   const [creation, setCreation] = useState<{ date: string; start: string }>()
   const [availability, setAvailability] = useState(false)
@@ -28,7 +33,7 @@ export function CalendarView() {
   const date = parseISO(selectedDate)
   const weekStart = startOfWeek(date, { weekStartsOn: 1 })
   const days = view === 'month' ? eachDayOfInterval({ start: startOfWeek(startOfMonth(date), { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(date), { weekStartsOn: 1 }) }) : view === 'day' ? [date] : eachDayOfInterval({ start: weekStart, end: endOfWeek(date, { weekStartsOn: 1 }) })
-  const events = eventService.list(category === 'all' ? {} : { category }).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
+  const events = state.events.filter(event=>category==='all'||event.category===category).sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
   const tasks = state.tasks.filter(task => task.status !== 'completed')
   const label = view === 'month' ? format(date, 'MMMM yyyy') : view === 'day' ? format(date, 'EEE, MMM d, yyyy') : `${format(days[0], 'MMM d')} – ${format(days.at(-1)!, 'MMM d, yyyy')}`
   const move = (amount: number) => selectDate(format(view === 'month' ? addMonths(date, amount) : view === 'day' ? addDays(date, amount) : addWeeks(date, amount), 'yyyy-MM-dd'))

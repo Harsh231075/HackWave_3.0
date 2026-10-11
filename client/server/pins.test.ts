@@ -118,7 +118,7 @@ test('manual usage pins retain optional all-dates queries and calendar pins reta
 })
 test('unsupported bindings and missing record selections cannot be pinned', () => {
   const { pins } = setup()
-  assert.equal(pins.pinWidget(instance('communications')).ok, false)
+  assert.equal(pins.pinWidget(instance('tasks', { kind: 'google-calendar', accountId: 'test', calendarId: 'primary', mode: 'browse' })).ok, false)
   assert.equal(pins.pinWidget(instance('calendar', meeting)).ok, false)
   assert.equal(pins.pinWidget(instance('usage', { kind: 'usage-query', query: { clientId: 'unknown' } })).ok, false)
 })

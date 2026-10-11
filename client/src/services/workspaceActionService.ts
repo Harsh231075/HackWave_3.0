@@ -1,3 +1,4 @@
+import { workspaceCollectionKey, workspaceDocumentSchema } from '../domain/workspaceDocument.ts'
 import { workspaceActionSchema, type ActionOrigin } from '../domain/workspaceActions.ts'
 import { widgetBindingSchema } from '../domain/widgetInstances.ts'
 import { adaptiveTaskSchema } from '../domain/adaptiveData.ts'
@@ -17,6 +18,15 @@ export type PreparedWorkspaceAction =
 export function createWorkspaceActionService(database: BrowserDatabase) {
   function scope(origin: ActionOrigin) {
     if (!widgetBindingSchema.safeParse(origin.binding).success || !intentDateSchema.safeParse(origin.referenceDate).success || !Number.isInteger(origin.revision)) return null
+    const saved = database.readCollection(workspaceCollectionKey)
+    if (saved.status === 'found') {
+      const parsed = workspaceDocumentSchema.safeParse(saved.value)
+      if (!parsed.success || parsed.data.revision !== origin.revision) return null
+      if (origin.instanceId) {
+        const instance = [...parsed.data.active, ...parsed.data.pins].find(w => w.instanceId === origin.instanceId)
+        if (!instance || JSON.stringify(instance.binding) !== JSON.stringify(origin.binding)) return null
+      }
+    }
     if (origin.pinId) {
       const pins = createPinService(database).loadPins()
       const pin = pins.status === 'found' ? pins.value.find(p => p.pinId === origin.pinId) : null

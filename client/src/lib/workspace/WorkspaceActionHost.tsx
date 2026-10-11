@@ -1,3 +1,4 @@
+import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { usePinnedWidgets } from '@/hooks/usePinnedWidgets'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { WorkspaceActionContext } from './WorkspaceActionContext'
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 export function WorkspaceActionHost({ revision, pending, onGoalChange, children }: { revision: number; pending: boolean; onGoalChange: (goal: string) => Promise<void>; children: ReactNode }) {
   const { notify } = useWorkspace()
   const pins = usePinnedWidgets()
+  const calendar = useGoogleCalendar()
   const [editor, setEditor] = useState<PreparedWorkspaceAction | null>(null)
   const current = useRef({ revision, pending })
   useLayoutEffect(() => { current.current = { revision, pending } }, [revision, pending])
@@ -24,7 +26,7 @@ export function WorkspaceActionHost({ revision, pending, onGoalChange, children 
       target?.focus({ preventScroll: true })
     })
   }, [])
-  function isCurrent(origin: ActionOrigin) { return origin.revision === current.current.revision && !current.current.pending }
+  function isCurrent(origin: ActionOrigin) { return (origin.binding.kind !== 'google-calendar' || calendar.connection?.connected === true && calendar.connection.accountId === origin.binding.accountId) && origin.revision === current.current.revision && !current.current.pending }
   function dispatch(value: unknown, origin: ActionOrigin) {
     if (!isCurrent(origin) || running.current) return
     const result = workspaceActionService.prepare(value, origin)
@@ -35,7 +37,7 @@ export function WorkspaceActionHost({ revision, pending, onGoalChange, children 
     } else { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setEditor(result.value) }
   }
   const pinExists = !editor?.origin.pinId || (pins.status === 'found' && pins.value.some(pin => pin.pinId === editor.origin.pinId && JSON.stringify(pin.binding) === JSON.stringify(editor.origin.binding)))
-  const active = editor && editor.origin.revision === revision && pinExists ? editor : null
+  const active = editor && editor.origin.revision === revision && !pending && (editor.origin.binding.kind !== 'google-calendar' || calendar.connection?.connected === true && calendar.connection.accountId === editor.origin.binding.accountId) && pinExists ? editor : null
   useEffect(() => {
     if (!active) return
     const escape = (event: KeyboardEvent) => {

@@ -17,9 +17,9 @@ interface WorkspaceContextValue {
   updateFilters: (patch: Partial<Filters>) => void
   undo: () => void
 }
-const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
+export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const state = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getState)
+  const state = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getState, browserDatabase.getState)
   const [notice, setNotice] = useState('')
   const notify = (message: string) => setNotice(message && browserDatabase.getPersistenceResult().status !== 'saved' ? 'Device storage is unavailable. Changes will last until reload.' : message)
   const run = <T,>(operation: () => T): T => {
