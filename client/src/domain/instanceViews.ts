@@ -24,7 +24,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     const another = type === 'resource-create' || /\b(another|second|additional|separate)\b/i.test(goal)
     const selectedExact = requestedTarget && [...active, ...pins].find(w => w.instanceId === requestedTarget && w.widgetType === type)
     const matchingScope = bindingOverride && !selectedExact ? active.filter(w => w.widgetType === type && sameBinding(w.binding, bindingOverride)) : []
-    let existing = another ? undefined : matchingScope.length === 1 ? matchingScope[0] : bindingOverride && !selectedExact && active.filter(w => w.widgetType === type).length > 1 && !matchingScope.length ? undefined : resolveTarget({ ...document, active, pins }, selectedExact ? selectedExact.instanceId : type, !!selectedExact)
+    let existing = type==='external-plugin' && !selectedExact && view.continuation?.relationship!=='refinement' ? active.find(w=>w.widgetType===type && w.viewState.externalPluginId===view.bindings.externalPluginId && w.binding.kind==='workspace' && w.binding.projectId===view.bindings.projectId) : another ? undefined : matchingScope.length === 1 ? matchingScope[0] : bindingOverride && !selectedExact && active.filter(w => w.widgetType === type).length > 1 && !matchingScope.length ? undefined : resolveTarget({ ...document, active, pins }, selectedExact ? selectedExact.instanceId : type, !!selectedExact)
     const refined = view.continuation?.relationship === 'refinement'
     if (refined && !existing) throw new Error('Choose an existing view before refining it.')
     let bindings = refined && existing ? mergeComponentBindings(instancePlan(existing).bindings, view.continuation!.changes) : view.bindings

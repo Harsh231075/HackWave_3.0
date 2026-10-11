@@ -446,7 +446,7 @@ Validation for the project-only change: **316/316 unit tests passed**; productio
 ## Optional extensions — Quick Timer and Voice Note
 
 - [x] Keep shared contracts/catalog/runtime in `client/src/extensions`; each extension owns its definition, services, schema and component in its own subfolder.
-- [x] `/plugins` lists exactly these two extensions, both OFF initially, with persisted toggles and previews.
+- [x] `/plugins` lists built-in extensions, OFF initially, with persisted toggles and previews.
 - [x] Enabled capabilities inform intent routing and OpenUI generation; validate additions against availability and recheck before installation. Keep known widget IDs for saved-layout decoding.
 - [x] Disabled saved widgets show an enable/remove placeholder instead of mounting their controls. Toggle changes preserve their IDs, bindings and layout positions.
 - [x] Quick Timer: explicit Start/Pause/Resume/Reset, project ownership, optional task, configurable 1–180 minutes, persisted end time, route/reload continuity, one completion record per timer. Disabling pauses; re-enabling requires Resume. It never completes tasks automatically.
@@ -455,3 +455,15 @@ Validation for the project-only change: **316/316 unit tests passed**; productio
 - [x] Verify capability gating, timer timing/deduplication, audio failure/reset races, microphone release/final chunks, saved-layout placeholders, route/reload continuity and audio playback using service tests and Chromium's simulated microphone.
 - [ ] Physical microphone and browser-specific mobile/Safari permission/playback checks. Automated Chromium recording has passed; it does not certify other browsers or physical devices.
 - [ ] Backend/cloud audio storage and automatic transcription are deferred. Unsaved recording drafts survive in-app navigation only; save or download before closing/reloading the tab.
+
+## Calculator and external plugin imports
+
+- [x] Add Calculator under `client/src/extensions/calculator`: arithmetic parser, keyboard/keypad UI, error handling, OFF by default, enabled AI routing and disabled saved-layout behavior.
+- [x] Add an Import folder button through the Plugins page's PageHeaderActions slot.
+- [x] Validate `orlo-plugin.json`, entry/assets, package size/count and duplicate IDs; store built HTML and settings in browserDatabase, initially OFF.
+- [x] Render imported HTML in an isolated iframe; keep plugin scripts out of the host and expose no app data/API bridge.
+- [x] Supply enabled imported-plugin IDs/names/descriptions to intent routing; bind dashboard instances to stable plugin IDs and preserve separate selections.
+- [x] Add preview, per-plugin enable/disable, reload persistence and confirmed removal; reset clears packages.
+- [x] Document supported packages and add an importable Mini Counter sample folder.
+- [x] Verify arithmetic/import services, header folder picker, isolated script execution, persistence, dashboard availability, disable/remove/reset and Timer/Voice Note regressions. All 342 tests, build/typecheck, lint and both browser suites pass; existing lint/bundle warnings remain.
+- [ ] Runtime compilation of source projects, npm dependency installation, plugin access to application data, cloud distribution and plugin internal-state persistence are outside this iteration.

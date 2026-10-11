@@ -40,7 +40,7 @@ export const workspaceService = {
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
 }
 export const preferencesService = createPreferencesService(browserDatabase.storage)
-export const generationService = createGenerationService(undefined,()=>extensionService.getSettings().enabled)
+export const generationService = createGenerationService(undefined,()=>extensionService.getSettings().enabled,()=>pluginImportService.list().filter(p=>p.enabled).map(p=>({id:p.id,name:p.name,description:p.description})))
 export const resourceService = createResourceService([], browserDatabase)
 
 export const taskService = createTaskService(browserDatabase, () => calendarDate())
@@ -134,3 +134,6 @@ browserDatabase.subscribe(() => {
   recordingController.reset()
   void audioStorage.clear().catch(error => recordingController.reportError(error instanceof Error ? error.message : 'Audio cleanup failed. Retry resetting local data.'))
 })
+
+import { createPluginImportService } from '../extensions/external/importService'
+export const pluginImportService=createPluginImportService(browserDatabase)

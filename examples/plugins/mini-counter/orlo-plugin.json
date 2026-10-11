@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "id": "mini-counter",
+  "name": "Mini Counter",
+  "description": "A small counter for tracking repetitions or completed steps.",
+  "entry": "index.html"
+}
