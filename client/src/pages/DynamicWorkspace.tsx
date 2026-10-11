@@ -54,7 +54,7 @@ export function DynamicWorkspace() {
   const location = useLocation()
   const initialGoal = typeof location.state?.goal === 'string' ? location.state.goal.slice(0, 4000) : ''
   const [goal, setGoal] = useState(initialGoal)
-  const [commandOpen, setCommandOpen] = useState(!!initialGoal)
+  const [commandOpen, setCommandOpen] = useState(!!initialGoal || location.state?.openCommand === true)
   const [settings, setSettings] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [resolving, setResolving] = useState(false)
