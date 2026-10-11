@@ -1,6 +1,6 @@
 # Natural language component routing
 
-Start from the existing dashboard, press Ctrl/Cmd+K, and describe what you need. The first response opens the existing chat canvas. Later prompts append new replies beneath earlier replies; only the requested components appear in the latest editable reply. The header and bottom composer stay in place.
+Start from the existing dashboard, press Ctrl/Cmd+K, and describe what you need. Every prompt updates the same active workspace. Existing components remain visible when the topic changes. The Orlo header stays on top; there is no permanent bottom chat input. Open the command popup again for each prompt.
 
 The server resolves English, Hindi and Hinglish into a validated component plan. It selects registered components and typed filters, using the current date/timezone and available record catalog. Invalid or unavailable model responses use the local parser. Ambiguous requests ask a short clarification rather than inventing scope.
 
@@ -22,7 +22,18 @@ The server resolves English, Hindi and Hinglish into a validated component plan.
 | Communications | Show messages |
 | Issues | Show open issues |
 
-Task selection applies status, priority, owner, due dates and sort order to the records. Open/incomplete includes blocked tasks; pending selects only pending tasks. “Only blocked” retains compatible previous filters, while a fresh request like “show all tasks” starts a new scope. Lists/boards and calendar date windows are saved with the conversation and survive reload.
+Task selection applies status, priority, owner, due dates and sort order to the records. Open/incomplete includes blocked tasks; pending selects only pending tasks. “Only blocked” retains compatible previous filters, and “show all tasks” explicitly clears task filters without removing other components. Each component keeps its own settings, so tomorrow’s meetings do not change today’s tasks. Layout, order and component bindings survive reload. Unsaved draft buffers survive layout changes; save a draft to retain it after reload.
+
+Workspace commands support add, remove, clear, keep-only, replace, filter/presentation changes, resizing and reorder. “Only high priority” changes a task filter; it does not remove other cards. Examples:
+
+- “Show today’s overview” → “Add a suggestions card” → “Show my meetings”: extend the same workspace.
+- “Remove all”: allow an empty workspace, including removal of the final component.
+- “Remove all except meetings”: keep Meetings and its settings.
+- “Remove all and show me my meetings”: clear, then add Meetings.
+- “Remove everything except meetings and add my upcoming deadlines”: keep Meetings, then add/update Tasks with incomplete work due today or later.
+- “Move suggestions above the overview”: reorder without remounting unrelated cards.
+- “Replace tasks with calendar”: replace only the specified component.
+- “Make calendar narrow”: resize Calendar.
 
 Combined requests can select multiple components, such as “show tasks and calendar.” Meeting preparation, meeting scheduling, usage investigations and overdue project reviews retain their dedicated workflows. Calendar creation still requires the explicit confirmation step.
 

@@ -1,34 +1,28 @@
+import { managedWorkspaceService, updateManagedViews, type ManagedItem } from '@/domain/managedWorkspace'
+import { applyWorkspaceOperations, localManagement, namedWidgets } from '@/domain/workspaceManagement'
+import { widgetTypes, type WidgetType } from '@/lib/workspace/config'
+import { registry } from '@/lib/workspace/registry'
+import { WidgetFrame } from '@/lib/workspace/WorkspaceRenderer'
 import { ComponentViewProvider } from '@/state/ComponentViewProvider'
 import { resolveComponentIntent } from '@/services/componentIntentService'
-import { componentViewSchema, type ComponentView, type ViewBindings } from '@/domain/componentIntent'
+import { componentViewSchema, type ComponentView, type ComponentResolution, type ViewBindings, fallbackComponentIntent } from '@/domain/componentIntent'
 import { adaptiveDataService, resourceService } from '@/services'
-import { ResponseWidgetsContext } from '@/state/ResponseWidgetsContext'
-import { HistoricalWorkspace } from '@/components/conversation/HistoricalWorkspace'
-import { captureWorkspaceSnapshot } from '@/lib/conversation/captureWorkspaceSnapshot'
-import { ConversationComposer } from '@/components/conversation/ConversationComposer'
-import { beginTurn, finishTurn, emptyConversation, archiveWorkspace, conversationService, type Conversation } from '@/services/conversationService'
+import { beginTurn, finishTurn, emptyConversation, conversationService, type Conversation } from '@/services/conversationService'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { GoogleCalendarConnection } from '@/components/calendar/GoogleCalendarWidgets'
 import { LiveCalendarWorkspace, type LiveRequest } from '@/components/calendar/LiveCalendarWorkspace'
 import { liveCalendarLayoutService } from '@/services/liveCalendarLayoutService'
 import { calendarDate, shiftDate } from '@/domain/calendar'
-import { liveCalendarGoal, responseWidgetsForPrompt, responseForWidgets, parseLayoutCommand, modifyWidgets, patchWorkspaceResponse, type LayoutCommand } from '@/domain/workspaceCommands'
-import { validLayout } from '@/lib/workspace/layoutValidation'
-import { meetingCompositionSchema, serializeMeetingComposition } from '@/domain/adaptiveData'
-import { overdueCompositionSchema, serializeOverdueComposition } from '@/domain/overdueReview'
-import { usageCompositionSchema, serializeUsageComposition } from '@/domain/usageComposition'
+import { liveCalendarGoal } from '@/domain/workspaceCommands'
 import { UsageScopeProvider } from '@/state/UsageScope'
 import type { UsageLayout } from '@/services/layoutService'
 import { usageWorkspaceService } from '@/services'
 import { OverdueScopeProvider } from '@/state/OverdueScope'
 import type { OverdueLayout } from '@/services/layoutService'
-import type { Filters } from '@/domain/types'
 import { overdueReviewService } from '@/services'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageHeaderActions } from '@/components/shell/PageHeaderActions'
-import { Renderer } from '@openuidev/react-lang'
 import { ArrowUp, Command, LoaderCircle, Mic, Square, MoreHorizontal, RotateCcw, X } from 'lucide-react'
-import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
 import { layoutService, meetingPreparationService } from '@/services'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
 import { useAdaptiveWorkspace, type Clarification } from '@/hooks/useAdaptiveWorkspace'
@@ -90,30 +84,25 @@ export function DynamicWorkspace() {
   const [componentQuestion, setComponentQuestion] = useState<{question:string;choices:string[]} | null>(null)
   useEffect(() => () => resolveRequest.current?.abort(), [])
   const [conversation, setConversation] = useState<Conversation>(() => conversationService.load())
-  const composer = useRef<HTMLTextAreaElement | null>(null)
+  const [items,setItems]=useState<ManagedItem[]>(()=>{
+    const saved=managedWorkspaceService.load();if(saved)return saved
+    const legacy=restoreLayout(),live=liveCalendarLayoutService.load()
+    const plan=conversation.turns.find(t=>t.id===conversation.workspaceTurnId)?.componentPlan
+    const scope=legacy.usage??legacy.overdue??legacy.meeting
+    const ids=scope?scope.composition.widgets.map(w=>w.type):(plan?.widgets??[...legacy.response.matchAll(/WorkspaceWidget\(\s*"([a-z-]+)"/g)].map(m=>m[1]))
+    const result:ManagedItem[]=ids.filter((id):id is WidgetType=>widgetTypes.includes(id as WidgetType)).map(id=>({id,span:([...legacy.response.matchAll(/WorkspaceWidget\(\s*"([a-z-]+)"\s*,\s*"(full|wide|narrow)"/g)].find(m=>m[1]===id)?.[2]??'full') as ManagedItem['span'],plan,meeting:legacy.meeting??undefined,usage:legacy.usage??undefined,overdue:legacy.overdue??undefined}))
+    if(live){const index=result.findIndex(item=>item.id==='meetings');const item:ManagedItem={id:'meetings',span:'full',live};if(index<0)result.push(item);else result[index]=item}
+    return result
+  })
+  useEffect(()=>{if(conversation.active)managedWorkspaceService.save(items)},[items,conversation.active])
   const scrollArea = useRef<HTMLElement | null>(null)
-  const scrollContent = useRef<HTMLDivElement | null>(null)
-  const followLatest = useRef(true)
   const activeTurn = useRef<string | null>(null)
   useEffect(() => { conversationService.save(conversation) }, [conversation])
-  const lastTurnStatus = conversation.turns.at(-1)?.status
-  useEffect(() => {
-    if (!conversation.active) return
-    followLatest.current = true
-    scrollArea.current?.scrollTo({ top: scrollArea.current.scrollHeight, behavior: 'instant' })
-  }, [conversation.active, conversation.turns.length, conversation.hasWorkspace, lastTurnStatus])
-  useEffect(() => {
-    if (!conversation.active || !scrollContent.current) return
-    const observer = new ResizeObserver(() => { if (followLatest.current && scrollArea.current) scrollArea.current.scrollTop = scrollArea.current.scrollHeight })
-    observer.observe(scrollContent.current)
-    return () => observer.disconnect()
-  }, [conversation.active])
-  useEffect(() => { if (conversation.active) requestAnimationFrame(() => composer.current?.focus({ preventScroll: true })) }, [conversation.active])
   const calendar = useGoogleCalendar()
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(() => liveCalendarLayoutService.load())
   const [calendarSettings, setCalendarSettings] = useState(() => ['permission-missing', 'state-error', 'connect-error'].includes(new URL(window.location.href).searchParams.get('calendar') ?? ''))
   const [useDemoCalendar, setUseDemoCalendar] = useState(false)
-  const [layoutUndo, setLayoutUndo] = useState<Array<{ response: string; meeting: MeetingLayout | null; overdue: OverdueLayout | null; usage: UsageLayout | null; live: LiveRequest | null }>>([])
+  const [layoutUndo, setLayoutUndo] = useState<Array<{ response: string; meeting: MeetingLayout | null; overdue: OverdueLayout | null; usage: UsageLayout | null; live: LiveRequest | null; items:ManagedItem[]; conversation: Conversation; componentState: Record<string, unknown> }>>([])
   const updateLive = useCallback((request: LiveRequest) => { setLiveRequest(request); liveCalendarLayoutService.save(request) }, [])
   const [restored] = useState(restoreLayout)
   const [response, setResponse] = useState(restored.response)
@@ -127,12 +116,12 @@ export function DynamicWorkspace() {
     if (outcome === 'connect-error') return 'Google Calendar could not connect. Check your account and try again from Calendar connection.'
     return outcome === 'denied' ? 'Google Calendar permission was declined. Your workspace and notes are unchanged.' : outcome === 'connected' ? 'Google Calendar connected. Your saved meeting goal is ready to continue.' : restored.notice
   })
-  const [revision, setRevision] = useState(0)
+  const [, setRevision] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
   const workflow = useAdaptiveWorkspace(restored.usage?.intent ?? restored.overdue?.intent ?? restored.meeting?.intent, restored.usage?.composition.requestId ?? restored.overdue?.composition.requestId ?? restored.meeting?.composition.requestId, restored.usage?.composition)
   const { pending: workflowPending, error, setError, clarification, cancel } = workflow
   const pending = workflowPending || resolving
-  const speech = useSpeechToText({ value: goal, onChange: setGoal, enabled: (commandOpen || conversation.active) && !pending && !clarification })
+  const speech = useSpeechToText({ value: goal, onChange: setGoal, enabled: commandOpen && !pending && !clarification })
   const canvas = useRef<HTMLElement | null>(null)
   const [componentState, setComponentState] = useState<Record<string, unknown>>({})
   useEffect(() => {
@@ -142,31 +131,29 @@ export function DynamicWorkspace() {
     url.searchParams.delete('calendar')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
   }, [])
-  const cancelSpeech = speech.cancel
   function changeCommand(open: boolean) {
-    if (conversation.active && open) { requestAnimationFrame(() => composer.current?.focus()); return }
-    if (!open) { speech.cancel(); workflow.cancel() }
+    if (!open) { speech.cancel(); if (pending) stopConversation() }
     setCommandOpen(open)
   }
   function completeTurn(id: string, status: Conversation['turns'][number]['status'], reply: string, visibleWidgets?: string[], componentPlan?: ComponentView) { setConversation(current => { const next = finishTurn(current, id, status, reply, visibleWidgets); return componentPlan ? {...next,turns:next.turns.map(turn=>turn.id===id?{...turn,componentPlan}:turn)} : next }) }
   function stopConversation() { speech.cancel(); resolveRequest.current?.abort(); resolveRequest.current=null;setResolving(false);setComponentQuestion(null);cancel(); if (activeTurn.current) completeTurn(activeTurn.current, 'cancelled', 'Stopped. Your existing workspace and edits are kept.'); activeTurn.current = null }
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (conversation.active) { composer.current?.focus(); return }; if (commandOpen) { cancelSpeech(); cancel() }; setCommandOpen(!commandOpen) }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (commandOpen) { changeCommand(false) } else { setCommandOpen(true) } }
     }
     window.addEventListener('keydown', handle)
     return () => window.removeEventListener('keydown', handle)
-  }, [commandOpen, conversation.active, cancel, cancelSpeech])
+  })
   useEffect(() => {
     if (!commandOpen) return
     const handleEscape = (event: KeyboardEvent) => {
       // The select owns Escape while its portal is open; otherwise cancel the workflow.
       if (event.key !== 'Escape' || document.querySelector('[data-slot="select-content"][data-open]')) return
-      event.preventDefault(); event.stopPropagation(); cancelSpeech(); cancel(); setCommandOpen(false)
+      event.preventDefault(); event.stopPropagation(); changeCommand(false)
     }
     document.addEventListener('keydown', handleEscape, true)
     return () => document.removeEventListener('keydown', handleEscape, true)
-  }, [commandOpen, cancel, cancelSpeech])
+  })
   function resetLayout() {
     speech.cancel()
     resolveRequest.current?.abort(); resolveRequest.current=null;setResolving(false);setComponentQuestion(null)
@@ -175,50 +162,19 @@ export function DynamicWorkspace() {
     setLiveRequest(null); liveCalendarLayoutService.clear(); setLayoutUndo([])
     const cleared = layoutService.clear().status === 'saved'
     setResponse(defaultWorkspace); setUsage(null); setMeeting(null); setOverdue(null); setComponentState({}); setRevision(value => value + 1)
+    setItems([]);managedWorkspaceService.save([])
     setGoal(''); setCommandOpen(false)
     setPersistenceNotice(cleared ? '' : 'Layout reset for now. Device storage could not be cleared; the previous layout may return after reload.')
     requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
   }
-  function rememberLayout() { setLayoutUndo(history => [...history, { response, meeting, overdue, usage, live: liveRequest }].slice(-20)) }
-  function changeLayout(command: LayoutCommand) {
-    rememberLayout()
-    try {
-      if (liveRequest) {
-        if (liveRequest.kind !== 'prepare' || !liveRequest.eventId) throw new Error('Choose a meeting before changing its preparation layout.')
-        const widget = command.widget === 'outline' ? 'outline' : command.widget === 'context' ? 'details' : command.widget
-        if (!['details', 'outline', 'calendar'].includes(widget)) throw new Error('This real-calendar preparation can show meeting details, notes and calendar. Project records are not linked yet.')
-        const list = modifyWidgets((liveRequest.widgets ?? ['details', 'outline', 'calendar']).map(type => ({ type, span: 'full' })), { ...command, widget }, () => ({ type: widget, span: command.span }), ['details', 'outline'])
-        updateLive({ ...liveRequest, widgets: list.map(w => w.type), span: command.span })
-      } else if (meeting) {
-        const widgets = modifyWidgets(meeting.composition.widgets, command, () => ({ ...meeting.composition.widgets[0], type: command.widget as typeof meeting.composition.widgets[number]['type'], span: command.span, reason: 'Added to support your current meeting preparation without changing its scope.' }), ['context', 'outline'])
-        const composition = meetingCompositionSchema.parse({ ...meeting.composition, widgets })
-        const next = { ...meeting, composition, response: serializeMeetingComposition(composition) }
-        if (layoutService.saveMeeting(next).status !== 'saved') setPersistenceNotice('Layout updated for this session. Device storage is unavailable.')
-        setMeeting(next); setResponse(next.response)
-      } else if (usage) {
-        const widgets = modifyWidgets(usage.composition.widgets, command, () => ({ ...usage.composition.widgets[0], type: command.widget as typeof usage.composition.widgets[number]['type'], span: command.span, reason: 'Added to support the current investigation while keeping its scope.' }), ['context', 'usage'])
-        const composition = usageCompositionSchema.parse({ ...usage.composition, widgets })
-        const next = { ...usage, composition, response: serializeUsageComposition(composition) }
-        layoutService.saveUsage(next); setUsage(next); setResponse(next.response)
-      } else if (overdue) {
-        const widgets = modifyWidgets(overdue.composition.widgets, command, () => ({ ...overdue.composition.widgets[0], type: command.widget as typeof overdue.composition.widgets[number]['type'], span: command.span, reason: 'Added alongside your current project review without changing project records.' }), ['context', 'tasks'])
-        const composition = overdueCompositionSchema.parse({ ...overdue.composition, widgets })
-        const next = { ...overdue, composition, response: serializeOverdueComposition(composition) }
-        layoutService.saveOverdue(next); setOverdue(next); setResponse(next.response)
-      } else {
-        const next = !conversation.hasWorkspace && command.action === 'add' ? `root = Card([Workspace([WorkspaceWidget("${command.widget}", "${command.span}")])])` : patchWorkspaceResponse(response, command)
-        if (!validLayout(next)) throw new Error('This layout change could not be validated. Try a different widget.')
-        layoutService.save(next); setResponse(next)
-      }
-      setGoal(''); setCommandOpen(false); setError(''); return true
-    } catch (failure) { setLayoutUndo(history => history.slice(0, -1)); setError(failure instanceof Error && failure.name !== 'ZodError' ? failure.message : 'That widget is not available for the current goal. Try adding the calendar or changing its width.'); return false }
-  }
+  function rememberLayout() { setLayoutUndo(history => [...history, { response, meeting, overdue, usage, live: liveRequest, items, conversation, componentState }].slice(-20)) }
   function undoLayout() {
     const previous = layoutUndo.at(-1)
     if (!previous) return
     setResponse(previous.response); setMeeting(previous.meeting); setOverdue(previous.overdue); setUsage(previous.usage); setLiveRequest(previous.live)
     if (previous.live) liveCalendarLayoutService.save(previous.live); else liveCalendarLayoutService.clear()
     if (previous.meeting) layoutService.saveMeeting(previous.meeting); else if (previous.usage) layoutService.saveUsage(previous.usage); else if (previous.overdue) layoutService.saveOverdue(previous.overdue); else layoutService.save(previous.response)
+    setItems(previous.items); setConversation(previous.conversation); setComponentState(previous.componentState)
     setLayoutUndo(history => history.slice(0, -1))
   }
   async function build(answer?: IntentRequest['clarificationAnswer'], demo = false, retryPrompt?: string) {
@@ -228,38 +184,42 @@ export function DynamicWorkspace() {
     const id = crypto.randomUUID()
     activeTurn.current = id
     const answerText = answer ? answer.field === 'dateRange' ? `${answer.dateRange.from} through ${answer.dateRange.to}` : clarification?.choices.find(choice => choice.id === answer.selectedId)?.label ?? 'Use the selected option' : submittedGoal
-    const previousTurn = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
-    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || currentResponseTurn?.componentPlan?.bindings.draftKey?.startsWith('google-preparation:') || (currentResponseWidgets ? currentResponseWidgets.some(widget=>['calendar','meetings','availability'].includes(widget)) : /WorkspaceWidget\(\s*"calendar"/.test(response))) ? { accountId: calendar.connection.accountId } : {}) } : null
-    setConversation(current => beginTurn(previousTurn && previousSnapshot ? archiveWorkspace(current, previousTurn, previousSnapshot) : current, id, answerText))
+    setConversation(current => beginTurn(current, id, answerText))
     setGoal(''); setCommandOpen(false); setError(''); setComponentQuestion(null)
     if (!answer) {
-      const modification = parseLayoutCommand(submittedGoal)
-      if (modification && (modification.action === 'remove' || modification.action === 'resize' && /width|wide|narrow|resize|expand/i.test(submittedGoal))) {
-        const changed = changeLayout(modification)
-        const title = modification.widget === 'tasks' ? 'tasks' : modification.widget === 'outline' ? 'notes' : modification.widget
-        const reply = modification.action === 'remove' ? `${title[0].toUpperCase() + title.slice(1)} removed from the working layout.` : `Here ${title === 'tasks' || title === 'notes' ? 'are' : 'is'} your ${title}.`
-        completeTurn(id, changed ? 'ready' : 'error', changed ? reply : workflow.getOutcome().error, changed ? modification.action === 'remove' ? [] : [modification.widget] : undefined, changed && modification.action !== 'remove' && currentResponseTurn?.componentPlan ? {...currentResponseTurn.componentPlan,widgets:[modification.widget as ComponentView['widgets'][number]]} : undefined)
-        return
-      }
       const controller = new AbortController(); resolveRequest.current=controller;setResolving(true)
-      let resolved
+      let resolved:ComponentResolution|null = localManagement(submittedGoal)
       try {
         const records=adaptiveDataService.snapshot()
-        resolved=await resolveComponentIntent({goal:submittedGoal,referenceDate:calendarDate(undefined,calendar.timezone),timezone:calendar.timezone,previous:currentResponseTurn?.componentPlan,
+        resolved??=await resolveComponentIntent({workspaceWidgets:items.map(item=>item.id),componentPlans:items.flatMap(item=>item.plan?[item.plan]:[]),goal:submittedGoal,referenceDate:calendarDate(undefined,calendar.timezone),timezone:calendar.timezone,previous:items.find(item=>namedWidgets(submittedGoal).includes(item.id)||/priority|pending|blocked|completed|kanban/i.test(submittedGoal)&&item.id==='tasks')?.plan??currentResponseTurn?.componentPlan,
           catalog:{owners:[...new Set(state.tasks.map(task=>task.owner))],projects:records?.projects??[],clients:records?.clients??[],
             draftKeys:Object.keys({...state.drafts,...draftBuffers}).filter(key=>!key.startsWith('google-preparation:')||!!calendar.connection?.accountId&&key.startsWith('google-preparation:'+calendar.connection.accountId+':')),
             topics:[...new Set(resourceService.list().map(resource=>resource.context))]},
         },controller.signal)
       } catch(failure) {if(!controller.signal.aborted)completeTurn(id,'error',failure instanceof Error?failure.message:'Unable to resolve your request.');return}
       finally {if(resolveRequest.current===controller){resolveRequest.current=null;setResolving(false)}}
-      if(controller.signal.aborted||activeTurn.current!==id)return
-      if(resolved.action==='clarify'){setComponentQuestion(resolved);completeTurn(id,'clarification',resolved.question);return}
+      if(controller.signal.aborted||activeTurn.current!==id||!resolved)return
+      if(resolved.action==='clarify'){setComponentQuestion(resolved);completeTurn(id,'clarification',resolved.question);setCommandOpen(true);return}
+      if(resolved.action==='manage'){
+        try {
+          const addition=submittedGoal.split(/\s+(?:and|then|and then)\s+(?:add|show)(?:\s+me)?\s+/i).at(-1)??submittedGoal
+          const plan=fallbackComponentIntent({goal:addition,referenceDate:calendarDate(undefined,calendar.timezone),timezone:calendar.timezone,catalog:{owners:[...new Set(state.tasks.map(task=>task.owner))],projects:adaptiveDataService.snapshot()?.projects??[],clients:adaptiveDataService.snapshot()?.clients??[],draftKeys:[],topics:[]}})
+          const create=(id:WidgetType):ManagedItem=>({id,span:'full',plan:plan.action==='view'?{...plan,widgets:[id]}:undefined})
+          let next=applyWorkspaceOperations(items,resolved.operations,create)
+          const added=resolved.operations.flatMap(op=>op.type==='add'?op.widgets:[])
+          if(added.length&&plan.action==='view')next=updateManagedViews(next,{...plan,widgets:[...new Set(added)]},addition)
+          rememberLayout();setItems(next)
+          const clearsPanels=resolved.operations.some(op=>op.type==='clear'||op.type==='keep')
+          if(clearsPanels){setLiveRequest(null);liveCalendarLayoutService.clear();setUsage(null);setMeeting(null);setOverdue(null)}
+          completeTurn(id,'ready',next.length?resolved.reply:'Workspace cleared. Press Ctrl / Cmd + K to add components.',next.map(item=>item.id))
+        }catch(failure){completeTurn(id,'error',failure instanceof Error?failure.message:'The workspace could not be changed.')}
+        return
+      }
       if(resolved.action==='view'){
-        const next=responseForWidgets('',resolved.widgets)
-        if(!validLayout(next)){completeTurn(id,'error','The selected components could not be rendered. Try again.');return}
-        rememberLayout();setLiveRequest(null);liveCalendarLayoutService.clear();setUsage(null);setMeeting(null);setOverdue(null);setResponse(next);layoutService.save(next)
-        setComponentState({});setRevision(value=>value+1)
-        completeTurn(id,'ready',resolved.reply,resolved.widgets,resolved)
+        const view=resolved
+        rememberLayout()
+        setItems(current=>updateManagedViews(current,view,submittedGoal))
+        completeTurn(id,'ready',resolved.reply,view.widgets,resolved)
         return
       }
       const liveKind = !demo && !useDemoCalendar ? resolved.kind==='meeting_preparation'?'prepare':resolved.kind==='meeting_scheduling'?'schedule':liveCalendarGoal(submittedGoal) : null
@@ -267,13 +227,15 @@ export function DynamicWorkspace() {
         rememberLayout()
         const today = calendarDate(undefined, calendar.timezone)
         const date = submittedGoal.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0] ?? shiftDate(today, /tomorrow/i.test(submittedGoal) ? 1 : 0)
-        updateLive({ kind: liveKind, goal: submittedGoal, date })
+        const request:LiveRequest={kind:liveKind,goal:submittedGoal,date}
+        updateLive(request)
+        setItems(current=>{const index=current.findIndex(item=>item.id==='meetings');const next=[...current];const item:ManagedItem={id:'meetings',span:current[index]?.span??'full',live:request};if(index<0)next.push(item);else next[index]=item;return next})
         calendar.setDate(date); completeTurn(id, 'ready', liveKind === 'schedule' ? 'Let’s arrange your meeting. Enter the details below, choose a time and review before creating it.' : 'Let’s find the meeting you want to prepare. Choose it below to open your preparation tools.'); return
       }
     }
     const result = await workflow.run({ goal: submittedGoal, previousUI: response, context: { demoDate: DEMO_DATE, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: state.pins, componentState } }, answer)
     if (activeTurn.current !== id) return
-    if (!result) { const outcome = workflow.getOutcome(); completeTurn(id, outcome.clarification ? 'clarification' : 'error', outcome.clarification?.question ?? outcome.error ?? 'Your workspace could not be prepared. Try again.'); return }
+    if (!result) { const outcome = workflow.getOutcome(); completeTurn(id, outcome.clarification ? 'clarification' : 'error', outcome.clarification?.question ?? outcome.error ?? 'Your workspace could not be prepared. Try again.'); if(outcome.clarification)setCommandOpen(true); return }
     setLiveRequest(null); liveCalendarLayoutService.clear(); setUseDemoCalendar(false)
     if (result.kind === 'meeting') result.session = retainMeetingTaskFilters(meeting, result.session)
     const saved = result.kind === 'usage' ? layoutService.saveUsage(result.session) : result.kind === 'overdue' ? layoutService.saveOverdue(result.session) : result.kind === 'meeting' ? layoutService.saveMeeting(result.session) : layoutService.save(result.response)
@@ -281,63 +243,43 @@ export function DynamicWorkspace() {
     setOverdue(result.kind === 'overdue' ? result.session : null)
     setMeeting(result.kind === 'meeting' ? result.session : null)
     setPersistenceNotice(saved.status === 'saved' ? '' : 'Layout updated, but device storage is unavailable. It may not survive reload.')
-    setResponse(result.kind === 'general' ? result.response : result.session.response)
+    if(result.kind==='general'){setResponse(result.response);const ids=[...result.response.matchAll(/WorkspaceWidget\(\s*"([a-z-]+)"/g)].map(m=>m[1]).filter((id):id is WidgetType=>widgetTypes.includes(id as WidgetType));setItems(current=>applyWorkspaceOperations(current,[{type:'add',widgets:ids}],id=>({id,span:'full'})))}
+    else {
+      const session=result.session
+      setItems(current=>{const next=[...current];for(const widget of session.composition.widgets){const index=next.findIndex(item=>item.id===widget.type);const item:ManagedItem={id:widget.type,span:next[index]?.span??widget.span,...(result.kind==='meeting'?{meeting:result.session}:result.kind==='usage'?{usage:result.session}:{overdue:result.session})};if(index<0)next.push(item);else next[index]=item}return next})
+    }
     setComponentState({}); setRevision(value => value + 1); setGoal(''); setCommandOpen(false)
     completeTurn(id, 'ready', 'Your workspace is ready. Use the tools below, or send a follow-up to change the layout.')
-    requestAnimationFrame(() => composer.current?.focus({ preventScroll: true }))
   }
-  function updateMeetingFilters(filters: Filters) {
-    if (!meeting) return
-    const session = { ...meeting, taskFilters: filters }
-    setMeeting(session)
-    const saved = layoutService.saveMeeting(session)
-    if (saved.status === 'saved') setPersistenceNotice('')
-    else setPersistenceNotice(saved.status === 'invalid' ? 'Choose valid task filter values and an ordered date range. These filters cannot be saved yet.' : 'Meeting task filters updated for this session. Device storage is unavailable.')
-  }
-  function updateUsageFilters(filters: Filters) {
-    if (!usage) return
-    const session = { ...usage, taskFilters: filters }
-    setUsage(session)
-    if (layoutService.saveUsage(session).status !== 'saved') setPersistenceNotice('Usage task filters updated for this session. Device storage is unavailable.')
-  }
-  function updateReviewFilters(filters: Filters) {
-    if (!overdue) return
-    const session = { ...overdue, filters }
-    setOverdue(session)
-    if (layoutService.saveOverdue(session).status !== 'saved') setPersistenceNotice('Review filters updated for this session. Device storage is unavailable.')
-  }
-  function updateComponentBindings(bindings: Partial<ViewBindings>) {
-    if(!currentResponseTurn?.componentPlan)return
-    const plan=componentViewSchema.parse({...currentResponseTurn.componentPlan,bindings:{...currentResponseTurn.componentPlan.bindings,...bindings}})
-    setConversation(current=>({...current,turns:current.turns.map(turn=>turn.id===workspaceTurnId?{...turn,componentPlan:plan}:turn)}))
+  function updateItem(widget:WidgetType,patch:Partial<ManagedItem>) {setItems(current=>current.map(item=>item.id===widget?{...item,...patch}:item))}
+  function updateComponentBindings(widget:WidgetType,bindings:Partial<ViewBindings>) {
+    setItems(current=>current.map(item=>item.id===widget&&item.plan?{...item,plan:componentViewSchema.parse({...item.plan,bindings:{...item.plan.bindings,...bindings}})}:item))
   }
   function generate(event: FormEvent) { event.preventDefault(); void build() }
   const workspaceTurnId = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
   const currentResponseTurn = conversation.turns.find(turn => turn.id === workspaceTurnId)
-  const currentResponseWidgets = currentResponseTurn?.visibleWidgets ?? (currentResponseTurn ? responseWidgetsForPrompt(currentResponseTurn.prompt) : undefined)
-  const renderer = <Renderer key={revision} library={productivityLibrary} response={currentResponseWidgets?.length ? responseForWidgets(response, currentResponseWidgets) : response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} />
   return <div className={conversation.active ? "dynamic-canvas-page flex h-[calc(100dvh-64px)] flex-col max-sm:h-[calc(100dvh-60px)]" : "dynamic-canvas-page"} data-conversation-active={conversation.active}><PageHeaderActions><button className="command-trigger" onClick={() => changeCommand(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setCalendarSettings(true)}>Google Calendar connection</DropdownMenuItem><DropdownMenuItem disabled={!layoutUndo.length} onClick={undoLayout}>Undo layout change</DropdownMenuItem><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
 
-    {conversation.active ? <>
-      <main ref={scrollArea} onWheel={() => { followLatest.current = false }} onTouchStart={() => { followLatest.current = false }} onScroll={() => { const area = scrollArea.current; if (area && area.scrollHeight - area.scrollTop - area.clientHeight < 80) followLatest.current = true }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Workspace conversation">
-        <div ref={scrollContent} className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-8">
-          {persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}
-          <div className="space-y-6" aria-label="Conversation history">{conversation.turns.map(turn => <div key={turn.id} className="space-y-3">
-            <div className="flex justify-end"><p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-muted px-4 py-3 text-sm text-foreground">{turn.prompt}</p></div>
-            <div className="flex items-start gap-3"><span className="mt-1 shrink-0"><OrloLogo size={22} /></span><div className="min-w-0 flex-1"><p className={`text-sm leading-6 ${turn.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role={turn.status === 'error' ? 'alert' : turn.status === 'pending' ? 'status' : undefined}>{turn.status === 'pending' && <LoaderCircle size={15} className="mr-2 inline animate-spin" />}{turn.reply}</p>{(turn.status === 'error' || turn.status === 'cancelled') && <Button variant="ghost" size="sm" disabled={pending} onClick={() => void build(undefined, false, turn.prompt)}>Try again</Button>}</div></div>
-            {turn.snapshot && turn.id !== workspaceTurnId && <HistoricalWorkspace snapshot={turn.snapshot} turnId={turn.id} accountId={calendar.connection?.accountId} />}
-          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && (turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt))?.length !== 0 && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace"><ResponseWidgetsContext.Provider value={turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt) ?? null}>{turn.componentPlan ? <ComponentViewProvider key={turn.id} plan={turn.componentPlan} onChange={updateComponentBindings}>{renderer}</ComponentViewProvider> : <>{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</>}</ResponseWidgetsContext.Provider></section>}
-            {turn.id === conversation.turns.at(-1)?.id && componentQuestion && <div className="flex flex-wrap gap-2">{componentQuestion.choices.map(choice=><Button key={choice} variant="outline" size="sm" disabled={pending} onClick={()=>void build(undefined,false,choice)}>{choice}</Button>)}</div>}
-            {turn.id === conversation.turns.at(-1)?.id && clarification && <section className="rounded-2xl border border-border bg-card p-4" aria-label="Clarify your goal"><ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={stopConversation} /></section>}
-          </div>)}</div>
-          {calendarSettings && <section className="space-y-3"><GoogleCalendarConnection /><Button variant="ghost" size="sm" onClick={() => setCalendarSettings(false)}>Hide connection settings</Button></section>}
-
-          {error && conversation.turns.at(-1)?.status !== 'error' && <p className="text-sm text-destructive" role="alert">{error}</p>}
-        </div>
-      </main>
-      <ConversationComposer value={goal} onChange={setGoal} onSubmit={() => void build()} pending={pending} onStop={stopConversation} inputRef={composer} speech={speech} />
-    </> : <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>} {liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</main>}
-    {!conversation.active && <Dialog open={calendarSettings} onOpenChange={setCalendarSettings}><DialogContent><DialogHeader><DialogTitle>Calendar connection</DialogTitle><DialogDescription>Connect Google to read real events. Event creation asks for additional permission and confirmation.</DialogDescription></DialogHeader><GoogleCalendarConnection /></DialogContent></Dialog>}
-    {!conversation.active && <Dialog open={commandOpen} onOpenChange={changeCommand}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a goal or choose the meeting to prepare. Escape cancels and closes this window.</DialogDescription></DialogHeader>{clarification ? <ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={() => changeCommand(false)} /> : <form onSubmit={generate} className="goal-form"><div className="goal-input-row"><OrloLogo size={20} /><label htmlFor="command-goal" className="sr-only">Describe the workspace you need</label><input id="command-goal" autoFocus value={goal} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="button" variant={speech.listening ? 'secondary' : 'ghost'} size="icon" onClick={speech.toggle} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? (speech.listening ? 'Stop listening' : 'Speak your goal') : 'Speech input is unavailable in this browser'} className={speech.listening ? 'text-primary ring-2 ring-primary/20' : 'text-muted-foreground'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p>{speech.error && <p className="px-4 pb-2 text-xs text-destructive" role="alert">{speech.error}</p>}</form>}{pending && <div className="goal-progress" role="status">Preparing your workspace… <button type="button" onClick={workflow.cancel}>Cancel</button></div>}{error && <p className="goal-error" role="alert">{error}</p>}<div className="command-hint"><span>{calendar.connection?.connected ? `Live calendar · ${calendar.timezone}` : `Demo date · ${DEMO_DATE} · Connect Google for real meetings`}</span><span>Esc to close</span></div></DialogContent></Dialog>}
+    <main ref={scrollArea} className={conversation.active ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "generated-canvas"} aria-label="Context-aware workspace">
+      <div className={conversation.active ? "mx-auto w-full max-w-6xl space-y-5 px-4 py-6 sm:px-8" : "space-y-5"}>
+        {persistenceNotice && <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}
+        {conversation.active && <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">Active workspace</p><p className="mt-1 text-sm font-medium">{currentResponseTurn?.prompt ?? 'Describe the workspace you need'}</p></div><span className="text-xs text-muted-foreground">Ctrl / Cmd + K to update</span></div>}
+        {conversation.turns.at(-1) && <div className="flex items-start gap-3" aria-label="Workspace status"><OrloLogo size={22} /><p className={`min-w-0 flex-1 text-sm leading-6 ${conversation.turns.at(-1)?.status==='error'?'text-destructive':'text-muted-foreground'}`} role={conversation.turns.at(-1)?.status==='error'?'alert':'status'}>{pending && <LoaderCircle size={15} className="mr-2 inline animate-spin" />}{conversation.turns.at(-1)?.reply}</p>{pending && <Button variant="ghost" size="sm" onClick={stopConversation}>Stop</Button>}</div>}
+        <section ref={canvas} tabIndex={-1} className="productivity-response outline-none" aria-label="Active workspace">
+          {<>
+            <div className="workspace-grid">{items.map(item=>{
+              const Widget=registry[item.id].component
+              const content=item.id==='metrics'?<Widget/>:<WidgetFrame id={item.id}><Widget/></WidgetFrame>
+              const scoped=item.meeting?<MeetingScopeProvider session={item.meeting} onFilters={filters=>updateItem(item.id,{meeting:{...item.meeting!,taskFilters:filters}})}>{content}</MeetingScopeProvider>:item.usage?<UsageScopeProvider session={item.usage} onFilters={filters=>updateItem(item.id,{usage:{...item.usage!,taskFilters:filters}})}>{content}</UsageScopeProvider>:item.overdue?<OverdueScopeProvider session={item.overdue} onFilters={filters=>updateItem(item.id,{overdue:{...item.overdue!,filters}})}>{content}</OverdueScopeProvider>:content
+              return <div key={item.id} className={`workspace-cell span-${item.span}`} data-workspace-component={item.id}>{item.live?<LiveCalendarWorkspace request={item.live} onChange={live=>{updateItem(item.id,{live});updateLive(live)}} onClose={()=>setItems(current=>current.filter(i=>i.id!==item.id))} onDemo={()=>{setUseDemoCalendar(true);setGoal(item.live!.goal);setCommandOpen(true)}}/>:item.plan?<ComponentViewProvider plan={item.plan} onChange={bindings=>updateComponentBindings(item.id,bindings)}>{scoped}</ComponentViewProvider>:scoped}</div>
+            })}</div>
+            {!items.length&&<div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"><p>Your workspace is empty.</p><Button className="mt-4" variant="outline" onClick={()=>changeCommand(true)}>Press Ctrl / Cmd + K to add components</Button></div>}
+          </>}
+        </section>
+        {error && conversation.turns.at(-1)?.status!=='error' && <p className="text-sm text-destructive" role="alert">{error}</p>}
+      </div>
+    </main>
+    {<Dialog open={calendarSettings} onOpenChange={setCalendarSettings}><DialogContent><DialogHeader><DialogTitle>Calendar connection</DialogTitle><DialogDescription>Connect Google to read real events. Event creation asks for additional permission and confirmation.</DialogDescription></DialogHeader><GoogleCalendarConnection /></DialogContent></Dialog>}
+    {<Dialog open={commandOpen} onOpenChange={changeCommand}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a goal or choose the meeting to prepare. Escape cancels and closes this window.</DialogDescription></DialogHeader>{componentQuestion ? <div className="space-y-4 p-4"><p className="text-sm font-medium">{componentQuestion.question}</p><div className="flex flex-wrap gap-2">{componentQuestion.choices.map(choice=><Button key={choice} variant="outline" size="sm" disabled={pending} onClick={()=>void build(undefined,false,choice)}>{choice}</Button>)}</div><Button variant="ghost" size="sm" onClick={()=>setComponentQuestion(null)}>Write a different prompt</Button></div> : clarification ? <ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={() => changeCommand(false)} /> : <form onSubmit={generate} className="goal-form"><div className="goal-input-row"><OrloLogo size={20} /><label htmlFor="command-goal" className="sr-only">Describe the workspace you need</label><input id="command-goal" autoFocus value={goal} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="button" variant={speech.listening ? 'secondary' : 'ghost'} size="icon" onClick={speech.toggle} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? (speech.listening ? 'Stop listening' : 'Speak your goal') : 'Speech input is unavailable in this browser'} className={speech.listening ? 'text-primary ring-2 ring-primary/20' : 'text-muted-foreground'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p>{speech.error && <p className="px-4 pb-2 text-xs text-destructive" role="alert">{speech.error}</p>}</form>}{pending && <div className="goal-progress" role="status">Preparing your workspace… <button type="button" onClick={stopConversation}>Cancel</button></div>}{error && <p className="goal-error" role="alert">{error}</p>}<div className="command-hint"><span>{calendar.connection?.connected ? `Live calendar · ${calendar.timezone}` : `Demo date · ${DEMO_DATE} · Connect Google for real meetings`}</span><span>Esc to close</span></div></DialogContent></Dialog>}
   </div>
 }

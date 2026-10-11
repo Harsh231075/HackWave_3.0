@@ -1,8 +1,8 @@
 export type LayoutCommand = { action: 'add' | 'remove' | 'resize'; widget: string; span: 'wide' | 'narrow' | 'full' }
-const aliases: Record<string, string> = { calendar: 'calendar', tasks: 'tasks', task: 'tasks', chart: 'chart', timeline: 'timeline', notes: 'outline', outline: 'outline', resources: 'resources', meetings: 'meetings', metrics: 'metrics', summary: 'context', availability: 'availability' }
+const aliases: Record<string, string> = { calendar: 'calendar', tasks: 'tasks', task: 'tasks', chart: 'chart', timeline: 'timeline', notes: 'outline', outline: 'outline', resources: 'resources', meetings: 'meetings', metrics: 'metrics', summary: 'context', availability: 'availability', suggestions: 'recommendation', suggestion: 'recommendation', recommendations: 'recommendation', recommendation: 'recommendation', activity: 'activity', usage: 'usage', communications: 'communications', messages: 'communications', issues: 'issues', context: 'context' }
 export function parseLayoutCommand(goal: string): LayoutCommand | null {
   const text = goal.trim().toLowerCase().replace(/[.!?]+$/, '')
-  const match = text.match(/^(?:please\s+)?(add|show|open|include|remove|hide|delete|make|resize|expand)\s+(?:my\s+|the\s+|a\s+|an\s+)?(calendar|tasks?|chart|timeline|notes|outline|resources|meetings|metrics|summary|availability)\b(.*)$/)
+  const match = text.match(/^(?:please\s+)?(add|show|open|include|remove|hide|delete|make|resize|expand)\s+(?:my\s+|the\s+|a\s+|an\s+)?(calendar|tasks?|chart|timeline|notes|outline|resources|meetings|metrics|summary|availability|suggestions?|recommendations?|activity|usage|communications|messages|issues|context)\b(.*)$/)
   if (!match) return null
   // Calendar event creation and task deletion are domain actions, not widget removal.
   if (/\b(event|meeting|task|record)\b/.test(match[3])) return null

@@ -94,3 +94,9 @@ test('AI cannot silently drop recognized today/Hinglish date constraints',()=>{
  if(result.action!=='view')return
  assert.equal(validateComponentResolution({...result,bindings:{...result.bindings,dateRange:undefined,taskFilters:{...result.bindings.taskFilters,from:'',to:''}}},request).success,false)
 })
+
+test('explicit combined commands resolve as ordered management operations',async()=>{
+ const result=await endpoint('Remove everything except meetings and add tasks')
+ assert.equal(result.status,200);assert.equal(result.body.action,'manage')
+ assert.deepEqual(result.body.operations,[{type:'keep',widgets:['meetings']},{type:'add',widgets:['tasks']}])
+})

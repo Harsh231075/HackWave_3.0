@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 
-export type LiveRequest = { kind: 'prepare' | 'schedule'; goal: string; date: string; accountId?: string; eventId?: string; widgets?: string[]; span?: 'wide' | 'narrow' | 'full' }
+export type LiveRequest = { kind: 'prepare' | 'schedule'; goal: string; date: string; accountId?: string; eventId?: string; widgets?: Array<'details' | 'outline' | 'calendar'>; span?: 'wide' | 'narrow' | 'full' }
 function CalendarNotes({ event, accountId }: { event: CalendarEvent; accountId: string }) {
   const { state, draftBuffers, editDraft, saveDraft, notify } = useWorkspace()
   const key = `google-preparation:${accountId}:${event.calendarId}:${event.id}`

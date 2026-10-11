@@ -1,3 +1,4 @@
+import { managementSchema, localManagement, destructiveGoal } from './workspaceManagement.ts'
 import { z } from 'zod'
 import { widgetTypes } from '../lib/workspace/config.ts'
 import { shiftDate } from './calendar.ts'
@@ -23,18 +24,23 @@ export const componentViewSchema = z.object({
 })
 export type ComponentView = z.infer<typeof componentViewSchema>
 export type ViewBindings = z.infer<typeof viewBindingsSchema>
-export const componentResolutionSchema = z.discriminatedUnion('action', [componentViewSchema,
+export const componentResolutionSchema = z.discriminatedUnion('action', [componentViewSchema, managementSchema,
   z.object({ action:z.literal('clarify'), question:z.string().min(1).max(1000), choices:z.array(z.string().max(4000)).max(6) }),
   z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']) }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
-export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), previous:componentViewSchema.optional(),
+export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
   catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 export type ComponentRequest = z.infer<typeof componentRequestSchema>
 export function validateComponentResolution(value: unknown, input: ComponentRequest) {
   const result = componentResolutionSchema.safeParse(value)
-  if (!result.success || result.data.action !== 'view') return result
+  if (!result.success) return result
+  if (result.data.action === 'manage') {
+    if (result.data.operations.some(op=>['clear','keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return componentResolutionSchema.safeParse(null)
+    return result
+  }
+  if (result.data.action !== 'view') return result
   const view = result.data, b = view.bindings
   if (view.referenceDate !== input.referenceDate || view.timezone !== input.timezone) return componentResolutionSchema.safeParse(null)
   if ((b.projectId && !input.catalog.projects.some(p=>p.id===b.projectId)) || (b.clientId && !input.catalog.clients.some(c=>c.id===b.clientId)) || (b.owner && !input.catalog.owners.includes(b.owner)) || (b.draftKey && b.draftKey !== 'outline' && !input.catalog.draftKeys.includes(b.draftKey))) return componentResolutionSchema.safeParse(null)
@@ -57,6 +63,7 @@ export function selectViewEvents(events: Event[], view: ComponentView) {
 }
 const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Project context',recommendation:'Suggestions'}
 export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {
+  const management=localManagement(input.goal);if(management)return management
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
   const clarification = (question:string): ComponentResolution => ({action:'clarify',question,choices:['Show my tasks','Show today’s overview','Show my calendar','Show my meetings']})
   if (/\b(schedule|arrange|book|create|set up)\b/.test(text) && /meeting|appointment|call/.test(text)) return {action:'workflow',kind:'meeting_scheduling'}
@@ -67,7 +74,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
   const widgets: ComponentView['widgets'] = []
   const add=(id: ComponentView['widgets'][number])=>{if(!widgets.includes(id))widgets.push(id)}
   if (/overview|dashboard|my day|mera din|aaj ka din|आज का|day look|daily summary/.test(text)) ['metrics','tasks','timeline','meetings'].forEach(id=>add(id as ComponentView['widgets'][number]))
-  if (/tasks?|to[ -]?do|pending|unfinished|incomplete|left to do|whats left|remaining work|kaam|काम|कार्य|लंबित|अधूर|बाकी/.test(text)) add('tasks')
+  if (/deadlines?|tasks?|to[ -]?do|pending|unfinished|incomplete|left to do|whats left|remaining work|kaam|काम|कार्य|लंबित|अधूर|बाकी/.test(text)) add('tasks')
   if (/calendar|calender|कैलेंडर/.test(text)) add('calendar')
   if (/meetings?|appointments?|calls?|बैठक|मीटिंग/.test(text)) add('meetings')
   if (/timeline|time.?block|schedule|planner|दिनचर्या/.test(text)) add('timeline')
@@ -106,6 +113,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
   else if(/\bkal\b|कल/.test(text)) return clarification('By “kal”, do you mean tomorrow or yesterday? Include the date or say tomorrow/yesterday.')
   if(from){if(!z.iso.date().safeParse(from).success||!z.iso.date().safeParse(to).success||from>to)return clarification('Choose valid dates in order, for example 2026-10-11 through 2026-10-17.');bindings.dateRange={from,to};bindings.selectedDate=from;if(bindings.taskFilters.status!=='overdue'){bindings.taskFilters.from=from;bindings.taskFilters.to=to}}
   if (bindings.taskFilters.status==='overdue' && /tomorrow/.test(text)) return clarification('Do you mean work that is already overdue, or work due tomorrow? Say “already overdue tasks” or “tasks due tomorrow”.')
+  if(/upcoming deadlines?/.test(text)){bindings.taskFilters.from=input.referenceDate;bindings.taskFilters.status='open'}
   const matchedOwners=input.catalog.owners.filter(owner=>text.includes(owner.toLowerCase()))
   if(matchedOwners.length===1)bindings.owner=matchedOwners[0]
   else if(matchedOwners.length>1)return clarification('Which owner’s tasks should I show? Specify one owner or ask for all tasks.')
