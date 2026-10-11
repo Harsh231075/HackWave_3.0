@@ -1,3 +1,4 @@
+import { projectHasClient } from './projects.ts'
 import { continuationChangeSchema, type IntentChanges } from './intentChanges.ts'
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
 import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal, resourceCreationGoal } from './workspaceManagement.ts'
@@ -33,7 +34,7 @@ export const componentResolutionSchema = z.discriminatedUnion('action', [compone
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
 export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
   instances:z.array(z.object({pinned:z.boolean().optional(),instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
-  catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
+  catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional(),clientIds:z.string().array().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 export type ComponentRequest = z.infer<typeof componentRequestSchema>
 export function validateComponentResolution(value: unknown, input: ComponentRequest) {
@@ -73,7 +74,7 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if(b.clientId&&!input.catalog.clients.some(c=>c.id===b.clientId))return reject('The model selected a client outside the available catalog.',['bindings','clientId'])
   if(b.owner&&!input.catalog.owners.includes(b.owner))return reject('The model selected an owner outside the available catalog.',['bindings','owner'])
   if(b.draftKey&&b.draftKey!=='outline'&&!input.catalog.draftKeys.includes(b.draftKey))return reject('The model selected an unavailable draft.',['bindings','draftKey'])
-  if(b.projectId&&b.clientId&&input.catalog.projects.find(p=>p.id===b.projectId)?.clientId!==b.clientId)return reject('The selected project does not belong to the selected client.',['bindings','projectId'])
+  if(b.projectId&&b.clientId&&!projectHasClient(input.catalog.projects.find(p=>p.id===b.projectId),b.clientId))return reject('The selected project does not belong to the selected client.',['bindings','projectId'])
   // A recognized date must survive model interpretation, including Hinglish “aaj”.
   const local = fallbackComponentIntent(input)
   const explicitStatus = /\b(?:pending|blocked|completed|overdue|unfinished|incomplete)\s+(?:tasks?|work|items?)\b|\b(?:tasks?|items?)\s+(?:that are\s+|which are\s+)?(?:pending|blocked|completed|overdue)\b/i.test(input.goal)

@@ -20,7 +20,7 @@ export interface PreferencesService { load(): DisplayPreferences; save(patch: Pa
 export interface GenerateWorkspaceInput {
   goal: string
   previousUI: string
-  context: { demoDate: string; tasks: Task[]; events: Event[]; drafts: Record<string, string>; pins: string[]; componentState: Record<string, unknown> }
+  context: { demoDate: string; timezone?: string; tasks: Task[]; events: Event[]; drafts: Record<string, string>; pins: string[]; componentState: Record<string, unknown> }
 }
 export interface GenerationService { generate(input: GenerateWorkspaceInput, options?: { signal?: AbortSignal }): Promise<{ response: string }> }
 export interface ResourceService { list(context?: string): Resource[]; getById(id: string): Resource | null }

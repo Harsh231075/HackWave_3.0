@@ -10,9 +10,9 @@ import { createPinService } from '../src/services/pinService.ts'
 import { workspaceActionSchema, type ActionOrigin } from '../src/domain/workspaceActions.ts'
 import { activeInstanceId } from '../src/domain/widgetInstances.ts'
 import { emptyFilters } from '../src/domain/workspace.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
-import { USAGE_DEMO } from '../src/data/usageDemo.ts'
-import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES, DEMO_DATE } from '../src/data/demo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
+import { USAGE_DEMO } from './fixtures/usageDemo.ts'
+import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES, DEMO_DATE } from './fixtures/demo.ts'
 import { applicationActionEvent, generatedActionsValid } from '../src/lib/workspace/actionValidation.ts'
 import { createLibrary, defineComponent } from '@openuidev/lang-core'
 import { z } from 'zod'
@@ -161,7 +161,7 @@ test('usage actions use linked client/project work; manual usage cannot choose a
   const task = loadActionScope(database, origin.binding)!.tasks[0]
   assert.ok(service.prepare({ type: 'task.edit', taskId: task.id }, origin).ok)
   const draft = service.prepare({ type: 'draft.edit' }, origin)
-  assert.ok(draft.ok && draft.value.type === 'draft.edit'); assert.equal(draft.value.key, 'usage-investigation:northstar:atlas')
+  assert.ok(draft.ok && draft.value.type === 'draft.edit'); assert.equal(draft.value.key, 'project-investigation:atlas')
   const manual: ActionOrigin = { ...meeting, binding: { kind: 'usage-query', query: { clientId: 'northstar', projectId: 'atlas' } } }
   assert.equal(service.prepare({ type: 'draft.edit' }, manual).ok, false)
   assert.ok(service.prepare({ type: 'task.edit', taskId: task.id }, manual).ok)

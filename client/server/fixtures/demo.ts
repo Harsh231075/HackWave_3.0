@@ -1,4 +1,4 @@
-import type { Event, Resource, Task } from '../domain/types.ts'
+import type { Event, Resource, Task } from '../../src/domain/types.ts'
 
 export const DEMO_DATE = '2026-10-12'
 export const DEMO_TIME = '09:15'

@@ -1,3 +1,4 @@
+import { useComponentView } from '@/state/ComponentViewContext'
 import { usageSnapshotFingerprint } from '@/domain/usageComposition'
 import { useMeetingScope } from './useMeetingScope'
 import { useUsageScope } from '@/state/UsageScopeContext'
@@ -10,26 +11,27 @@ import type { WidgetType } from '@/lib/workspace/config'
 import { registry } from '@/lib/workspace/registry'
 
 export function useWidgetInstanceFactory() {
+  const component = useComponentView()
   const meeting = useMeetingScope()
   const usage = useUsageScope()
   const overdue = useOverdueScope()
   const { state, selectedDate } = useWorkspace()
   const preferences = useDisplayPreferences()
   return (type: WidgetType, span: WidgetInstance['span'] = 'full', query?: UsageQuery | null): WidgetInstance | null => {
-    let binding: WidgetBinding = { kind: 'workspace' }
+    let binding: WidgetBinding = { kind: 'workspace', projectId:component?.plan.bindings.projectId, clientId:component?.plan.bindings.clientId, draftKey:component?.plan.bindings.draftKey }
     let label: string = type
     let data: unknown = { tasks: state.tasks, events: state.events, drafts: state.drafts }
     if (usage) {
       binding = { kind: 'usage', intent: usage.intent }
-      label = `${usage.data.client.name} · ${usage.data.project?.name ?? 'All projects'} · ${usage.intent.constraints?.segment ?? 'All segments'} · ${usage.intent.dateRange.from}–${usage.intent.dateRange.to}`
+      label = `${usage.data.client?.name} · ${usage.data.project?.name ?? 'All projects'} · ${usage.intent.constraints?.segment ?? 'All segments'} · ${usage.intent.dateRange.from}–${usage.intent.dateRange.to}`
       data = usage.data.snapshot
     } else if (overdue) {
       binding = { kind: 'overdue', intent: overdue.intent, referenceDate: overdue.data.referenceDate }
       label = `${overdue.data.project.name} · ${overdue.intent.dateRange.from}–${overdue.intent.dateRange.to}`
       data = overdue.data
     } else if (meeting) {
-      binding = { kind: 'meeting', meetingId: meeting.data.meeting.id, clientId: meeting.data.client.id, projectId: meeting.data.project.id }
-      label = `${meeting.data.client.name} · ${meeting.data.meeting.title}`
+      binding = { kind: 'meeting', meetingId: meeting.data.meeting.id, clientId: meeting.data.client?.id, projectId: meeting.data.project.id }
+      label = `${meeting.data.client?.name} · ${meeting.data.meeting.title}`
       data = meeting.data
     } else if (type === 'usage') {
       if (!query) return null

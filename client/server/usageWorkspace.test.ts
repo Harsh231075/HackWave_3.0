@@ -10,9 +10,9 @@ import { applyIntentContinuity } from '../src/domain/intentContinuity.ts'
 import { validateIntentResolution, type IntentRequest, type ResolvedIntent } from '../src/domain/intent.ts'
 import { usageComposeRequestSchema, validateUsageComposition, serializeUsageComposition, usageSnapshotFingerprint, type UsageComposeRequest } from '../src/domain/usageComposition.ts'
 import { createAdaptiveDataService } from '../src/services/adaptiveDataService.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
-import { USAGE_DEMO } from '../src/data/usageDemo.ts'
-import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } from '../src/data/demo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
+import { USAGE_DEMO } from './fixtures/usageDemo.ts'
+import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } from './fixtures/demo.ts'
 const intent: ResolvedIntent={goalType:'usage_investigation',clientId:'northstar',projectId:'atlas',dateRange:{from:'2026-10-05',to:'2026-10-11'},constraints:{segment:'mobile'}}
 function setup() {
   const values=new Map<string,string>()

@@ -2,14 +2,14 @@ import { z } from 'zod'
 import { intentDateSchema, intentDateRangeSchema } from './intent.ts'
 const id = z.string().trim().min(1).max(160)
 export const usageObservationSchema = z.strictObject({
-  id, clientId: id, projectId: id, date: intentDateSchema, segment: id,
+  id, clientId: id.optional(), projectId: id, date: intentDateSchema, segment: id,
   sessions: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), source: z.enum(['synthetic', 'manual']),
 })
 export const usageReleaseSchema = z.strictObject({
-  id, clientId: id, projectId: id, date: intentDateSchema, title: id,
+  id, clientId: id.optional(), projectId: id, date: intentDateSchema, title: id,
   description: z.string().max(5000), segments: id.array().max(30), source: z.enum(['synthetic', 'manual']),
 })
-export const usageQuerySchema = z.strictObject({ clientId: id, projectId: id.optional(), dateRange: intentDateRangeSchema.optional(), segment: id.optional() })
+export const usageQuerySchema = z.strictObject({ clientId: id.optional(), projectId: id.optional(), dateRange: intentDateRangeSchema.optional(), segment: id.optional() }).refine(query => !!(query.projectId || query.clientId), 'Select a project or client.')
 export type UsageObservation = z.infer<typeof usageObservationSchema>
 export type UsageRelease = z.infer<typeof usageReleaseSchema>
 export type UsageQuery = z.infer<typeof usageQuerySchema>

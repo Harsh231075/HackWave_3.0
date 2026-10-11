@@ -107,7 +107,7 @@ The meeting compose request retains its existing wire shape. Overdue requests us
 - Results contain chart series, endpoint and equal-length period comparisons, coverage, source observations/releases and deterministic explanations. Client-wide aggregation requires measurements for each selected project; absent project/day/segment data is `null`, not zero. A missing endpoint or zero baseline never produces a fabricated percentage.
 - UsageExplorer subscribes to collection changes through `createRecordStore`, so local data edits immediately refresh charts and explanations without relying on task/event mutations. Widgets contain no fixed client, date, segment, measurement or release conclusion.
 
-Synthetic Northstar/Westbridge values live only in `data/usageDemo.ts`, added to the existing seed collections. Source labels distinguish synthetic from manual records. Existing domain records, malformed storage and intentionally empty usage collections are preserved.
+Historical Northstar/Westbridge fixtures live under `server/fixtures/` for regression tests and are not imported by the application. Runtime initialization creates an empty Default project. `projectSeedService` explicitly installs linked sample records with generated IDs and dates relative to the current local date; calculations always use the installed records.
 
 ### Scoped usage workspace
 
@@ -150,3 +150,9 @@ Optional composition `actions` entries contain only `{ label, action }` (maximum
 ## Instance state and actions
 
 Application layout writes use `workspaceDocumentService`; legacy layout factories are compatibility fixtures, not configured application writers. `pinService` updates pins inside the canonical document after initialization. Instance IDs and bindings establish action origins; scope or revision changes invalidate open actions. `InstanceCanvas` is the shared renderer for active widgets and pins, with one binding host for workflow and Google records. Text history contains no event bodies or DOM snapshots.
+
+## Project ownership and local reset
+
+`projectDataService` owns project selection, guarded project deletion, active client associations, note metadata and Reset. `projectSeedService` is the only runtime sample-data writer and refuses nonempty databases. Tasks, local events, resources and attachments carry project IDs; service saves reject missing/unknown projects. Client identity is optional for meetings and usage, with association-based ownership. `projectSettings.version` marks the local project model; older storage requires an explicit reset rather than migration.
+
+Reset replaces both record state and all local collections, removes legacy layout/history/preferences keys, advances the database epoch and remounts local providers. Canvas undo is cleared; generation and uploads reject stale epochs. Google Calendar server sessions and remote records are not cleared. Browser storage errors keep valid changes in memory and show session-only feedback.

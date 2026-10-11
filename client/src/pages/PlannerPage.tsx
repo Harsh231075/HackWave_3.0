@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus, Sparkles, Target, Zap } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Plus, Target, Zap } from 'lucide-react'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { useGoogleEventsWindow } from '@/hooks/useGoogleEventsWindow'
@@ -12,7 +12,7 @@ import { plannerSummary, slotConflicts } from '@/domain/plannerTime'
 import { projectGoogleEvents } from '@/domain/meetingCalendar'
 import { minutes } from '@/domain/workspace'
 import { availabilityService, browserDatabase } from '@/services'
-import { addDemoPreview } from '@/services/demoPreviewService'
+
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { MeetingDetails, MeetingForm } from '@/components/calendar/CalendarWidgets'
@@ -80,16 +80,6 @@ export function PlannerPage() {
     finally { if(current.current.mounted)setSaving(false) }
   }
 
-  function handleLoadDemo() {
-    const res = addDemoPreview(browserDatabase, today)
-    selectDate(today)
-    setNotice(
-      res.tasksAdded + res.eventsAdded === 0
-        ? 'Demo records already loaded. Ready to test planning flow!'
-        : `Loaded demo records! Try scheduling focus for "Demo · Prepare design review".`
-    )
-  }
-
   // Generate hourly blocks from 08:00 to 18:00
   const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 
@@ -104,9 +94,7 @@ export function PlannerPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleLoadDemo}>
-            <Sparkles size={14} className="mr-1.5 text-primary" /> Load demo data
-          </Button>
+
           <Button size="sm" disabled={!calendarReady || saving} onClick={() => setCreatingBlock({ start: '10:00' })}>
             <Plus size={14} className="mr-1.5" /> Add work block
           </Button>
@@ -343,9 +331,7 @@ export function PlannerPage() {
             {!pendingTasks.length && (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
                 <p>No pending tasks found.</p>
-                <Button variant="outline" size="sm" className="mt-2 text-xs" onClick={handleLoadDemo}>
-                  Load demo tasks
-                </Button>
+
               </div>
             )}
           </div>

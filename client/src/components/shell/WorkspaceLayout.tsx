@@ -1,3 +1,6 @@
+import { useProject } from '@/hooks/useProject'
+import { SelectedProjectScope } from '@/state/SelectedProjectScope'
+import { useLocation } from 'react-router-dom'
 import { RecordNotice } from '@/components/feedback/RecordNotice'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
@@ -21,6 +24,8 @@ const fontTheme = {
 }
 
 export function WorkspaceLayout() {
+  const { compatible } = useProject()
+  const location = useLocation()
   const [headerActions, setHeaderActions] = useState<HTMLDivElement | null>(null)
   const [activeSlots, setActiveSlots] = useState<Set<string>>(() => new Set())
   const register = useCallback((id: string) => {
@@ -47,6 +52,6 @@ export function WorkspaceLayout() {
     <div className="workspace-main-panel"><PageHeader visible={!sidebarOpen || activeSlots.size > 0}
       left={!sidebarOpen && <SidebarToggleButton branded open={false} mobile={mobile} onClick={() => setSidebarOpen(true)} />}
       right={<div ref={setHeaderActions} className="flex flex-wrap items-center justify-end gap-2" />}
-    /><PageHeaderContext.Provider value={headerSlot}><Outlet /></PageHeaderContext.Provider></div>
+    /><PageHeaderContext.Provider value={headerSlot}>{!compatible ? <div className="p-8"><h1 className="text-lg font-medium">Local data needs a reset</h1><p className="mt-2 text-sm text-muted-foreground">Older local records are incompatible with projects. Open Settings and choose Reset local data to start fresh.</p></div> : location.pathname === '/' || location.pathname.startsWith('/dev/') ? <Outlet /> : <SelectedProjectScope><Outlet /></SelectedProjectScope>}</PageHeaderContext.Provider></div>
   </div><RecordNotice/></ThemeProvider>
 }

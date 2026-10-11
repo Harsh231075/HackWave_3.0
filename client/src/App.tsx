@@ -1,8 +1,11 @@
+import { useSyncExternalStore } from 'react'
+import { browserDatabase } from '@/services'
 import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
 import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
 import { WorkspaceProvider } from '@/state/WorkspaceProvider'
+import { NotesPage } from '@/pages/NotesPage'
 import { ResourcesPage } from '@/pages/ResourcesPage'
 import { MeetingsPage } from '@/pages/MeetingsPage'
 import { AppPage } from '@/pages/AppPage'
@@ -12,14 +15,16 @@ import { PlannerPage } from '@/pages/PlannerPage'
 import { ComponentGallery } from '@/pages/ComponentGallery'
 
 function App() {
+  const epoch = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getEpoch, browserDatabase.getEpoch)
   return (
     <BrowserRouter>
-      <WorkspaceProvider><GoogleCalendarProvider><DisplayPreferencesProvider>
+      <WorkspaceProvider key={epoch}><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/notes" element={<NotesPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/meetings" element={<MeetingsPage />} />
             <Route path="/calendar" element={<Navigate to="/meetings?view=calendar" replace />} />

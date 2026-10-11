@@ -1,3 +1,4 @@
+import { projectSettings } from './projectOwnership.ts'
 import { emptyWorkspace, workspaceCollectionKey, workspaceDocumentSchema, type WorkspaceDocument } from '../domain/workspaceDocument.ts'
 import { makeInstance, widgetInstanceSchema, widgetSelectionKey, pinnedWidgetSchema, type WidgetBinding, type WidgetInstance, type WidgetViewState } from '../domain/widgetInstances.ts'
 import { widgetTypes, PRESETS, type WidgetType } from '../lib/workspace/config.ts'
@@ -40,6 +41,7 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
     }
     let document = emptyWorkspace(), skipped = 0
     if (existing.status === 'invalid') return { document, notice: 'Saved workspace is invalid and has been preserved. Reset the workspace to start again.', persistence: { status: 'invalid' } }
+    if (projectSettings(database)) { const settings = projectSettings(database)!; document.active = PRESETS.home.widgets.map(widget => ({ ...makeInstance(widget.id, {kind:'workspace',projectId:settings.selectedProjectId}), span:widget.span })); return {document,notice:'',persistence:database.getPersistenceResult()} }
     const read = (key: string) => { const result = database.storage.readJson(key); if (result.status === 'invalid') skipped++; return result.status === 'found' ? result.value : null }
     const rawManaged = read('orlo-continuous-workspace-v1')
     const legacy = read('gogpt-app-layout-v1') as { response?: string } | null

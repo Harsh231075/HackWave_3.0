@@ -1,3 +1,4 @@
+import { projectHasClient } from './projects.ts'
 import { continuationChangeSchema } from './intentChanges.ts'
 import { z } from 'zod'
 
@@ -23,15 +24,15 @@ export const resolvedIntentSchema = z.strictObject({
   goalType: intentGoalTypeSchema, ...entityFields,
   dateRange: intentDateRangeSchema, constraints: intentConstraintsSchema.optional(),
 }).superRefine((intent, ctx) => {
-  const field = { meeting_preparation: 'meetingId', usage_investigation: 'clientId', overdue_review: 'projectId' } as const
+  const field = { meeting_preparation: 'meetingId', usage_investigation: 'projectId', overdue_review: 'projectId' } as const
   const required = field[intent.goalType]
-  if (!intent[required]) ctx.addIssue({ code: 'custom', path: [required], message: `This goal requires ${required}.` })
+  if (!intent[required] && !(intent.goalType === 'usage_investigation' && intent.clientId)) ctx.addIssue({ code: 'custom', path: [required], message: `This goal requires ${required}.` })
 })
 const clientCandidateSchema = z.strictObject({ id: identifier, label: identifier })
-const projectCandidateSchema = z.strictObject({ id: identifier, label: identifier, clientId: identifier.optional() })
+const projectCandidateSchema = z.strictObject({ id: identifier, label: identifier, clientId: identifier.optional(), clientIds: identifier.array().optional(), activeClientIds: identifier.array().optional() })
 const meetingCandidateSchema = z.strictObject({ id: identifier, label: identifier, date: intentDateSchema, clientId: identifier.optional(), projectId: identifier.optional() })
 export const intentCandidatesSchema = z.strictObject({
-  usageScopes: z.array(z.strictObject({ clientId: identifier, projectId: identifier, segments: identifier.array().max(100), dateRange: intentDateRangeSchema.nullable() })).max(1000).optional(),
+  usageScopes: z.array(z.strictObject({ clientId: identifier.optional(), projectId: identifier, segments: identifier.array().max(100), dateRange: intentDateRangeSchema.nullable() })).max(1000).optional(),
   clients: z.array(clientCandidateSchema), projects: z.array(projectCandidateSchema), meetings: z.array(meetingCandidateSchema),
 }).superRefine((catalog, ctx) => {
   for (const kind of ['clients', 'projects', 'meetings'] as const) {
@@ -40,9 +41,10 @@ export const intentCandidatesSchema = z.strictObject({
   const clients = new Set(catalog.clients.map(item => item.id))
   const projects = new Map(catalog.projects.map(item => [item.id, item]))
   for (const [index, project] of catalog.projects.entries()) {
+    if (project.clientIds?.some(id=>!clients.has(id)) || project.activeClientIds?.some(id=>!project.clientIds?.includes(id))) ctx.addIssue({code:'custom',message:'Unknown project client membership.'})
     if (project.clientId && !clients.has(project.clientId)) ctx.addIssue({ code: 'custom', path: ['projects', index, 'clientId'], message: 'Unknown client.' })
   }
-  for (const scope of catalog.usageScopes ?? []) if (!clients.has(scope.clientId) || projects.get(scope.projectId)?.clientId !== scope.clientId || new Set(scope.segments).size !== scope.segments.length) ctx.addIssue({ code: 'custom', message: 'Invalid usage catalog ownership or segments.' })
+  for (const scope of catalog.usageScopes ?? []) if (scope.clientId && !clients.has(scope.clientId) || !projectHasClient(projects.get(scope.projectId), scope.clientId) || new Set(scope.segments).size !== scope.segments.length) ctx.addIssue({ code: 'custom', message: 'Invalid usage catalog ownership or segments.' })
   for (const [index, meeting] of catalog.meetings.entries()) {
     if (meeting.clientId && !clients.has(meeting.clientId)) ctx.addIssue({ code: 'custom', path: ['meetings', index, 'clientId'], message: 'Unknown client.' })
     if (meeting.projectId && !projects.has(meeting.projectId)) ctx.addIssue({ code: 'custom', path: ['meetings', index, 'projectId'], message: 'Unknown project.' })
@@ -79,10 +81,10 @@ function referenceIssues(intent: PartialIntent, catalog: IntentCandidates): Arra
   if (intent.projectId && meeting?.projectId && intent.projectId !== meeting.projectId) add('projectId', 'Project contradicts the selected meeting.')
   const meetingClient = meeting?.clientId ?? catalog.projects.find(item => item.id === meeting?.projectId)?.clientId
   if (intent.clientId && meetingClient && intent.clientId !== meetingClient) add('clientId', 'Client contradicts the selected meeting.')
-  if (intent.clientId && project?.clientId && intent.clientId !== project.clientId) add('clientId', 'Client contradicts the selected project.')
+  if (intent.clientId && project && !projectHasClient(project, intent.clientId)) add('clientId', 'Client contradicts the selected project.')
   if (meetingClient && project?.clientId && meetingClient !== project.clientId) add('projectId', 'Project contradicts the meeting client.')
   if (intent.goalType === 'usage_investigation' && intent.constraints?.segment && catalog.usageScopes) {
-    const scopes = catalog.usageScopes.filter(s => s.clientId === intent.clientId && (!intent.projectId || s.projectId === intent.projectId))
+    const scopes = catalog.usageScopes.filter(s => (!intent.clientId || s.clientId === intent.clientId) && (!intent.projectId || s.projectId === intent.projectId))
     if (!scopes.some(s => s.segments.includes(intent.constraints!.segment!))) add('constraints', 'Unknown usage segment for this scope.')
   }
   return issues

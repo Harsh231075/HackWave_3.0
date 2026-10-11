@@ -1,3 +1,4 @@
+import { projectHasClient } from '@/domain/projects'
 import { calendarDate } from '@/domain/calendar'
 import { getActivityRecords } from '@/services/recordHistory'
 import { browserDatabase, adaptiveDataService } from '@/services'
@@ -16,7 +17,7 @@ import { useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { CheckCheck, Clock3, ListTodo, TriangleAlert, TrendingUp } from 'lucide-react'
 import { useWorkspace } from '@/state/WorkspaceProvider'
-import { DEMO_DATE } from '@/data/demo'
+
 import { minutes } from '@/domain/workspace'
 import { DataState, type DisplayState } from '@/components/feedback/common'
 
@@ -32,7 +33,7 @@ export function Metrics() {
   const [selectedTask,setSelectedTask]=useState<Task>()
   const [selectedEvent,setSelectedEvent]=useState<Event>()
   const component = useComponentView()
-  const today = component?.plan.referenceDate ?? DEMO_DATE
+  const today = component?.plan.referenceDate ?? calendarDate()
   const completed = tasks.filter(task=>task.status==='completed').length
   const overdue = tasks.filter(task => task.status !== 'completed' && task.due < today).length
   const focus = state.events.filter(event => event.date === (component?.plan.bindings.selectedDate ?? today) && event.category === 'focus').reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
@@ -49,7 +50,7 @@ export function ProductivityChart({ displayState }: { displayState?: DisplayStat
   const setType = (value: 'trend'|'comparison'|'allocation') => component ? component.change({chartType:value}) : setLocalType(value)
   const today = component?.plan.bindings.selectedDate ?? component?.plan.referenceDate ?? selectedDate ?? calendarDate()
   const b=component?.plan.bindings,scope=adaptiveDataService.snapshot()
-  const projectIds=new Set((scope?.projects??[]).filter(p=>(!b?.projectId||p.id===b.projectId)&&(!b?.clientId||p.clientId===b.clientId)).map(p=>p.id))
+  const projectIds=new Set((scope?.projects??[]).filter(p=>(!b?.projectId||p.id===b.projectId)&&(!b?.clientId||projectHasClient(p,b.clientId))).map(p=>p.id))
   const records=getActivityRecords(browserDatabase).filter(r=>!b?.projectId&&!b?.clientId||scope?.relationships.some(link=>link.sourceKind==='project'&&projectIds.has(link.sourceId)&&link.targetKind==='task'&&link.targetId===r.entityId))
   const end=component?.plan.bindings.dateRange?.to??today,start=component?.plan.bindings.dateRange?.from??shiftDate(end,-6)
   const length=Math.min(366,Math.max(1,Math.round((Date.parse(end)-Date.parse(start))/86400000)+1))

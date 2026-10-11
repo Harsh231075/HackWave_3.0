@@ -13,18 +13,22 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DataState, StatusBadge, type DisplayState } from '@/components/feedback/common'
 import { useWorkspace } from '@/state/WorkspaceProvider'
-import { DEMO_DATE, DEMO_TIME } from '@/data/demo'
+import { projectDataService, meetingService } from '@/services'
 import { minutes } from '@/domain/workspace'
 import type { EventInput } from '@/domain/commands'
 import type { Event } from '@/domain/types'
 
 export function MeetingForm({ open, onClose, date, start = '13:30', event: initial, duration=60, beforeSave }: { beforeSave?: (input: EventInput) => Promise<void>; duration?:number; open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
   const { saveEvent, notify } = useWorkspace()
+  const component = useComponentView()
+  const projectId = initial?.projectId ?? component?.plan.bindings.projectId ?? projectDataService.selectedId()
+  const [clientId, setClientId] = useState(initial?.clientId ?? meetingService.list().find(meeting => meeting.eventId === initial?.id)?.clientId ?? '')
+  const clients = projectDataService.clientLinks(projectId ?? '').map(link => projectDataService.clients.getById(link.clientId)).filter(client => client !== null)
   const [title, setTitle] = useState(initial?.title ?? '')
   const [day, setDay] = useState(initial?.date ?? date)
   const [begin, setBegin] = useState(initial?.start ?? start)
   const [end, setEnd] = useState(initial?.end ?? (`${String(Math.floor(Math.min(1439,minutes(start)+duration)/60)).padStart(2,'0')}:${String(Math.min(1439,minutes(start)+duration)%60).padStart(2,'0')}`))
-  const [participants, setParticipants] = useState(initial?.participants.join(', ') ?? 'Maya')
+  const [participants, setParticipants] = useState(initial?.participants.join(', ') ?? '')
   const [agenda, setAgenda] = useState(initial?.agenda ?? '')
   const [category, setCategory] = useState<Event['category']>(initial?.category ?? 'meeting')
   const [error, setError] = useState('')
@@ -34,7 +38,7 @@ export function MeetingForm({ open, onClose, date, start = '13:30', event: initi
   return <Dialog open={open} onOpenChange={value => { if (!value && !saving) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{initial ? 'Edit session' : 'Schedule a session'}</DialogTitle><DialogDescription>Changes are saved on this device.</DialogDescription></DialogHeader><form className="flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:[gap:0.35rem] [&_label]:text-[length:0.84rem] [&_label]:font-medium [&_select]:bg-(--background) [&_select]:[border:1px_solid_var(--border)] [&_select]:rounded-[var(--radius)] [&_select]:[padding:0.5rem_0.75rem] [&_select]:text-[length:0.88rem] [&_select]:text-(--foreground) [&_input]:bg-(--background) [&_input]:[border:1px_solid_var(--border)] [&_input]:rounded-[var(--radius)] [&_input]:[padding:0.5rem_0.75rem] [&_input]:text-[length:0.88rem] [&_input]:text-(--foreground) [&_textarea]:bg-(--background) [&_textarea]:[border:1px_solid_var(--border)] [&_textarea]:rounded-[var(--radius)] [&_textarea]:[padding:0.5rem_0.75rem] [&_textarea]:text-[length:0.88rem] [&_textarea]:text-(--foreground)" onSubmit={async e => {
     e.preventDefault()
     if(saving)return
-    const input = { id: initial?.id, title, date: day, start: begin, end, category, participants: participants.split(','), agenda }
+    const input = { id: initial?.id, projectId, ...(clientId ? {clientId} : {}), title, date: day, start: begin, end, category, participants: participants.split(','), agenda }
     setSaving(true); setError('')
     try {
       await beforeSave?.(input)
@@ -44,7 +48,7 @@ export function MeetingForm({ open, onClose, date, start = '13:30', event: initi
       notify('Event saved.'); onClose()
     } catch(error) {if(mounted.current)setError(error instanceof Error?error.message:'Unable to verify calendar availability.')}
     finally {if(mounted.current)setSaving(false)}
-  }}><fieldset disabled={saving} className="contents"><label>Session title<Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Research check-in" maxLength={120} required autoFocus /></label><div className="grid grid-cols-2 [gap:0.85rem]"><label>Date<Input type="date" value={day} onChange={e => setDay(e.target.value)} required /></label><label>Type<select value={category} onChange={e => setCategory(e.target.value as Event['category'])}><option value="meeting">Meeting</option><option value="focus">Focus session</option><option value="class">Class / learning</option><option value="break">Break</option></select></label><label>Start time<Input type="time" value={begin} onChange={e => setBegin(e.target.value)} required /></label><label>End time<Input type="time" value={end} onChange={e => setEnd(e.target.value)} required /></label></div><label>Participants<Input value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={300} /></label><label>Agenda / description<Textarea value={agenda} onChange={e => setAgenda(e.target.value)} placeholder="What would you like to cover?" rows={3} maxLength={3000} /></label>{error && <p role="alert" className="[color:#ef4444] text-[length:0.8rem] font-medium">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">{saving ? 'Checking calendars…' : initial ? 'Save changes' : 'Schedule session'}</Button></DialogFooter></fieldset></form></DialogContent></Dialog>
+  }}><fieldset disabled={saving} className="contents"><p className="text-xs text-muted-foreground">Project: {projectDataService.projects.getById(projectId ?? '')?.name ?? 'Choose a project in the sidebar'}</p><label>Session title<Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Research check-in" maxLength={120} required autoFocus /></label><div className="grid grid-cols-2 [gap:0.85rem]"><label>Date<Input type="date" value={day} onChange={e => setDay(e.target.value)} required /></label><label>Type<select value={category} onChange={e => setCategory(e.target.value as Event['category'])}><option value="meeting">Meeting</option><option value="focus">Focus session</option><option value="class">Class / learning</option><option value="break">Break</option></select></label><label>Start time<Input type="time" value={begin} onChange={e => setBegin(e.target.value)} required /></label><label>End time<Input type="time" value={end} onChange={e => setEnd(e.target.value)} required /></label></div><label>Client (optional)<select aria-label="Meeting client" value={clientId} onChange={event=>setClientId(event.target.value)}><option value="">No client</option>{clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label>Participants<Input value={participants} onChange={e => setParticipants(e.target.value)} placeholder="Names, separated by commas" maxLength={300} /></label><label>Agenda / description<Textarea value={agenda} onChange={e => setAgenda(e.target.value)} placeholder="What would you like to cover?" rows={3} maxLength={3000} /></label>{error && <p role="alert" className="[color:#ef4444] text-[length:0.8rem] font-medium">{error}</p>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="submit">{saving ? 'Checking calendars…' : initial ? 'Save changes' : 'Schedule session'}</Button></DialogFooter></fieldset></form></DialogContent></Dialog>
 }
 
 export function MeetingCard({ event, onSelect }: { event: Event; onSelect: () => void }) {
@@ -96,13 +100,13 @@ export function DailyTimeline() {
   const [selected, setSelected] = useState<string>()
   const [creating,setCreating]=useState(false)
   const scope=useComponentView()?.plan.bindings
-  const canCreate=!scope?.projectId&&!scope?.clientId
+  const canCreate=!!(scope?.projectId ?? projectDataService.selectedId())
   const events = state.events.filter(event=>event.date===selectedDate).sort((a,b)=>a.start.localeCompare(b.start))
   const planned = events.reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
   const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span><Button variant="outline" size="sm" disabled={!canCreate} title={canCreate?undefined:'Create new local blocks in an unscoped Timeline or Calendar view.'} onClick={()=>setCreating(true)}><Plus size={14}/> Add block</Button></>
   return <><WidgetActions>{controls}</WidgetActions><div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {
     const starting = events.filter(event => Number(event.start.slice(0, 2)) === hour)
     const occupied = events.some(event => minutes(event.start) < (hour + 1) * 60 && minutes(event.end) > hour * 60)
-    return <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={hour}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{String(hour).padStart(2, '0')}:00</span><div className="flex-1 [padding:0.35rem_0_0.35rem_1rem] flex flex-col [gap:0.35rem]">{selectedDate === DEMO_DATE && hour === 9 && <div className="absolute [left:-2px] right-0 top-3 h-0.5 [background:#ef4444] text-[length:0.72rem] font-semibold [color:#ef4444] flex items-center pl-2"><span />{DEMO_TIME} · demo now</div>}{starting.map(event => <TimeBlockCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}{!starting.length && !occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) italic [padding-top:0.35rem]">Open time</span>}{!starting.length && occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) opacity-70">Session continues</span>}</div></div>
+    return <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={hour}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{String(hour).padStart(2, '0')}:00</span><div className="flex-1 [padding:0.35rem_0_0.35rem_1rem] flex flex-col [gap:0.35rem]">{starting.map(event => <TimeBlockCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}{!starting.length && !occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) italic [padding-top:0.35rem]">Open time</span>}{!starting.length && occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) opacity-70">Session continues</span>}</div></div>
   })}{events.filter(event => Number(event.start.slice(0, 2)) < 8 || Number(event.start.slice(0, 2)) >= 18).map(event => <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={event.id}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{event.start}</span><TimeBlockCard event={event} onSelect={() => setSelected(event.id)} /></div>)}</div><MeetingForm key={selectedDate+'-'+creating} open={creating} date={selectedDate} onClose={()=>setCreating(false)}/><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }

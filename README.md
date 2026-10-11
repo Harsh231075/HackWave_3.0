@@ -91,7 +91,7 @@ The server serves the SPA and APIs together. Vite development middleware exposes
 
 The browser owns the local record snapshot. Server validation checks payload consistency but does not authenticate it or make it a trusted remote database. Generated output cannot execute mutations; interactive components use existing local services.
 
-Tasks/events/drafts persist under the existing workspace key. Additional clients/projects/meetings/communications/issues/relationships/resources use the shared metadata database. Layout version 2 saves meeting scope and composition while continuing to read version-1 responses. Unsaved agenda buffers survive view switches in the current session; only saved drafts survive reload. Pins remain session-only. Layout reset does not reset domain records.
+Local records belong to projects. A fresh install creates one empty Default project with a persisted ID. The sidebar selects the project for Tasks, Meetings, Notes, Resources and Planner; generated canvas bindings retain their own goal scope. Notes have metadata and one canonical saved body, including meeting agendas. Records and the canvas persist locally; unsaved draft buffers last for the current session. Settings → Reset local data clears local projects, records, notes, attachments, layout, pins, history and preferences. Google Calendar credentials and remote events are unaffected. Settings → Seed sample data explicitly installs two linked sample projects only when the database is empty.
 
 Authentication, sharing, external calendar connections, notification delivery, and cloud synchronization are not implemented. Their local service boundaries do not claim external functionality.
 
@@ -125,7 +125,7 @@ Structured intent/composition responses default to 768 output tokens. Set `MODEL
 
 ## Verify usage data cleanup
 
-Open `/workspace/usage` (or select Usage in `/dev/components`). Choose a client, then a project; project choices depend on the client. Segment choices come from stored measurements, and inclusive From/Through filters apply when both dates are supplied. Chart values, accessible summaries, endpoint comparisons and source tables all use the selected records. Missing observations stay unknown, zero baselines have no percentage, and release timing is not presented as causal proof.
+Open `/workspace/usage` (or select Usage in `/dev/components`). Choose a project and optionally filter by one of its clients. Projects can have no clients or multiple clients. Segment choices come from stored measurements, and inclusive From/Through filters apply when both dates are supplied. Chart values, accessible summaries, endpoint comparisons and source tables all use the selected records. Missing observations stay unknown, zero baselines have no percentage, and release timing is not presented as causal proof.
 
 `usageObservationService` and `usageReleaseService` provide local CRUD through browserDatabase. Records are one measurement per project/date/segment and require consistent client/project ownership. Source collections seed only when missing; existing edits and empty collections survive reload. Comparisons show labeled endpoints and equal-length early/late period averages within the selected dates; odd middle days are excluded and incomplete coverage prevents a percentage. AI usage investigation is connected to resolved intent, linked project work and saved sessions.
 
@@ -148,8 +148,12 @@ For deterministic browser verification, run `node scripts/verify-actions.mjs` fr
 
 The dynamic workspace and static previews render the same typed widget instances through one registry and binding host. A widget type identifies a component; a stable instance ID identifies its independently scoped view. Natural-language add, remove, move, resize, replace, and filter requests update one workspace document. Ordinary changes retain other views and scoped pins. Ambiguous requests ask which view to change; explicit clear can leave an empty workspace.
 
-The `workspaceDocument` collection in `orlo-browser-db-v1` stores active instances, scoped pins, a revision, text conversation history, and follow-up targets. Tasks, local events, and drafts remain separate domain records. A one-time migration reads older layouts, pins, PR managed items, and calendar requests; original storage remains intact. Storage failures show feedback and retain valid edits for the current session. Layout undo preserves conversation history and does not undo external events.
+The `workspaceDocument` collection in `orlo-browser-db-v1` stores active instances, scoped pins, a revision, text conversation history, and follow-up targets. Tasks, local events, and drafts remain separate domain records. The project data version prevents older unowned records from being reused. Incompatible or malformed local data shows a recovery screen until Settings → Reset local data. Reset replaces the entire local database rather than migrating old sample records. Storage failures show feedback and retain valid edits for the current session. Layout undo preserves conversation history and does not undo external events.
 
 Google Calendar bindings explicitly identify their account and primary calendar. Disconnected or different accounts show placeholders, never demo substitutes. Local focus scheduling uses the shared validated action dialog; Google scheduling uses server-owned preview and confirmation operations. See [Google Calendar setup](GOOGLE_CALENDAR_SETUP_AND_TESTING.md).
 
 Checks: `cd client && npm test && npm run test:render && npm run build && npm run lint`. The render check covers the unified default/static canvas and independent project views; mocked API tests cover OAuth and event creation. Real Google authorization still requires configured credentials and a browser.
+
+## Project data verification
+
+`npm test` covers empty initialization, project ownership, multi-client associations, canonical notes/agendas, explicit sample seeding and reset/recovery. `npm run test:projects` provides optional Playwright checks for project switching, local task creation, note creation, reload, Reset/Seed and incompatible storage recovery. It uses the same `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH` overrides as the Kanban browser checks. Historical fixed fixtures live under `client/server/fixtures/`; the application does not import them.

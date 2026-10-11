@@ -1,3 +1,5 @@
+import { projectHasClient, projectClientSchema } from '../domain/projects.ts'
+import { projectSettings } from './projectOwnership.ts'
 import { z } from 'zod'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { LoadResult } from './contracts.ts'
@@ -21,26 +23,34 @@ export function createAdaptiveDataService(database: BrowserDatabase) {
     if ([clients, projects, meetings, communications, issues, relationships, resources].some(result => result.status !== 'found')) return null
     if (clients.status !== 'found' || projects.status !== 'found' || meetings.status !== 'found' || communications.status !== 'found' || issues.status !== 'found' || relationships.status !== 'found' || resources.status !== 'found') return null
     const state = database.getState()
-    const validProjects = projects.value.filter(project => !project.clientId || clients.value.some(client => client.id === project.clientId))
+    const memberships = read(database, 'projectClients', projectClientSchema)
+    if (projectSettings(database) && memberships.status !== 'found') return null
+    const members = memberships.status === 'found' ? memberships.value : []
+    const projectRecords = projectSettings(database) ? projects.value.map(project => ({ ...project, clientIds: members.filter(m => m.projectId === project.id).map(m => m.clientId), activeClientIds: members.filter(m => m.projectId === project.id && m.active).map(m => m.clientId) })) : projects.value
+    const validProjects = projectRecords.filter(project => !project.clientId || clients.value.some(client => client?.id === project.clientId))
     const effectiveMeetings = meetings.value.flatMap(meeting => {
-      if (!clients.value.some(client => client.id === meeting.clientId) || !validProjects.some(project => project.id === meeting.projectId && project.clientId === meeting.clientId)) return []
-      if (!meeting.eventId) return [meeting]
+      if ((meeting.clientId && !clients.value.some(client => client?.id === meeting.clientId)) || !validProjects.some(project => project.id === meeting.projectId && projectHasClient(project, meeting.clientId))) return []
+      if (!meeting.eventId) return [{ ...meeting, ...(projectSettings(database) ? {agenda:state.drafts[`meeting-agenda:${meeting.id}`] ?? meeting.agenda} : {}) }]
       const event = state.events.find(item => item.id === meeting.eventId && item.category === 'meeting')
-      if (!event) return []
-      const parsed = meetingSchema.safeParse({ ...meeting, date: event.date, start: event.start, end: event.end, participants: event.participants, agenda: event.agenda, title: event.title })
+      if (!event || projectSettings(database) && event.projectId !== meeting.projectId) return []
+      const parsed = meetingSchema.safeParse({ ...meeting, date: event.date, start: event.start, end: event.end, participants: event.participants, agenda: projectSettings(database) ? state.drafts[`meeting-agenda:${meeting.id}`] ?? meeting.agenda : event.agenda, title: event.title })
       return parsed.success ? [parsed.data] : []
     })
     return { clients: clients.value, projects: validProjects, meetings: effectiveMeetings, communications: communications.value, issues: issues.value, relationships: relationships.value, resources: resources.value, tasks: state.tasks }
   }
-  const hasScope = (clientId: string, projectId: string, meetingId?: string) => {
+  const hasScope = (clientId: string | undefined, projectId: string, meetingId?: string) => {
     const data = snapshot()
-    return !!data && data.projects.some(project => project.id === projectId && project.clientId === clientId) && (!meetingId || data.meetings.some(meeting => meeting.id === meetingId && meeting.clientId === clientId && meeting.projectId === projectId))
+    return !!data && data.projects.some(project => project.id === projectId && projectHasClient(project, clientId)) && (!meetingId || data.meetings.some(meeting => meeting.id === meetingId && meeting.clientId === clientId && meeting.projectId === projectId))
   }
   function scopedCollection<T extends { id: string }>(key: string, schema: z.ZodType<T>, valid: (record: T) => boolean) {
     const base = createCollection(database, key, schema)
     const save = (record: T) => {
       const parsed = schema.safeParse(record)
-      if (!parsed.success || !valid(parsed.data)) return { ok: false as const, message: `Invalid ${key} references or ownership.` }
+      const attributed = parsed.success ? parsed.data as T & {projectId?:string;clientId?:string} : null
+      const previous = attributed ? base.getById(attributed.id) as (T & {projectId?:string;clientId?:string}) | null : null
+      const links = projectSettings(database) ? database.readCollection('projectClients') : null
+      const activeAttribution = !attributed?.clientId || !projectSettings(database) || previous?.clientId === attributed.clientId && previous?.projectId === attributed.projectId || links?.status === 'found' && Array.isArray(links.value) && links.value.some(link=>link.projectId === attributed.projectId && link.clientId === attributed.clientId && link.active)
+      if (!parsed.success || !valid(parsed.data) || !activeAttribution) return { ok: false as const, message: `Invalid ${key} references or ownership.` }
       return base.save(parsed.data)
     }
     return { ...base, save,
@@ -62,11 +72,11 @@ export function createAdaptiveDataService(database: BrowserDatabase) {
       const records = link.targetKind === 'task' ? data.tasks : data.resources
       const projectId = link.sourceKind === 'project' ? source.id : (source as Meeting).projectId
       const crossProject = data.relationships.some(item => item.id !== link.id && item.sourceKind === 'project' && item.sourceId !== projectId && item.targetKind === link.targetKind && item.targetId === link.targetId)
-      return !crossProject && records.some(item => item.id === link.targetId)
+      return !crossProject && records.some(item => item.id === link.targetId && (!projectSettings(database) || link.sourceKind === 'meeting' && item.projectId === projectId))
     }
     const target = data.meetings.find(item => item.id === link.targetId)
     const sourceMeeting = source as Meeting
-    return !!target && target.id !== sourceMeeting.id && target.clientId === sourceMeeting.clientId && target.projectId === sourceMeeting.projectId && target.date < sourceMeeting.date
+    return !!target && target.id !== sourceMeeting.id && (!sourceMeeting.clientId || target.clientId === sourceMeeting.clientId) && target.projectId === sourceMeeting.projectId && target.date < sourceMeeting.date
   })
   return {
     snapshot, clients, projects, meetings, communications, issues, relationships,
@@ -74,9 +84,9 @@ export function createAdaptiveDataService(database: BrowserDatabase) {
       const data = snapshot()
       if (!data) return { status: 'invalid' }
       const catalog = intentCandidatesSchema.safeParse({
-        clients: data.clients.map(client => ({ id: client.id, label: client.name })),
-        projects: data.projects.map(project => ({ id: project.id, label: project.name, ...(project.clientId ? { clientId: project.clientId } : {}) })),
-        meetings: data.meetings.map(meeting => ({ id: meeting.id, label: `${data.clients.find(client => client.id === meeting.clientId)?.name} · ${meeting.title} · ${meeting.date} ${meeting.start}–${meeting.end}`, date: meeting.date, clientId: meeting.clientId, projectId: meeting.projectId })),
+        clients: data.clients.map(client => ({ id: client?.id, label: client.name })),
+        projects: data.projects.map(project => ({ id: project.id, label: project.name, ...(project.clientId ? { clientId: project.clientId } : {}), ...(project.clientIds ? { clientIds: project.clientIds, activeClientIds: project.activeClientIds } : {}) })),
+        meetings: data.meetings.map(meeting => ({ id: meeting.id, label: `${data.clients.find(client => client?.id === meeting.clientId)?.name ?? data.projects.find(project => project.id === meeting.projectId)?.name} · ${meeting.title} · ${meeting.date} ${meeting.start}–${meeting.end}`, date: meeting.date, clientId: meeting.clientId, projectId: meeting.projectId })),
       })
       return catalog.success ? { status: 'found', value: catalog.data } : { status: 'invalid' }
     },
@@ -86,16 +96,17 @@ export function createAdaptiveDataService(database: BrowserDatabase) {
       const meeting = data.meetings.find(item => item.id === meetingId)
       if (!meeting) return { status: 'missing' }
       const client = data.clients.find(item => item.id === meeting.clientId), project = data.projects.find(item => item.id === meeting.projectId)
-      if (!client || !project) return { status: 'missing' }
+      if (!project || meeting.clientId && !client) return { status: 'missing' }
       const links = data.relationships.filter(link => (link.sourceKind === 'meeting' && link.sourceId === meeting.id) || (link.sourceKind === 'project' && link.sourceId === meeting.projectId))
       const selected = (kind: string, id: string) => links.some(link => link.type === 'related' && link.targetKind === kind && link.targetId === id)
       // Links cannot import a record explicitly assigned to another project.
       const exclusive = (kind: string, id: string) => !data.relationships.some(link => link.sourceKind === 'project' && link.sourceId !== project.id && link.targetKind === kind && link.targetId === id)
-      const previousMeeting = data.meetings.filter(item => item.clientId === client.id && item.projectId === project.id && item.date < meeting.date && links.some(link => link.type === 'previous_meeting' && link.targetId === item.id)).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
-      const scoped = (item: { clientId: string; projectId: string; meetingId?: string }) => item.clientId === client.id && item.projectId === project.id && (!item.meetingId || item.meetingId === meeting.id)
-      const result = preparationSchema.safeParse({ meeting, client, project, previousMeeting,
-        tasks: data.tasks.filter(task => selected('task', task.id) && exclusive('task', task.id)).slice(0, 100),
-        resources: data.resources.filter(resource => selected('resource', resource.id) && exclusive('resource', resource.id)).slice(0, 100),
+      const availableForMeeting = (kind: string, id: string) => !data.relationships.some(link => link.sourceKind === 'meeting' && link.targetKind === kind && link.targetId === id && link.sourceId !== meeting.id) || selected(kind, id)
+      const previousMeeting = data.meetings.filter(item => (!client || item.clientId === client.id) && item.projectId === project.id && item.date < meeting.date && links.some(link => link.type === 'previous_meeting' && link.targetId === item.id)).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
+      const scoped = (item: { clientId?: string; projectId: string; meetingId?: string }) => (!client || item.clientId === client.id) && item.projectId === project.id && (!item.meetingId || item.meetingId === meeting.id)
+      const result = preparationSchema.safeParse({ meeting, client: client ?? null, project, previousMeeting,
+        tasks: data.tasks.filter(task => task.projectId ? task.projectId === project.id && availableForMeeting('task', task.id) : !projectSettings(database) && selected('task', task.id) && exclusive('task', task.id)).slice(0, 100),
+        resources: data.resources.filter(resource => resource.projectId ? resource.projectId === project.id && availableForMeeting('resource', resource.id) : !projectSettings(database) && selected('resource', resource.id) && exclusive('resource', resource.id)).slice(0, 100),
         communications: data.communications.filter(item => scoped(item) && item.date <= meeting.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10),
         issues: data.issues.filter(item => scoped(item) && item.status === 'open').slice(0, 100),
         reasons: { tasks: `Tasks explicitly linked to ${project.name} or this meeting.`, resources: 'Sources explicitly linked to this project or meeting.', communications: 'Latest communications in the selected project through the meeting date.', issues: 'Open issues belonging to the selected client and project.' },

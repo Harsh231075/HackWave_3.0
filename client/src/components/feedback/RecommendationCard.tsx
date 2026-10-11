@@ -1,3 +1,4 @@
+import { calendarDate } from '@/domain/calendar'
 import { TaskForm } from '@/components/tasks/TaskWidgets'
 import { MeetingDetails } from '@/components/calendar/CalendarWidgets'
 import { getActivityRecords } from '@/services/recordHistory'
@@ -11,7 +12,7 @@ import { OverdueRecovery } from '@/components/tasks/OverdueWidgets'
 import { Button } from '@/components/ui/button'
 import { DataState } from './common'
 import { useWorkspace } from '@/state/WorkspaceProvider'
-import { DEMO_DATE } from '@/data/demo'
+
 
 export function RecommendationCard() {
   const scope = useOverdueScope()
@@ -21,7 +22,7 @@ function GeneralRecommendationCard() {
   const { state, selectedDate, dismissRecommendation, restoreRecommendation } = useWorkspace()
   const actions = useWorkspaceActions()
   const component = useComponentView()
-  const today = component?.plan.referenceDate ?? DEMO_DATE
+  const today = component?.plan.referenceDate ?? calendarDate()
   const task = state.tasks.filter(task => task.status !== 'completed').sort((a, b) => a.due.localeCompare(b.due))[0]
   if (!task) return <DataState state="empty" empty="All caught up. There’s no outstanding work to recommend."><span /></DataState>
   const id = `recommendation-${task.id}`

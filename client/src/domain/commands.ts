@@ -25,5 +25,5 @@ export function prepareEvent(input: EventInput, state: WorkspaceState, createId:
 export function prepareFocusTime(taskId: string, date: string, state: WorkspaceState): PreparedAction<Event> {
   const task = state.tasks.find(item => item.id === taskId)
   if (!task || task.status === 'blocked' || task.status === 'completed') return { ok: false, message: 'Choose an open task without a blocker.' }
-  return prepareEvent({ title: `Focus: ${task.title}`, date, start: '13:30', end: '14:30', category: 'focus', participants: [], agenda: `Work on ${task.title}.` }, state, () => `recommendation-${task.id}`)
+  return prepareEvent({ projectId: task.projectId, title: `Focus: ${task.title}`, date, start: '13:30', end: '14:30', category: 'focus', participants: [], agenda: `Work on ${task.title}.` }, state, () => `recommendation-${task.id}`)
 }

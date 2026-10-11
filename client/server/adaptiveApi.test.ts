@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import { EventEmitter } from 'node:events'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { adaptiveEndpoint } from './adaptive.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
 import { createBrowserDatabase } from '../src/services/browserDatabase.ts'
 import { createBrowserStorage } from '../src/services/local/browserStorage.ts'
 import { createAdaptiveDataService } from '../src/services/adaptiveDataService.ts'
@@ -106,7 +106,7 @@ test('overdue compose endpoint accepts the alternate contract and rejects cross-
 
 test('usage compose endpoint validates scoped measurements and rejects fabricated evidence', async () => {
   const { createUsageWorkspaceService } = await import('../src/services/usageWorkspaceService.ts')
-  const { USAGE_DEMO } = await import('../src/data/usageDemo.ts')
+  const { USAGE_DEMO } = await import('./fixtures/usageDemo.ts')
   const database = createBrowserDatabase(createBrowserStorage(() => { throw new Error('Memory only') }), { tasks: [], events: [], drafts: {}, dismissed: [], activity: [] }, { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: [] })
   const intent = { goalType: 'usage_investigation' as const, clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' }, constraints: { segment: 'mobile' } }
   const data = createUsageWorkspaceService(database).load(intent)

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { createBrowserDatabase } from '../src/services/browserDatabase.ts'
 import { createBrowserStorage } from '../src/services/local/browserStorage.ts'
 import { createAdaptiveDataService } from '../src/services/adaptiveDataService.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
 import { intentRequestSchema, validateIntentResolution } from '../src/domain/intent.ts'
 import { validateMeetingComposition, serializeMeetingComposition, type ComposeRequest } from '../src/domain/adaptiveData.ts'
 import { createLayoutService, layoutStorageKey, meetingLayoutSchema, retainMeetingTaskFilters } from '../src/services/layoutService.ts'
@@ -137,11 +137,11 @@ test('preparation store refreshes collection-only edits with stable cached snaps
   service.clients.update('northstar', { name: 'Northstar updated' })
   assert.equal(database.getState(), domainBefore)
   assert.notEqual(store.getSnapshot(), before)
-  const current = store.getSnapshot(); assert.equal(current.status === 'found' && current.value.client.name, 'Northstar updated')
+  const current = store.getSnapshot(); assert.equal(current.status === 'found' && current.value.client?.name, 'Northstar updated')
   assert.equal(calls, 1); unsubscribe()
   service.clients.update('northstar', { name: 'Changed while unsubscribed' })
   const stop = store.subscribe(() => {})
-  const resubscribed = store.getSnapshot(); assert.equal(resubscribed.status === 'found' && resubscribed.value.client.name, 'Changed while unsubscribed')
+  const resubscribed = store.getSnapshot(); assert.equal(resubscribed.status === 'found' && resubscribed.value.client?.name, 'Changed while unsubscribed')
   stop()
 })
 

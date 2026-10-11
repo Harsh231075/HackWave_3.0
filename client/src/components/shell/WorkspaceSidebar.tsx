@@ -1,15 +1,17 @@
+import { ProjectControls, LocalDataSettings } from '@/components/records/ProjectControls'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BookOpen, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Settings, Users } from 'lucide-react'
+import { BookOpen, FileText, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Settings, Users } from 'lucide-react'
 import { SidebarToggleButton } from './SidebarToggleButton'
 import { Brand } from './AppShell'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { GoogleCalendarConnection } from '@/components/calendar/GoogleCalendarWidgets'
 
 const pages = [
-  { to: '/', label: 'Workspace', icon: LayoutDashboard },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/tasks', label: 'Tasks', icon: ListTodo },
   { to: '/meetings', label: 'Meetings', icon: Users },
+  { to: '/notes', label: 'Notes', icon: FileText },
   { to: '/resources', label: 'Resources', icon: BookOpen },
   { to: '/planner', label: 'Planner', icon: Clock3 },
 ]
@@ -26,7 +28,7 @@ export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => v
             <SidebarToggleButton open mobile={mobile} onClick={onClose} />
           </div>
         </div>
-        <nav aria-label="Workspace pages">
+        <ProjectControls /><nav aria-label="Workspace pages">
           {pages.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -67,12 +69,12 @@ export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => v
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Calendar Settings</DialogTitle>
+            <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
-              Connect Google Calendar to sync real meetings. Demo records and local scheduling remain available offline.
+              Manage local data and calendar connections.
             </DialogDescription>
           </DialogHeader>
-          <GoogleCalendarConnection />
+          <GoogleCalendarConnection /><LocalDataSettings />
         </DialogContent>
       </Dialog>
     </>

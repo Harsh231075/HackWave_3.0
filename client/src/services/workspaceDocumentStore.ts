@@ -8,6 +8,7 @@ export function createWorkspaceDocumentStore(database: BrowserDatabase) {
   let snapshot: { document: WorkspaceDocument; notice: string; undo: History[] } | undefined
   const listeners = new Set<() => void>()
   let writing = false
+  let epoch = database.getEpoch()
   const getSnapshot = () => {
     if (!snapshot) { const initial = service.initialize(); snapshot = { document: initial.document, notice: initial.notice, undo: [] } }
     return snapshot
@@ -16,6 +17,7 @@ export function createWorkspaceDocumentStore(database: BrowserDatabase) {
   const history = (document: WorkspaceDocument): History => ({ active: document.active, pins: document.pins, targets: document.targets, continuation: document.continuation ? { lastSuccess: document.continuation.lastSuccess } : undefined })
   database.subscribe(() => {
     if (writing) return
+    if (epoch !== database.getEpoch()) { epoch = database.getEpoch(); snapshot = undefined; getSnapshot(); emit(); return }
     const loaded = service.load()
     if (loaded.status !== 'found') return
     const previous = getSnapshot()

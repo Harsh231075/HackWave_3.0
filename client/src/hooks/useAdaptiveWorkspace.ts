@@ -1,3 +1,4 @@
+import { calendarDate } from '@/domain/calendar'
 import type { SuccessfulContinuation } from '@/domain/workspaceContinuation'
 import type { ContinuationChange } from '@/domain/intentChanges'
 import { usageCompositionSchema } from '@/domain/usageComposition'
@@ -11,7 +12,7 @@ import { serializeOverdueComposition, validateOverdueComposition } from '@/domai
 import type { OverdueLayout } from '@/services/layoutService'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { candidateCatalogService, intentService, meetingPreparationService, meetingCompositionService, generationService, browserDatabase } from '@/services'
-import { DEMO_DATE } from '@/data/demo'
+
 import { repairOpenUI, validLayout, validGeneratedLayout } from '@/lib/workspace/layoutValidation'
 import { serializeMeetingComposition, validateMeetingComposition, type MeetingComposition } from '@/domain/adaptiveData'
 import { intentRequestSchema, type IntentRequest, type IntentResolution, type ResolvedIntent } from '@/domain/intent'
@@ -28,6 +29,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
   const [clarification, setClarification] = useState<Clarification | null>(null)
   const request = useRef<AbortController | null>(null)
   const previousUsageComposition = useRef(initialUsageComposition)
+  const previousClock = useRef({ referenceDate: calendarDate(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
   const previousIntent = useRef(initialIntent)
   const previousComposition = useRef<MeetingComposition | undefined>(undefined)
   const previousRequestId = useRef<string | undefined>(initialRequestId)
@@ -38,23 +40,23 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
   async function run(input: GenerateWorkspaceInput, answer?: IntentRequest['clarificationAnswer'], change?: ContinuationChange): Promise<AdaptiveResult | null> {
     request.current?.abort()
     const controller = new AbortController(); request.current = controller
-    const active = () => request.current === controller && !controller.signal.aborted
+    const epoch = browserDatabase.getEpoch()
+    const active = () => epoch === browserDatabase.getEpoch() && request.current === controller && !controller.signal.aborted
     setPending(true); setError('')
     try {
       const catalog = candidateCatalogService.load()
       if (catalog.status !== 'found') throw new Error('Saved meeting data is invalid and has been preserved. Choose another view or repair the saved data.')
       const usageCatalog = usageDataService.loadCatalog()
       if (usageCatalog.status === 'found') catalog.value.usageScopes = usageCatalog.value.projects.flatMap(project => {
-        if (!project.clientId) return []
-        const records = usageInvestigationService.load({ clientId: project.clientId, projectId: project.id })
-        return records.status === 'found' ? [{ clientId: project.clientId, projectId: project.id, segments: records.value.availableSegments, dateRange: records.value.dateRange }] : []
+        const records = usageInvestigationService.load({ ...(project.clientId ? {clientId:project.clientId} : {}), projectId: project.id })
+        return records.status === 'found' ? [{ ...(project.clientId ? {clientId:project.clientId} : {}), projectId: project.id, segments: records.value.availableSegments, dateRange: records.value.dateRange }] : []
       })
       const offered = answer ? question.current : null
       if (answer && !offered) throw new Error('This question is no longer active. Submit your goal again.')
       if (!answer) { question.current = null; setClarification(null) }
       const originalGoal = offered?.originalGoal ?? input.goal.trim()
       const payload: IntentRequest = {
-        version: 1, requestId: crypto.randomUUID(), ...(change ? { continuation: change } : {}), goal: originalGoal, referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', candidates: catalog.value,
+        version: 1, requestId: crypto.randomUUID(), ...(change ? { continuation: change } : {}), goal: originalGoal, referenceDate: input.context.demoDate, timezone: input.context.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, candidates: catalog.value,
         ...(change?.relationship !== 'new_goal' && previousRequestId.current && previousIntent.current ? { followUpOf: previousRequestId.current } : {}),
         ...(change?.relationship !== 'new_goal' && previousIntent.current ? { previousIntent: previousIntent.current } : {}),
         ...(answer && offered ? { clarificationAnswer: answer, clarificationContext: { requestId: offered.requestId, originalGoal: offered.originalGoal, field: offered.field, choices: offered.choices, partialIntent: offered.partialIntent } } : {}),
@@ -65,6 +67,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
       if (resolution.status === 'unsupported') { question.current = null; setClarification(null); setError(resolution.reason); return null }
       if (resolution.status === 'needs_clarification') { question.current = resolution; setClarification(resolution); return null }
       const intent = resolution.intent
+      previousClock.current = {referenceDate:payload.referenceDate,timezone:payload.timezone}
       if (intent.goalType === 'usage_investigation') {
         const data = usageWorkspaceService.load(intent)
         if (data.status !== 'found') throw new Error('Usage records are unavailable or the selected range is invalid. Submit your goal again.')
@@ -80,17 +83,17 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
         return { kind: 'usage', session: { version: 2, kind: 'usage', taskFilters: emptyFilters(), snapshotFingerprint: usageSnapshotFingerprint(data.value.snapshot), intent, composition, response } }
       }
       if (intent.goalType === 'overdue_review') {
-        const review = overdueReviewService.load(intent, DEMO_DATE)
+        const review = overdueReviewService.load(intent, payload.referenceDate)
         if (review.status !== 'found') throw new Error('This project review is unavailable. Submit your goal again.')
         const compositionInput = { version: 1 as const, kind: 'overdue' as const, requestId: payload.requestId, intent, review: review.value }
         const composition = await overdueCompositionService.compose(compositionInput, { signal: controller.signal })
         if (!active()) return null
-        const current = overdueReviewService.load(intent, DEMO_DATE)
+        const current = overdueReviewService.load(intent, payload.referenceDate)
         if (current.status !== 'found' || !validateOverdueComposition(composition, { ...compositionInput, review: current.value }).success) throw new Error('Supporting records changed while building the review. Try again.')
         const response = serializeOverdueComposition(composition)
         if (!validLayout(response)) throw new Error('The overdue layout could not be validated.')
         previousIntent.current = intent; previousRequestId.current = payload.requestId; previousComposition.current = undefined; question.current = null; setClarification(null)
-        return { kind: 'overdue', session: { version: 2, kind: 'overdue', projectId: intent.projectId!, referenceDate: DEMO_DATE, intent, composition, response, filters: emptyFilters() } }
+        return { kind: 'overdue', session: { version: 2, kind: 'overdue', projectId: intent.projectId!, referenceDate: payload.referenceDate, intent, composition, response, filters: emptyFilters() } }
       }
       if (intent.goalType !== 'meeting_preparation' || !intent.meetingId) {
         const output = await generationService.generate({ ...input, goal: originalGoal }, { signal: controller.signal })
@@ -125,6 +128,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
   function restore(context?: SuccessfulContinuation, pendingQuestion?: Clarification) {
     previousIntent.current = context?.intent
     previousRequestId.current = context?.requestId
+    if(context) previousClock.current={referenceDate:context.referenceDate,timezone:context.timezone}
     const usage = usageCompositionSchema.safeParse(context?.composition)
     previousUsageComposition.current = usage.success ? usage.data : undefined
     const meeting = meetingCompositionSchema.safeParse(context?.composition)
@@ -134,7 +138,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
   }
   function getContinuation(goal: string, targets: string[]): SuccessfulContinuation | undefined {
     if (!previousIntent.current || !previousRequestId.current) return undefined
-    return { requestId: previousRequestId.current, goal, targetInstanceIds: targets, provider: 'demo', referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', intent: previousIntent.current, composition: previousIntent.current.goalType === 'usage_investigation' ? previousUsageComposition.current : previousIntent.current.goalType === 'meeting_preparation' ? previousComposition.current : undefined }
+    return { requestId: previousRequestId.current, goal, targetInstanceIds: targets, provider: 'demo', ...previousClock.current, intent: previousIntent.current, composition: previousIntent.current.goalType === 'usage_investigation' ? previousUsageComposition.current : previousIntent.current.goalType === 'meeting_preparation' ? previousComposition.current : undefined }
   }
   return { restore, getContinuation, pending, error, setError, clarification, run, cancel, reset, getOutcome: () => ({ error: lastError.current, clarification: question.current }) }
 }

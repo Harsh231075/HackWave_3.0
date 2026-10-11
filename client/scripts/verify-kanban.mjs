@@ -12,6 +12,7 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error' && message.text().includes('useInsertionEffect')) errors.push(message.text()) })
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tasks`)
+  await page.evaluate(async () => { const {projectSeedService} = await import('/src/services/index.ts'); const result = projectSeedService.seed(); if(!result.ok)throw new Error(result.message) })
   await page.getByLabel('Task view', { exact: true }).click()
   await page.getByRole('option', { name: 'Kanban', exact: true }).click()
   const board = page.locator('[data-task-view="kanban"]')

@@ -9,9 +9,9 @@ import { fallbackComponentIntent, type ComponentRequest } from '../src/domain/co
 import { createPinService } from '../src/services/pinService.ts'
 import { createWorkspaceActionService } from '../src/services/workspaceActionService.ts'
 import { loadActionScope } from '../src/services/actionScope.ts'
-import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES, DEMO_DATE } from '../src/data/demo.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
-import { USAGE_DEMO } from '../src/data/usageDemo.ts'
+import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES, DEMO_DATE } from './fixtures/demo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
+import { USAGE_DEMO } from './fixtures/usageDemo.ts'
 import type { WidgetBinding } from '../src/domain/widgetInstances.ts'
 const seed = { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: {}, dismissed: [], activity: [] }
 const collections = { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES }

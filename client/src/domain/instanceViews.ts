@@ -1,13 +1,14 @@
+import { calendarDate } from './calendar.ts'
 import { mergeComponentBindings } from './componentContinuation.ts'
 import { componentViewSchema, type ComponentView } from './componentIntent.ts'
 import { emptyFilters } from './workspace.ts'
 import { commitWorkspace, resolveTarget, type WorkspaceDocument } from './workspaceDocument.ts'
-import { DEMO_DATE } from '../data/demo.ts'
+
 import { makeInstance, supportsBinding, widgetSelectionKey, sameBinding, type WidgetBinding, type WidgetInstance, type WidgetViewState } from './widgetInstances.ts'
 
 export function instancePlan(instance: WidgetInstance): ComponentView {
   const view = instance.viewState, binding = instance.binding
-  return componentViewSchema.parse({ action: 'view', widgets: [instance.widgetType], bindings: { ...view, category: view.calendarCategory, ...(binding.kind === 'workspace' ? { projectId: binding.projectId, clientId: binding.clientId, draftKey: binding.draftKey } : {}) }, reply: 'Saved view', referenceDate: view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : DEMO_DATE), timezone: view.timezone ?? 'Asia/Kolkata' })
+  return componentViewSchema.parse({ action: 'view', widgets: [instance.widgetType], bindings: { ...view, category: view.calendarCategory, ...(binding.kind === 'workspace' ? { projectId: binding.projectId, clientId: binding.clientId, draftKey: binding.draftKey } : {}) }, reply: 'Saved view', referenceDate: view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : calendarDate()), timezone: view.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone })
 }
 export function applyComponentView(document: WorkspaceDocument, view: ComponentView, goal: string, bindingOverride?: WidgetBinding, exactTarget?: string, projects: Array<{ id: string; clientId?: string }> = []): WorkspaceDocument {
   let active = [...document.active], pins = [...document.pins]

@@ -1,3 +1,4 @@
+import { projectSettings, validProject } from './projectOwnership.ts'
 import { z } from 'zod'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { Resource } from '../domain/types.ts'
@@ -6,7 +7,7 @@ import { createFileService } from './fileService.ts'
 import { createAdaptiveDataService } from './adaptiveDataService.ts'
 const linkSchema=z.object({kind:z.enum(['task','meeting','project']),id:z.string().min(1)})
 export const resourcePropertiesSchema=z.object({description:z.string().max(2000).default(''),tags:z.array(z.string().trim().min(1).max(40)).max(20).default([]),links:linkSchema.array().max(50).default([])})
-export const resourceDraftInputSchema=z.object({title:z.string().max(160),kind:z.string().trim().min(1).max(80),context:z.string().max(200),body:z.string().max(5000),...resourcePropertiesSchema.shape})
+export const resourceDraftInputSchema=z.object({projectId:z.string().optional(),title:z.string().max(160),kind:z.string().trim().min(1).max(80),context:z.string().max(200),body:z.string().max(5000),...resourcePropertiesSchema.shape})
 export const resourceInputSchema=resourceDraftInputSchema.extend({title:z.string().trim().min(1).max(160)}).superRefine((r,ctx)=>{if(r.kind==='link'){try{const url=new URL(r.body);if(!['http:','https:'].includes(url.protocol))throw new Error()}catch{ctx.addIssue({code:'custom',path:['body'],message:'Enter a valid HTTP or HTTPS URL.'})}}})
 export type ResourceInput=z.infer<typeof resourceInputSchema>
 export type ResourceProperties=z.infer<typeof resourcePropertiesSchema>
@@ -19,6 +20,8 @@ export function createResourceModuleService(database:BrowserDatabase,seeds:reado
  save(input:ResourceInput,id?:string,expected?:{record:Resource;properties:ResourceProperties}){
   const parsed=resourceInputSchema.safeParse(input)
   if(!parsed.success)return {ok:false as const,message:parsed.error.issues[0].message}
+  if(!validProject(database,parsed.data.projectId))return {ok:false as const,message:'Choose an available project.'}
+  if(projectSettings(database) && parsed.data.links.some(link=>link.kind==='project' || (link.kind==='task'?database.getState().tasks.find(task=>task.id===link.id)?.projectId:adaptive.meetings.getById(link.id)?.projectId ?? database.getState().events.find(event=>event.id===link.id)?.projectId)!==parsed.data.projectId))return {ok:false as const,message:'Linked records must belong to this project.'}
   const map=properties();if(!map)return {ok:false as const,message:'Saved resource properties are invalid and have been preserved.'}
   if(parsed.data.links.some(l=>!linkValid(l)))return {ok:false as const,message:'A linked record is no longer available. Choose its replacement.'}
   if(id&&(!expected||JSON.stringify(resources.getById(id))!==JSON.stringify(expected.record)||JSON.stringify(props(id))!==JSON.stringify(expected.properties)))return {ok:false as const,message:'This resource changed. Reopen it before saving.'}

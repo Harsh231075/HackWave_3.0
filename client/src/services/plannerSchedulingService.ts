@@ -19,7 +19,7 @@ export function createPlannerSchedulingService(database:BrowserDatabase, readEve
   }
   return {verify,async schedule(task:Task,date:string,slot:{start:string;end:string},timezone:string,isCurrent:()=>boolean=()=>true){
     const id=`planner-focus:${task.id}:${date}`
-    const input={title:`Focus: ${task.title.replace(/^Demo ·\s*/i,'')}`,date,...slot,category:'focus' as const,participants:[task.owner],agenda:`Dedicated work session for: ${task.title}. ${task.description}`}
+    const input={projectId:task.projectId,title:`Focus: ${task.title.replace(/^Demo ·\s*/i,'')}`,date,...slot,category:'focus' as const,participants:[task.owner],agenda:`Dedicated work session for: ${task.title}. ${task.description}`}
     await verify(input,timezone,isCurrent)
     const current=database.getState().tasks.find(t=>t.id===task.id)
     if(!current||current.status!=='pending'||JSON.stringify(current)!==JSON.stringify(task))throw new Error('This task changed. Reopen scheduling.')

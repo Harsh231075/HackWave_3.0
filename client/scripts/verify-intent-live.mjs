@@ -5,7 +5,7 @@ import { componentIntentEndpoint } from '../server/components.ts'
 import { makeInstance } from '../src/domain/widgetInstances.ts'
 import { instancePlan } from '../src/domain/instanceViews.ts'
 import { calendarDate } from '../src/domain/calendar.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
+import { ADAPTIVE_DEMO } from '../server/fixtures/adaptiveDemo.ts'
 const instance = makeInstance('tasks', { kind: 'workspace', projectId: 'atlas', clientId: 'northstar' }, {}, 'atlas-tasks')
 const server = createServer((req, res) => { void componentIntentEndpoint(req, res) })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))

@@ -1,4 +1,4 @@
-import type { UsageObservation, UsageRelease } from '../domain/usage.ts'
+import type { UsageObservation, UsageRelease } from '../../src/domain/usage.ts'
 // Fixed values belong only in repeatable seed fixtures; widgets read editable records.
 const northstar = [
   ['2026-10-05', 620, 490], ['2026-10-06', 610, 505], ['2026-10-07', 635, 498],

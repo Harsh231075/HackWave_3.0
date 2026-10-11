@@ -1,3 +1,4 @@
+import { projectHasClient } from './projects.ts'
 import { continuationChangeSchema } from './intentChanges.ts'
 import { partialIntentSchema, type IntentRequest } from './intent.ts'
 /** Inherit scope from declared usage changes and bounded overdue follow-ups. Model output still passes the full contract validator. */
@@ -20,11 +21,13 @@ export function applyIntentContinuity(value: unknown, request: IntentRequest): u
     }
     intent.constraints = constraints
     const changes = declared.data.changes
-    if (changes.clientId && !changes.projectId && intent.projectId && request.candidates.projects.find(p => p.id === intent.projectId)?.clientId !== intent.clientId) {
+    if (changes.clientId && !changes.projectId && intent.projectId && !projectHasClient(request.candidates.projects.find(p => p.id === intent.projectId), intent.clientId)) {
       delete intent.projectId; delete intent.meetingId
     }
     if (changes.projectId?.operation === 'set') {
-      intent.clientId = request.candidates.projects.find(p => p.id === intent.projectId)?.clientId
+      const project = request.candidates.projects.find(p => p.id === intent.projectId)
+      if (project?.clientIds === undefined) intent.clientId = project?.clientId
+      else if (!projectHasClient(project, intent.clientId)) delete intent.clientId
       if (!changes.meetingId) delete intent.meetingId
     }
     if (changes.meetingId?.operation === 'set') {
@@ -36,10 +39,10 @@ export function applyIntentContinuity(value: unknown, request: IntentRequest): u
       if (matching.length === 1) { intent.meetingId = matching[0].id; intent.dateRange = { from: matching[0].date, to: matching[0].date } }
       else delete intent.meetingId
     }
-    const required = intent.goalType === 'meeting_preparation' ? 'meetingId' : intent.goalType === 'overdue_review' ? 'projectId' : 'clientId'
+    const required = intent.goalType === 'meeting_preparation' ? 'meetingId' : intent.goalType === 'overdue_review' ? 'projectId' : request.candidates.projects.some(p=>p.clientIds !== undefined) ? 'projectId' : 'clientId'
     const field = !intent[required] ? required : !intent.dateRange ? 'dateRange' : undefined
     if (field) {
-      const choices = field === 'dateRange' ? [] : field === 'meetingId' ? request.candidates.meetings.filter(m => (!intent.clientId || m.clientId === intent.clientId) && (!intent.projectId || m.projectId === intent.projectId)) : field === 'projectId' ? request.candidates.projects.filter(p => !intent.clientId || p.clientId === intent.clientId) : request.candidates.clients
+      const choices = field === 'dateRange' ? [] : field === 'meetingId' ? request.candidates.meetings.filter(m => (!intent.clientId || m.clientId === intent.clientId) && (!intent.projectId || m.projectId === intent.projectId)) : field === 'projectId' ? request.candidates.projects.filter(p => !intent.clientId || projectHasClient(p, intent.clientId)) : request.candidates.clients
       if (field !== 'dateRange' && choices.length === 1) {
         const choice = choices[0]
         Object.assign(intent, { [field]: choice.id })
@@ -64,7 +67,7 @@ export function applyIntentContinuity(value: unknown, request: IntentRequest): u
       }
       if (changes.includes('projectId')) {
         intent.projectId = proposed.projectId as string | undefined
-        if (intent.projectId && !changes.includes('clientId')) intent.clientId = request.candidates.projects.find(p => p.id === intent.projectId)?.clientId
+        if (intent.projectId && !changes.includes('clientId')) { const project = request.candidates.projects.find(p => p.id === intent.projectId); if(project?.clientIds === undefined) intent.clientId=project?.clientId; else if(!projectHasClient(project,intent.clientId)) delete intent.clientId }
       }
       if (changes.includes('dateRange')) intent.dateRange = proposed.dateRange as typeof intent.dateRange
       if (changes.includes('segment')) {

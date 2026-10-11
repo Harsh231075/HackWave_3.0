@@ -1,3 +1,4 @@
+import { projectHasClient } from './projects.ts'
 import { compositionActionsSchema, actionReferencesValid, serializeActionButtons } from './workspaceActions.ts'
 import { z } from 'zod'
 import { clientSchema, adaptiveProjectSchema, adaptiveTaskSchema, adaptiveResourceSchema, communicationSchema, issueSchema, relationshipSchema } from './adaptiveData.ts'
@@ -5,21 +6,21 @@ import { resolvedIntentSchema } from './intent.ts'
 import { usageObservationSchema, usageReleaseSchema, usageQuerySchema } from './usage.ts'
 export const usageWidgetTypes = ['context', 'usage', 'metrics', 'tasks', 'resources', 'communications', 'issues', 'outline'] as const
 export const usageSnapshotSchema = z.strictObject({
-  query: usageQuerySchema, client: clientSchema, projects: adaptiveProjectSchema.array().max(1000),
+  query: usageQuerySchema, client: clientSchema.nullable(), projects: adaptiveProjectSchema.array().max(1000),
   observations: usageObservationSchema.array().max(10000), releases: usageReleaseSchema.array().max(1000),
   tasks: adaptiveTaskSchema.array().max(1000), resources: adaptiveResourceSchema.array().max(1000),
   communications: communicationSchema.array().max(1000), issues: issueSchema.array().max(1000), relationships: relationshipSchema.array().max(10000),
 }).superRefine((data, ctx) => {
   const projects = new Set(data.projects.map(p => p.id))
-  if (data.client.id !== data.query.clientId || data.projects.some(p => p.clientId !== data.client.id || (data.query.projectId && p.id !== data.query.projectId)) || (data.query.projectId && !projects.has(data.query.projectId))) ctx.addIssue({ code: 'custom', message: 'Usage ownership must agree.' })
+  if (data.client?.id !== data.query.clientId || data.projects.some(p => !projectHasClient(p, data.client?.id) || (data.query.projectId && p.id !== data.query.projectId)) || (data.query.projectId && !projects.has(data.query.projectId))) ctx.addIssue({ code: 'custom', message: 'Usage ownership must agree.' })
   for (const key of ['observations', 'releases', 'communications', 'issues'] as const) {
     const records = data[key]
     if (new Set(records.map(r => r.id)).size !== records.length) ctx.addIssue({ code: 'custom', message: 'Duplicate usage evidence.' })
-    for (const record of records) if (record.clientId !== data.client.id || !projects.has(record.projectId) || (data.query.dateRange && ('date' in record && (record.date < data.query.dateRange.from || record.date > data.query.dateRange.to)))) ctx.addIssue({ code: 'custom', message: 'Evidence outside usage scope.' })
+    for (const record of records) if (data.query.clientId && record.clientId !== data.query.clientId || !projects.has(record.projectId) || (data.query.dateRange && ('date' in record && (record.date < data.query.dateRange.from || record.date > data.query.dateRange.to)))) ctx.addIssue({ code: 'custom', message: 'Evidence outside usage scope.' })
   }
   if (data.observations.some(r => data.query.segment && r.segment !== data.query.segment) || data.releases.some(r => data.query.segment && r.segments.length && !r.segments.includes(data.query.segment))) ctx.addIssue({ code: 'custom', message: 'Evidence outside selected segment.' })
   if (data.relationships.some(r => r.sourceKind !== 'project' || !projects.has(r.sourceId) || r.type !== 'related')) ctx.addIssue({ code: 'custom', message: 'Invalid usage relationships.' })
-  for (const [kind, records] of [['task', data.tasks], ['resource', data.resources]] as const) for (const record of records) if (!data.relationships.some(r => r.targetKind === kind && r.targetId === record.id)) ctx.addIssue({ code: 'custom', message: 'Usage work requires explicit relationships.' })
+  for (const [kind, records] of [['task', data.tasks], ['resource', data.resources]] as const) for (const record of records) if (record.projectId ? !projects.has(record.projectId) : !data.relationships.some(r => r.targetKind === kind && r.targetId === record.id)) ctx.addIssue({ code: 'custom', message: 'Usage work requires explicit relationships.' })
 })
 export type UsageSnapshot = z.infer<typeof usageSnapshotSchema>
 const evidence = z.strictObject({ kind: z.enum(['client', 'project', 'observation', 'release', 'task', 'resource', 'communication', 'issue']), id: z.string().min(1) })
@@ -34,7 +35,7 @@ export const usageComposeRequestSchema = z.strictObject({ version: z.literal(1),
 })
 export type UsageComposeRequest = z.infer<typeof usageComposeRequestSchema>
 export function usageEvidenceRecords(data: UsageSnapshot) {
-  return [{ kind: 'client', record: data.client }, ...data.projects.map(record => ({ kind: 'project', record })), ...data.observations.map(record => ({ kind: 'observation', record })), ...data.releases.map(record => ({ kind: 'release', record })), ...data.tasks.map(record => ({ kind: 'task', record })), ...data.resources.map(record => ({ kind: 'resource', record })), ...data.communications.map(record => ({ kind: 'communication', record })), ...data.issues.map(record => ({ kind: 'issue', record }))]
+  return [...(data.client ? [{ kind: 'client', record: data.client }] : []), ...data.projects.map(record => ({ kind: 'project', record })), ...data.observations.map(record => ({ kind: 'observation', record })), ...data.releases.map(record => ({ kind: 'release', record })), ...data.tasks.map(record => ({ kind: 'task', record })), ...data.resources.map(record => ({ kind: 'resource', record })), ...data.communications.map(record => ({ kind: 'communication', record })), ...data.issues.map(record => ({ kind: 'issue', record }))]
 }
 export function validateUsageComposition(value: unknown, request: UsageComposeRequest) {
   const input = usageComposeRequestSchema.safeParse(request)
@@ -46,7 +47,7 @@ export function validateUsageComposition(value: unknown, request: UsageComposeRe
   }).safeParse(value)
 }
 export const serializeUsageComposition = (plan: UsageComposition) => 'root = Card([Workspace([' + plan.widgets.map(w => 'WorkspaceWidget(' + JSON.stringify(w.type) + ', ' + JSON.stringify(w.span) + ')').join(', ') + '])' + serializeActionButtons(plan.actions) + '])'
-export const usageDraftKey = (intent: { clientId?: string; projectId?: string }) => 'usage-investigation:' + intent.clientId + ':' + (intent.projectId ?? 'all')
+export const usageDraftKey = (intent: { clientId?: string; projectId?: string }) => intent.projectId ? 'project-investigation:' + intent.projectId : 'usage-investigation:' + intent.clientId + ':all'
 export function usageSnapshotFingerprint(snapshot: UsageSnapshot) {
   let hash = 2166136261
   const text = JSON.stringify(snapshot)

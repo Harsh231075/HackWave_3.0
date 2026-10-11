@@ -9,8 +9,7 @@ import { useGoogleEventsWindow } from '@/hooks/useGoogleEventsWindow'
 import { calendarDate, displayEventTime, shiftDate } from '@/domain/calendar'
 import { isUpcoming, projectGoogleEvents } from '@/domain/meetingCalendar'
 import { minutes } from '@/domain/workspace'
-import { browserDatabase } from '@/services'
-import { addDemoPreview } from '@/services/demoPreviewService'
+
 import { CalendarView } from './CalendarView'
 import { MeetingDetails, MeetingForm } from './CalendarWidgets'
 import { GoogleCalendarConnection, GoogleEventDetails } from './GoogleCalendarWidgets'
@@ -30,7 +29,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
   const [editingLocal, setEditingLocal] = useState<Event | null>(null)
   const [cancelingLocal, setCancelingLocal] = useState<Event | null>(null)
   const [creation, setCreation] = useState<{source:'google'|'local';date:string;start:string}|null>(null)
-  const [notice, setNotice] = useState('')
+  const [notice] = useState('')
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => { const timer = window.setInterval(()=>setNow(Date.now()),60000); return ()=>window.clearInterval(timer) }, [])
@@ -80,13 +79,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={()=>{
-            const result=addDemoPreview(browserDatabase,calendarDate())
-            workspace.selectDate(calendarDate())
-            setNotice(result.tasksAdded+result.eventsAdded===0?'Demo records already exist. Existing edits were preserved.':`Added ${result.tasksAdded} demo tasks and ${result.eventsAdded} demo sessions.${result.persistence.status==='saved'?'':' Device storage is unavailable; samples are available this session.'}`)
-          }}>
-            Load demo data
-          </Button>
+
           <Button size="sm" onClick={()=>create(date)}>
             <Plus size={14} className="mr-1.5"/>New meeting
           </Button>
@@ -115,7 +108,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
             >
               <option value="all">All sources</option>
               <option value="google">Google Calendar</option>
-              <option value="local">Local / demo</option>
+              <option value="local">Local</option>
             </select>
           </label>
           <Button size="sm" variant="outline" disabled={remote.loading} onClick={google.refreshEvents}>
@@ -208,7 +201,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
                           ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
                           : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                       }`}>
-                        {item.source === 'google' ? 'Google Calendar' : 'Local / Demo'}
+                        {item.source === 'google' ? 'Google Calendar' : 'Local'}
                       </span>
                       {isLocal && localEvent && (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground capitalize">
@@ -308,13 +301,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
                 <Button size="sm" variant="outline" onClick={() => create(date)}>
                   <Plus size={14} className="mr-1.5" /> Create meeting
                 </Button>
-                <Button size="sm" onClick={() => {
-                  const res = addDemoPreview(browserDatabase, calendarDate())
-                  workspace.selectDate(calendarDate())
-                  setNotice(res.tasksAdded + res.eventsAdded === 0 ? 'Demo records already loaded.' : `Loaded ${res.tasksAdded} demo tasks and ${res.eventsAdded} demo sessions.`)
-                }}>
-                  Load demo meetings
-                </Button>
+
               </div>
             </div>
           )}

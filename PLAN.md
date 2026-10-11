@@ -39,7 +39,7 @@ The following foundations exist in the codebase; this inventory does not certify
 | Registered OpenUI components | `lib/workspace/OpenUIWorkspace.tsx`, `registry.tsx` | Application-owned instances and validated bindings preserve scoped pins; model widget props remain backward compatible |
 | Semantic composition validation | `domain/adaptiveData.ts`, `domain/overdueReview.ts`, `lib/workspace/layoutValidation.ts` | Meeting/usage/overdue evidence, scope, uniqueness and spans validated; generated action contracts and scoped dispatch implemented; broader general content grounding remains |
 | Shared domain and mutations | `domain/`, `state/WorkspaceProvider.tsx` | Shared edits, scheduling, drafts and undo implemented |
-| Linked local records and retrieval | `data/adaptiveDemo.ts`, `services/adaptiveDataService.ts`, `services/overdueReviewService.ts` | Meeting/usage/overdue retrieval implemented; usage includes comparable periods and linked project work |
+| Linked local records and retrieval | `services/projectSeedService.ts`, `services/adaptiveDataService.ts`, `services/overdueReviewService.ts` | Meeting/usage/overdue retrieval implemented; usage includes comparable periods and linked project work |
 | Scoped widgets | `state/MeetingScope.tsx`, `state/OverdueScope.tsx`, existing widgets | Meeting/usage/overdue widgets bind to resolved scope; usage task filters are isolated |
 | Saved adaptive layouts | `services/workspaceDocumentService.ts`, legacy `services/layoutService.ts` | Version-2 workspace documents restore instances, pins, continuation and valid clarification; version-1 reads migrate in memory without initialization writes |
 | Validation | `server/*.test.ts`, browser and live-provider runs | 274 tests passed; reproducible continuity browser checks passed; full live/accessibility evaluation remains |
@@ -102,7 +102,7 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 - [x] Reuse existing task, event and resource IDs. Validate project-task/resource links, project-client ownership, meeting-event links and communication/issue scope.
 - [x] Provide two clients/projects, two tomorrow meetings, previous meetings, unrelated records and blocked work; test completed overdue tasks, missing data and conflicting links without restoring task Context.
 - [x] Add narrow collection factories and candidate-catalog/meeting-preparation services through browserDatabase, reusing collection/result conventions.
-- [x] Seed missing collections additively; preserve edited domain records, existing empty collections and malformed raw storage.
+- [x] Historical implementation seeded missing collections additively. **Superseded by project-only data:** empty initialization, explicit Reset/Seed and an incompatible-data recovery screen; no automatic old demo restoration.
 - [x] Add linked usage observations, record-derived segments and releases; replace the widget-local usage array with browserDatabase services.
 - [x] Seed two clients with segment differences and linked releases; derive first/last-day comparisons and distinguish timing from causation.
 - [x] Compare equal-length early/late periods within selected dates, exclude the odd middle day, and report missing coverage/zero baselines. Endpoint comparisons remain explicitly labeled.
@@ -405,3 +405,25 @@ Run the new checks from `client/`:
 - Standard checks: `npm test`, `npm run build`, `npm run lint`, `npm run test:render`, and repository-root `git diff --check`.
 
 Adaptive composition refines one validated business scope at a time. If selected views belong to different scopes, Orlo asks which scope to change. This does not introduce bulk cross-client generation. Demo workflows use the demo clock; ordinary/live-calendar requests use the current request clock.
+
+## Implemented: project-only local records and removal of old runtime data
+
+The organization/membership workspace feature is not part of this product. “Workspace” in internal canvas names refers to the adaptive interface, not an organization container. Projects own local business records. No backend or authentication was added.
+
+- [x] Initialize an empty Default project with a persisted generated ID; allow renaming but protect deletion.
+- [x] Add shared project selection and create/update/guarded-delete controls.
+- [x] Scope dedicated Tasks, Meetings, Notes, Resources and Planner pages to the selection while retaining independent generated canvas scopes.
+- [x] Require valid project ownership for task/event/resource/attachment saves and derive project retrieval directly from records.
+- [x] Add multiple active client associations with optional email/phone; removing an association retains historical records.
+- [x] Add project note metadata with stable IDs, title changes and one saved body; meeting edits and adaptive agendas use the same body.
+- [x] Support clientless meetings and project usage, plus project-membership-based client filters.
+- [x] Use runtime dates for local goals and widget defaults; remove the fixed demo clock and participant defaults.
+- [x] Remove automatic sample initialization and Planner/Meetings demo injection. Move historical fixtures to the test folder.
+- [x] Add confirmed Reset local data and explicit Seed sample data in Settings. Seed refuses nonempty data and generates linked IDs/dates at runtime.
+- [x] Reset clears local records/collections, attachments, notes, layout/pins/history, preferences, undo and provider buffers; reject stale generation/upload results. External calendar credentials/events are unaffected.
+- [x] Preserve incompatible/malformed raw storage until Reset and show accessible recovery guidance.
+- [x] Verify project service regressions and the browser project lifecycle, plus mouse/touch/keyboard Kanban moves and pinned scope.
+
+The historical three-goal browser recordings used the earlier fixtures. They do not certify the new project model. The remaining PS 4 continuous three-goal evaluation must run against user-created or explicitly seeded project records; the earlier unchecked end-to-end/accessibility matrix remains open.
+
+Validation for the project-only change: **316/316 unit tests passed**; production build and `git diff --check` passed; project lifecycle and Kanban browser checks passed. Lint passed with existing warnings; the build still reports the pre-existing large bundle warning.

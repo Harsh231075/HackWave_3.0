@@ -1,9 +1,10 @@
+import { projectHasClient } from '../domain/projects.ts'
 import { createUsageDataService } from './usageDataService.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { LoadResult } from './contracts.ts'
 import type { ResolvedIntent } from '../domain/intent.ts'
 import { resolvedIntentSchema } from '../domain/intent.ts'
-import { usageQuerySchema, usageRecordKey, type UsageQuery, type UsageComparison, type UsagePeriodComparison } from '../domain/usage.ts'
+import { usageQuerySchema, type UsageQuery, type UsageComparison, type UsagePeriodComparison } from '../domain/usage.ts'
 const dateMilliseconds = (date: string) => Date.parse(`${date}T00:00:00Z`)
 const formatNumber = (value: number) => new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(value)
 export function createUsageInvestigationService(database: BrowserDatabase) {
@@ -15,12 +16,12 @@ export function createUsageInvestigationService(database: BrowserDatabase) {
     const data = service.snapshot()
     if (!data) return { status: 'invalid' as const }
     const client = data.clients.find(c => c.id === query.clientId)
-    if (!client) return { status: 'missing' as const }
+    if (query.clientId && !client) return { status: 'missing' as const }
     const project = query.projectId ? data.projects.find(p => p.id === query.projectId) : null
     if (query.projectId && !project) return { status: 'missing' as const }
-    if (project && project.clientId !== client.id) return { status: 'invalid' as const }
-    const projects = data.projects.filter(p => p.clientId === client.id && (!project || p.id === project.id))
-    const owned = data.observations.filter(r => r.clientId === client.id && (!project || r.projectId === project.id))
+    if (project && !projectHasClient(project, query.clientId)) return { status: 'invalid' as const }
+    const projects = data.projects.filter(p => projectHasClient(p, query.clientId) && (!project || p.id === project.id))
+    const owned = data.observations.filter(r => (!query.clientId || r.clientId === query.clientId) && (!project || r.projectId === project.id))
     const availableSegments = [...new Set(owned.map(r => r.segment))].sort()
     const dates = owned.map(r => r.date).sort()
     const range = query.dateRange ?? (dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null)
@@ -32,11 +33,11 @@ export function createUsageInvestigationService(database: BrowserDatabase) {
     }
     const segments = query.segment ? [query.segment] : availableSegments
     const observations = owned.filter(r => (!range || r.date >= range.from && r.date <= range.to) && (!query.segment || r.segment === query.segment)).sort((a,b) => a.date.localeCompare(b.date) || a.segment.localeCompare(b.segment) || a.projectId.localeCompare(b.projectId))
-    const releases = data.releases.filter(r => range && r.clientId === client.id && (!project || r.projectId === project.id) && r.date >= range.from && r.date <= range.to && (!query.segment || !r.segments.length || r.segments.includes(query.segment))).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
-    const measurements = new Map(observations.map(r => [usageRecordKey(r), r.sessions]))
+    const releases = data.releases.filter(r => range && (!query.clientId || r.clientId === query.clientId) && (!project || r.projectId === project.id) && r.date >= range.from && r.date <= range.to && (!query.segment || !r.segments.length || r.segments.includes(query.segment))).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+
     // Missing project/day/segment observations are unknown, never implied zero.
     const countAt = (date: string, segment: string) => {
-      const counts = projects.map(p => measurements.get(usageRecordKey({ clientId: client.id, projectId: p.id, date, segment })))
+      const counts = projects.map(project => { const records = observations.filter(record => record.projectId === project.id && record.date === date && record.segment === segment); return records.length ? records.reduce((sum, record) => sum + record.sessions, 0) : undefined })
       if (!counts.length || counts.some(count => count === undefined)) return null
       const total = counts.reduce<number>((sum,count) => sum + (count ?? 0), 0)
       return Number.isSafeInteger(total) ? total : null
@@ -65,13 +66,13 @@ export function createUsageInvestigationService(database: BrowserDatabase) {
       const comparison = missingDays ? 'Comparison unavailable because one or both periods have incomplete measurements.' : formatNumber(baselineAverage!) + ' → ' + formatNumber(currentAverage!) + ' average daily sessions (' + (changePercent === null ? 'percentage unavailable: zero baseline' : (changePercent > 0 ? '+' : '') + formatNumber(changePercent) + '%') + ').'
       return { segment, baselineRange, currentRange, baselineAverage, currentAverage, changePercent, missingDays, explanation: segment + ': ' + comparison + ' Equal ' + periodLength + '-day periods: ' + baselineRange.from + '–' + baselineRange.to + ' versus ' + currentRange.from + '–' + currentRange.to + (days.length % 2 ? '; middle day excluded.' : '.') }
     }) : []
-    return { status: 'found' as const, value: { client, project, projects, dateRange: range, availableSegments, segments, observations, releases, series, comparisons, periodComparisons,
-      explanation: observations.length ? `Daily sessions for ${project?.name ?? client.name}; comparisons use the first and last selected dates, not period averages.` : 'No usage measurements match this selection.',
+    return { status: 'found' as const, value: { client: client ?? null, project, projects, dateRange: range, availableSegments, segments, observations, releases, series, comparisons, periodComparisons,
+      explanation: observations.length ? `Daily sessions for ${project?.name ?? client?.name ?? 'Selected projects'}; comparisons use the first and last selected dates, not period averages.` : 'No usage measurements match this selection.',
       releaseExplanation: releases.length ? `${releases.length} release record${releases.length === 1 ? '' : 's'} fall within the selected dates and segment. Timing alone does not establish causation.` : 'No matching release records in this date range. No release explanation can be inferred.',
     } }
   }
   return { load, loadIntent(intent: ResolvedIntent, segment?: string) {
-    if (!resolvedIntentSchema.safeParse(intent).success || intent.goalType !== 'usage_investigation' || !intent.clientId) return { status: 'invalid' as const }
+    if (!resolvedIntentSchema.safeParse(intent).success || intent.goalType !== 'usage_investigation' || !(intent.projectId || intent.clientId)) return { status: 'invalid' as const }
     return load({ clientId: intent.clientId, ...(intent.projectId ? { projectId: intent.projectId } : {}), dateRange: intent.dateRange, ...((segment ?? intent.constraints?.segment) ? { segment: segment ?? intent.constraints?.segment } : {}) })
   } }
 }

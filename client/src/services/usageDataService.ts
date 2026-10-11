@@ -1,3 +1,5 @@
+import { projectHasClient } from '../domain/projects.ts'
+import { createAdaptiveDataService } from './adaptiveDataService.ts'
 import { z } from 'zod'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { LoadResult } from './contracts.ts'
@@ -13,22 +15,21 @@ function read<T extends { id: string }>(database: BrowserDatabase, key: string, 
 }
 export function createUsageDataService(database: BrowserDatabase) {
   function ownership() {
-    const clients = read(database, 'clients', clientSchema, 1000), projects = read(database, 'projects', adaptiveProjectSchema, 1000)
-    if (clients.status !== 'found' || projects.status !== 'found') return null
-    return { clients: clients.value, projects: projects.value.filter(p => p.clientId && clients.value.some(c => c.id === p.clientId)) }
+    const data = createAdaptiveDataService(database).snapshot()
+    return data ? { clients: data.clients, projects: data.projects } : null
   }
   function snapshot() {
     const owners = ownership(), observations = read(database, 'usageObservations', usageObservationSchema, 10000), releases = read(database, 'usageReleases', usageReleaseSchema, 1000)
     if (!owners || observations.status !== 'found' || releases.status !== 'found') return null
     if (new Set(observations.value.map(usageRecordKey)).size !== observations.value.length) return null
-    const valid = (r: { clientId: string; projectId: string }) => owners.projects.some(p => p.id === r.projectId && p.clientId === r.clientId)
+    const valid = (r: { clientId?: string; projectId: string }) => owners.projects.some(p => p.id === r.projectId && projectHasClient(p, r.clientId))
     return { ...owners, observations: observations.value.filter(valid), releases: releases.value.filter(valid) }
   }
-  function collection<T extends { id: string; clientId: string; projectId: string }>(key: string, schema: z.ZodType<T>) {
+  function collection<T extends { id: string; clientId?: string; projectId: string }>(key: string, schema: z.ZodType<T>) {
     const base = createCollection(database, key, schema)
     const save = (record: T) => {
       const parsed = schema.safeParse(record), owners = ownership()
-      if (!parsed.success || !owners?.projects.some(p => p.id === parsed.data.projectId && p.clientId === parsed.data.clientId)) return { ok: false as const, message: 'Usage records require a project belonging to the selected client.' }
+      if (!parsed.success || !owners?.projects.some(p => p.id === parsed.data.projectId && projectHasClient(p, parsed.data.clientId))) return { ok: false as const, message: 'Usage records require a project belonging to the selected client.' }
       if (key === 'usageObservations') {
         const observations = read(database, key, usageObservationSchema, 10000)
         if (observations.status !== 'found' || observations.value.some(r => r.id !== record.id && usageRecordKey(r) === usageRecordKey(record as unknown as UsageObservation))) return { ok: false as const, message: 'Invalid saved usage data or duplicate project/date/segment measurement.' }
@@ -41,7 +42,7 @@ export function createUsageDataService(database: BrowserDatabase) {
     const parsed=usageObservationSchema.omit({id:true,source:true}).array().min(1).max(1000).safeParse(input),existing=read(database,'usageObservations',usageObservationSchema,10000),owners=ownership()
     if(!parsed.success||existing.status!=='found'||!owners)return {ok:false as const,message:'Provide up to 1000 valid measurements in a JSON array.'}
     const keys=new Set(existing.value.map(usageRecordKey))
-    for(const row of parsed.data){if(!owners.projects.some(p=>p.id===row.projectId&&p.clientId===row.clientId)||keys.has(usageRecordKey(row)))return {ok:false as const,message:'Import has duplicate measurements or invalid project ownership. Nothing was imported.'};keys.add(usageRecordKey(row))}
+    for(const row of parsed.data){if(!owners.projects.some(p=>p.id===row.projectId&&projectHasClient(p,row.clientId))||keys.has(usageRecordKey(row)))return {ok:false as const,message:'Import has duplicate measurements or invalid project ownership. Nothing was imported.'};keys.add(usageRecordKey(row))}
     if(existing.value.length+parsed.data.length>10000)return {ok:false as const,message:'The measurement limit is 10000.'}
     const added=parsed.data.map(row=>({...row,id:crypto.randomUUID(),source:'manual' as const})),saved=database.writeCollection('usageObservations',[...existing.value,...added])
     return saved.status==='invalid'?{ok:false as const,message:'Saved records are invalid.'}:{ok:true as const,value:added}

@@ -21,7 +21,7 @@ export const timezoneSchema = z.string().refine(value => { try { new Intl.DateTi
 export const widgetBindingSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('workspace'), clientId: z.string().min(1).optional(), projectId: z.string().min(1).optional(), draftKey: z.string().min(1).optional() }),
   z.strictObject({ kind: z.literal('google-calendar'), accountId: z.string().min(1), calendarId: z.literal('primary'), eventId: z.string().min(1).optional(), mode: z.enum(['browse', 'prepare', 'schedule']).default('browse') }),
-  z.strictObject({ kind: z.literal('meeting'), meetingId: z.string().min(1), clientId: z.string().min(1), projectId: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('meeting'), meetingId: z.string().min(1), clientId: z.string().min(1).optional(), projectId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('usage'), intent: resolvedIntentSchema.refine(i => i.goalType === 'usage_investigation') }),
   z.strictObject({ kind: z.literal('usage-query'), query: usageQuerySchema }),
   z.strictObject({ kind: z.literal('overdue'), intent: resolvedIntentSchema.refine(i => i.goalType === 'overdue_review'), referenceDate: z.iso.date() }),

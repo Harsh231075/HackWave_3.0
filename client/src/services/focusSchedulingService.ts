@@ -48,6 +48,6 @@ export function createFocusSchedulingService(database: BrowserDatabase, referenc
     const slots = findSlots(input)
     const slot = slots.ok ? slots.value.find(s => s.start === input.start) : undefined
     if (!slot) return { ok: false, message: 'This slot is no longer available. Choose another time.' }
-    return events.createWithId(id, { title: `Focus: ${task.title}`, ...slot, category: 'focus', participants: [task.owner], agenda: task.description })
+    return events.createWithId(id, { projectId: task.projectId, title: `Focus: ${task.title}`, ...slot, category: 'focus', participants: [task.owner], agenda: task.description })
   } }
 }

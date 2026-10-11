@@ -5,8 +5,8 @@ import { createBrowserDatabase } from '../src/services/browserDatabase.ts'
 import { createUsageDataService } from '../src/services/usageDataService.ts'
 import { createUsageInvestigationService, type UsageInvestigation } from '../src/services/usageInvestigationService.ts'
 import { createRecordStore } from '../src/services/preparationStore.ts'
-import { ADAPTIVE_DEMO } from '../src/data/adaptiveDemo.ts'
-import { USAGE_DEMO } from '../src/data/usageDemo.ts'
+import { ADAPTIVE_DEMO } from './fixtures/adaptiveDemo.ts'
+import { USAGE_DEMO } from './fixtures/usageDemo.ts'
 import { usageObservationSchema } from '../src/domain/usage.ts'
 function setup() {
   const values = new Map<string,string>()
@@ -106,7 +106,7 @@ test('collection notifications refresh usage results without domain mutations', 
 test('intent adapter validates usage scope without hardcoded client/project IDs', () => {
   const {service}=setup()
   const result=service.loadIntent({goalType:'usage_investigation',clientId:'westbridge',projectId:'launch',dateRange:{from:'2026-10-05',to:'2026-10-11'}},'mobile')
-  assert.ok(result.status==='found'); assert.equal(result.value.client.name,'Westbridge'); assert.equal(result.value.comparisons[0].baseline,180)
+  assert.ok(result.status==='found'); assert.equal(result.value.client?.name,'Westbridge'); assert.equal(result.value.comparisons[0].baseline,180)
   assert.equal(service.loadIntent({goalType:'overdue_review',projectId:'launch',dateRange:{from:'2026-10-05',to:'2026-10-11'}}).status,'invalid')
 })
 

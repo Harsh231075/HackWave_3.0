@@ -7,7 +7,7 @@ export const overdueReviewSchema = z.strictObject({ project: adaptiveProjectSche
   if (data.relationships.some(l => l.sourceKind !== 'project' || l.sourceId !== data.project.id || l.type !== 'related')) ctx.addIssue({ code: 'custom', message: 'Review links must belong to its project.' })
   for (const [kind, records] of [['task', data.tasks], ['resource', data.resources]] as const) {
     if (new Set(records.map(r => r.id)).size !== records.length) ctx.addIssue({ code: 'custom', message: 'Duplicate review records.' })
-    for (const record of records) if (!data.relationships.some(l => l.targetKind === kind && l.targetId === record.id)) ctx.addIssue({ code: 'custom', message: 'Review records require explicit project relationships.' })
+    for (const record of records) if (record.projectId ? record.projectId !== data.project.id : !data.relationships.some(l => l.targetKind === kind && l.targetId === record.id)) ctx.addIssue({ code: 'custom', message: 'Review records require explicit project relationships.' })
   }
 })
 export type OverdueReview = z.infer<typeof overdueReviewSchema>

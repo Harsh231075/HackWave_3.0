@@ -1,3 +1,5 @@
+import { projectHasClient } from '../domain/projects.ts'
+import { projectSettings } from './projectOwnership.ts'
 import { createAdaptiveDataService } from './adaptiveDataService.ts'
 import { workspaceCollectionKey, workspaceDocumentSchema } from '../domain/workspaceDocument.ts'
 import { workspaceActionSchema, type ActionOrigin } from '../domain/workspaceActions.ts'
@@ -65,10 +67,10 @@ export function createWorkspaceActionService(database: BrowserDatabase) {
       const binding=origin.binding
       const clientId=binding.kind==='workspace'||binding.kind==='meeting'?binding.clientId:binding.kind==='usage'||binding.kind==='overdue'?binding.intent.clientId:binding.query.clientId
       const expectedProject=binding.kind==='workspace'||binding.kind==='meeting'?binding.projectId:binding.kind==='usage'||binding.kind==='overdue'?binding.intent.projectId:binding.query.projectId
-      if(!project||(clientId&&project.clientId!==clientId)||(expectedProject&&project.id!==expectedProject))return {ok:false,message:'Choose a project belonging to this view.'}
+      if(!project||(clientId&&!projectHasClient(project,clientId))||(expectedProject&&project.id!==expectedProject))return {ok:false,message:'Choose a project belonging to this view.'}
       return database.transaction(()=>{
-        const result=taskService.save(input);if(!result.ok)return result
-        const linked=data.relationships.create({sourceKind:'project',sourceId:project.id,targetKind:'task',targetId:result.value.id,type:'related'});if(!linked.ok)return linked
+        const result=taskService.save({...input,projectId});if(!result.ok)return result
+        const linked=projectSettings(database) ? {ok:true as const,value:undefined} : data.relationships.create({sourceKind:'project',sourceId:project.id,targetKind:'task',targetId:result.value.id,type:'related'});if(!linked.ok)return linked
         if(binding.kind==='meeting'){const meetingLink=data.relationships.create({sourceKind:'meeting',sourceId:binding.meetingId,targetKind:'task',targetId:result.value.id,type:'related'});if(!meetingLink.ok)return meetingLink}
         return result
       })

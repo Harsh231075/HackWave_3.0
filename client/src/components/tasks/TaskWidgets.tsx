@@ -1,7 +1,6 @@
+import { projectDataService } from '@/services'
 import { TaskKanban } from './TaskKanban'
 import type { ReactNode } from 'react'
-import { RecordManager } from '@/components/records/RecordManager'
-import { linkSpec } from '@/components/records/recordSpecs'
 import { calendarDate } from '@/domain/calendar'
 import { taskService } from '@/services'
 import { useContext } from 'react'
@@ -26,7 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DataState, StatusBadge, type DisplayState } from '@/components/feedback/common'
 import { useWorkspace } from '@/state/WorkspaceProvider'
-import { DEMO_DATE } from '@/data/demo'
+
 import { emptyFilters } from '@/domain/workspace'
 import type { Priority, Task, TaskStatus } from '@/domain/types'
 
@@ -55,7 +54,7 @@ export function TaskList({ overdueOnly = false, displayState }: { overdueOnly?: 
   const [open, setOpen] = useState(false)
   const { taskView: view, setTaskView: setView } = useDisplayPreferences()
   const component = useComponentView()
-  const tasks = (usage ? usage.tasks : overdue?.tasks ?? scope?.tasks ?? filterTasks(state.tasks, state.filters, component?.plan.referenceDate ?? DEMO_DATE)).filter(task => !overdueOnly || (task.due < (component?.plan.referenceDate??calendarDate()) && task.status !== 'completed'))
+  const tasks = (usage ? usage.tasks : overdue?.tasks ?? scope?.tasks ?? filterTasks(state.tasks, state.filters, component?.plan.referenceDate ?? calendarDate())).filter(task => !overdueOnly || (task.due < (component?.plan.referenceDate??calendarDate()) && task.status !== 'completed'))
   const origin=useContext(ActionOriginContext)
   const projects=scope?[scope.data.project]:overdue?[overdue.data.project]:usage?usage.data.snapshot.projects:component?.projects??[]
   const scoped=!!usage||!!scope||!!overdue||!!component?.plan.bindings.projectId||!!component?.plan.bindings.clientId
@@ -68,14 +67,14 @@ export function TaskList({ overdueOnly = false, displayState }: { overdueOnly?: 
     if (result.ok) notify(`Task moved to ${status}.`)
     return result
   }
-  const controls = <><span className="text-xs text-muted-foreground">{tasks.length} tasks</span><Select items={[{ value: 'list', label: 'List' }, { value: 'kanban', label: 'Kanban' }]} value={view} onValueChange={next => { if (next !== 'list' && next !== 'kanban') return; setView(next) }}><SelectTrigger size="sm" aria-label="Task view"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="list">List</SelectItem><SelectItem value="kanban">Kanban</SelectItem></SelectContent></Select><Button size="sm" variant="outline" disabled={scoped&&(!origin||!projects.length)} title={scoped&&!projects.length?'Add a project in Context before creating a scoped task.':undefined} onClick={() => { setSelected(undefined); setOpen(true) }}><Plus size={14} /> New task</Button><RecordManager spec={linkSpec} defaults={{sourceKind:scope?'meeting':'project',sourceId:scope?.data.meeting.id??overdue?.data.project.id??usage?.intent.projectId??component?.plan.bindings.projectId,targetKind:'task',type:'related'}} locked={scope||overdue||usage?.intent.projectId||component?.plan.bindings.projectId?['sourceKind','sourceId','targetKind','type']:['targetKind','type']}/></>
+  const controls = <><span className="text-xs text-muted-foreground">{tasks.length} tasks</span><Select items={[{ value: 'list', label: 'List' }, { value: 'kanban', label: 'Kanban' }]} value={view} onValueChange={next => { if (next !== 'list' && next !== 'kanban') return; setView(next) }}><SelectTrigger size="sm" aria-label="Task view"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="list">List</SelectItem><SelectItem value="kanban">Kanban</SelectItem></SelectContent></Select><Button size="sm" variant="outline" disabled={scoped&&!projects.length} title={scoped&&!projects.length?'Choose an available project before creating a task.':undefined} onClick={() => { setSelected(undefined); setOpen(true) }}><Plus size={14} /> New task</Button></>
   return <><WidgetActions>{controls}</WidgetActions><FilterControls /><DataState state={displayState ?? (tasks.length ? 'ready' : 'empty')} empty="No tasks match these filters. Try resetting them.">{view === 'list' ? <div className="flex flex-col gap-2" data-task-view="list">{tasks.map(task => <TaskCard key={task.id} task={task} onSelect={task => { setSelected(task); setOpen(true) }} />)}</div> : <TaskKanban key={JSON.stringify(origin ?? component?.plan.bindings ?? null)} tasks={tasks} onStatusChange={moveTask} renderCard={(task, handle) => <TaskCard task={task} compact dragHandle={handle} onSelect={task => { setSelected(task); setOpen(true) }} />} />}</DataState><TaskForm projectOptions={scoped?projects:undefined} onCreate={scoped&&origin?(input,projectId)=>workspaceActionService.createTask(origin,input,projectId):undefined} key={`${selected?.id ?? 'new'}-${open}`} open={open} onClose={() => setOpen(false)} task={selected} /></>
 }
-export function TaskForm({ open, onClose, task, onSave, onCreate, projectOptions }: { projectOptions?:Array<{id:string;name:string}>; onCreate?:(input:TaskInput,projectId:string)=>ActionResult<Task>; open: boolean; onClose: () => void; task?: Task; onSave?: (input: TaskInput) => ActionResult<Task> }) {
+export function TaskForm({ open, onClose, task, onSave, onCreate, projectOptions = projectDataService.projects.list() }: { projectOptions?:Array<{id:string;name:string}>; onCreate?:(input:TaskInput,projectId:string)=>ActionResult<Task>; open: boolean; onClose: () => void; task?: Task; onSave?: (input: TaskInput) => ActionResult<Task> }) {
   const { saveTask, deleteTask, notify, selectedDate } = useWorkspace()
   const component=useComponentView()
   const [deleting,setDeleting]=useState(false)
-  const [projectId,setProjectId]=useState(projectOptions?.length===1?projectOptions[0].id:'')
+  const [projectId,setProjectId]=useState(task?.projectId ?? (projectOptions?.length===1?projectOptions[0].id:projectOptions?.some(project=>project.id===projectDataService.selectedId()) ? projectDataService.selectedId() ?? '' : ''))
   const origin = useContext(ActionOriginContext)
   const [prepared] = useState(() => task && origin ? workspaceActionService.prepare({ type: 'task.edit', taskId: task.id }, origin) : null)
   const [title, setTitle] = useState(task?.title ?? '')
@@ -89,7 +88,7 @@ export function TaskForm({ open, onClose, task, onSave, onCreate, projectOptions
   return <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{task ? 'Task details' : 'Create a task'}</DialogTitle><DialogDescription>Changes are saved on this device.</DialogDescription></DialogHeader><form className="flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:[gap:0.35rem] [&_label]:text-[length:0.84rem] [&_label]:font-medium [&_select]:bg-(--background) [&_select]:[border:1px_solid_var(--border)] [&_select]:rounded-[var(--radius)] [&_select]:[padding:0.5rem_0.75rem] [&_select]:text-[length:0.88rem] [&_select]:text-(--foreground) [&_input]:bg-(--background) [&_input]:[border:1px_solid_var(--border)] [&_input]:rounded-[var(--radius)] [&_input]:[padding:0.5rem_0.75rem] [&_input]:text-[length:0.88rem] [&_input]:text-(--foreground) [&_textarea]:bg-(--background) [&_textarea]:[border:1px_solid_var(--border)] [&_textarea]:rounded-[var(--radius)] [&_textarea]:[padding:0.5rem_0.75rem] [&_textarea]:text-[length:0.88rem] [&_textarea]:text-(--foreground)" onSubmit={event => {
     event.preventDefault()
     const save = onSave ?? (prepared ? (input: TaskInput) => prepared.ok && prepared.value.type === 'task.edit' ? workspaceActionService.saveTask(prepared.value, input) : { ok: false as const, message: 'This task is no longer available in the original view.' } : saveTask)
-    const input={id:task?.id,title,description,due,duration,priority,status,owner}
+    const input={id:task?.id,projectId:projectId || task?.projectId,title,description,due,duration,priority,status,owner}
     const result=!task&&onCreate?onCreate(input,projectId):save(input)
     if (!result.ok) { setError(result.message); return }
     notify(task ? 'Task updated across your workspace.' : 'Task created in your workspace.'); onClose()

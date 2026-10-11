@@ -1,9 +1,9 @@
+import { createProjectDataService, freshProjectData, emptyRecords } from './projectDataService'
 import { calendarDate } from '../domain/calendar.ts'
 import { createWorkspaceActionService } from './workspaceActionService'
 import { createPinService } from './pinService'
 import { createUsageWorkspaceService } from './usageWorkspaceService'
 import { createUsageCompositionService } from './usageCompositionService'
-import { USAGE_DEMO } from '../data/usageDemo'
 import { createUsageDataService } from './usageDataService'
 import { createUsageInvestigationService } from './usageInvestigationService'
 import { createOverdueReviewService } from './overdueReviewService'
@@ -12,7 +12,6 @@ import { createFocusSchedulingService } from './focusSchedulingService'
 import { createIntentService } from './intentService'
 import { createMeetingCompositionService } from './meetingCompositionService'
 import { createHttpClient } from './api/httpClient'
-import { ADAPTIVE_DEMO } from '../data/adaptiveDemo'
 import { createAdaptiveDataService } from './adaptiveDataService'
 import { createFileService } from './fileService'
 import { createSharingService } from './sharingService'
@@ -28,21 +27,21 @@ import { createActivityService } from './activityService'
 import { createDraftService } from './draftService'
 import { createEventService } from './eventService'
 import { createTaskService } from './taskService'
-import { DEMO_DATE, INITIAL_TASKS, INITIAL_EVENTS, INITIAL_DRAFTS, RESOURCES } from '../data/demo'
 import { createBrowserStorage } from './local/browserStorage'
 import { createBrowserDatabase } from './browserDatabase'
 import { createPreferencesService } from './preferencesService'
 import { createGenerationService } from './generationService'
 import { createResourceService } from './resourceService'
 const storage = createBrowserStorage()
-export const browserDatabase = createBrowserDatabase(storage, { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: INITIAL_DRAFTS, dismissed: [], activity: ['Your workspace is ready for the week', 'Demo resources added to your workspace'] }, { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES })
+export const browserDatabase = createBrowserDatabase(storage, emptyRecords(), freshProjectData(), true)
+export const projectDataService = createProjectDataService(browserDatabase)
 export const workspaceService = {
   load: () => { const { tasks, events, drafts, dismissed, activity } = browserDatabase.getState(); return { status: 'found' as const, value: structuredClone({ tasks, events, drafts, dismissed, activity }) } },
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
 }
 export const preferencesService = createPreferencesService(browserDatabase.storage)
 export const generationService = createGenerationService()
-export const resourceService = createResourceService(RESOURCES, browserDatabase)
+export const resourceService = createResourceService([], browserDatabase)
 
 export const taskService = createTaskService(browserDatabase, () => calendarDate())
 
@@ -54,7 +53,7 @@ export const activityService = createActivityService(browserDatabase)
 
 export const availabilityService = createAvailabilityService(browserDatabase)
 
-export const recommendationService = createRecommendationService(browserDatabase, () => DEMO_DATE)
+export const recommendationService = createRecommendationService(browserDatabase, () => calendarDate())
 
 export const analyticsService = createAnalyticsService(browserDatabase)
 
@@ -78,7 +77,10 @@ export type { IntentService, IntentResolver } from './intentService'
 export type { IntentRequest, IntentResolution, ResolvedIntent, PartialIntent, IntentCandidates } from '../domain/intent'
 
 export const adaptiveDataService = createAdaptiveDataService(browserDatabase)
-export const projectService = adaptiveDataService.projects
+export const projectService = { ...projectDataService.projects,
+  create: (input: { name: string; description?: string }) => projectDataService.create(input.name, input.description),
+  delete: projectDataService.delete,
+}
 export const clientService = adaptiveDataService.clients
 export const meetingService = adaptiveDataService.meetings
 export const communicationService = adaptiveDataService.communications
@@ -107,3 +109,7 @@ export const pinService = createPinService(browserDatabase)
 export const workspaceActionService = createWorkspaceActionService(browserDatabase)
 
 export { makeInstance, instancesFromLayout } from './workspaceDocumentService'
+
+export { projectHasClient } from '../domain/projects'
+import { createProjectSeedService } from './projectSeedService'
+export const projectSeedService = createProjectSeedService(browserDatabase)

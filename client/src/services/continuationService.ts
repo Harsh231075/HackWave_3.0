@@ -15,10 +15,10 @@ export function validateSavedContinuation(document: WorkspaceDocument, database:
   const candidates: IntentCandidates = catalog.status === 'found' ? catalog.value : { clients: [], projects: [], meetings: [] }
   const usage = createUsageDataService(database)
   const usageData = usage.snapshot()
-  if (usageData) candidates.usageScopes = candidates.projects.filter(p => p.clientId).map(project => {
-    const observations = usageData.observations.filter(record => record.projectId === project.id && record.clientId === project.clientId)
+  if (usageData) candidates.usageScopes = candidates.projects.map(project => {
+    const observations = usageData.observations.filter(record => record.projectId === project.id && (!project.clientId || record.clientId === project.clientId))
     const dates = observations.map(record => record.date).sort()
-    return { clientId: project.clientId!, projectId: project.id, segments: [...new Set(observations.map(record => record.segment))], dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null }
+    return { ...(project.clientId ? {clientId:project.clientId} : {}), projectId: project.id, segments: [...new Set(observations.map(record => record.segment))], dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null }
   })
   const validTarget = (id: string) => { const target = [...document.active, ...document.pins].find(w => w.instanceId === id); return !!target && !!loadActionScope(database, target.binding) && (target.binding.kind !== 'google-calendar' || target.binding.accountId === accountId) }
   const last = saved.lastSuccess

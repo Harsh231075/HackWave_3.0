@@ -1,6 +1,6 @@
-import type { BrowserDatabase } from './browserDatabase.ts'
-import { shiftDate } from '../domain/calendar.ts'
-import type { Event, Task } from '../domain/types.ts'
+import type { BrowserDatabase } from '../../src/services/browserDatabase.ts'
+import { shiftDate } from '../../src/domain/calendar.ts'
+import type { Event, Task } from '../../src/domain/types.ts'
 export function addDemoPreview(database: BrowserDatabase, date: string) {
   let tasksAdded = 0, eventsAdded = 0
   database.transaction(() => {
