@@ -44,10 +44,10 @@ export function createGoogleProvider(env: NodeJS.ProcessEnv, save: () => void, t
     await refresh(connection)
     const res = await transport('https://www.googleapis.com/calendar/v3' + path, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${connection.accessToken}`, ...init.headers }, signal: AbortSignal.timeout(20000) })
     if (!res.ok) {
-      const message = res.status === 401 ? 'Reconnect Google Calendar to continue.' : res.status === 403 ? 'Google did not allow this calendar operation. Check the granted permissions.' : res.status === 429 ? 'Google Calendar is busy. Try again shortly.' : 'Google Calendar could not complete the request. Your existing workspace is unchanged.'
-      throw new CalendarError(res.status === 404 ? 404 : res.status === 409 ? 409 : res.status === 401 ? 401 : res.status === 403 ? 403 : res.status === 429 ? 429 : 502, message)
+      const message = res.status === 412 ? 'This event changed. Refresh it before saving or cancelling.' : res.status === 401 ? 'Reconnect Google Calendar to continue.' : res.status === 403 ? 'Google did not allow this calendar operation. Check the granted permissions.' : res.status === 429 ? 'Google Calendar is busy. Try again shortly.' : 'Google Calendar could not complete the request. Your existing workspace is unchanged.'
+      throw new CalendarError(res.status === 412 ? 409 : res.status === 404 ? 404 : res.status === 409 ? 409 : res.status === 401 ? 401 : res.status === 403 ? 403 : res.status === 429 ? 429 : 502, message)
     }
-    return res.json()
+    return res.status === 204 ? null : res.json()
   }
   return { api,
     async events(connection: Connection, from: string, to: string, timezone: string) {

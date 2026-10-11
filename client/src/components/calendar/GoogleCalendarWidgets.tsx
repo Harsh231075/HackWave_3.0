@@ -1,3 +1,6 @@
+import { GoogleEventActions } from './GoogleEventActions'
+import { GoogleMeetingForm } from './GoogleMeetingForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { useComponentView } from '@/state/ComponentViewContext'
 import { useEffect, useId, useState } from 'react'
@@ -30,7 +33,7 @@ export function GoogleEventDetails({ event }: { event: CalendarEvent }) {
     {event.location && <p>{event.location}</p>}
     <p className="text-muted-foreground">{event.attendees.length ? event.attendees.map(a => a.name ? `${a.name} (${a.email})` : a.email).join(', ') : 'No attendees listed'}</p>
     {event.description && <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-3">{event.description}</p>}
-    <div className="flex flex-wrap gap-3">{safeLink(event.url) && <a className="text-primary underline" href={event.url} target="_blank" rel="noreferrer">Open in Google Calendar</a>}{safeLink(event.meetingUrl) && <a className="text-primary underline" href={event.meetingUrl} target="_blank" rel="noreferrer">Join meeting</a>}</div>
+    <GoogleEventActions event={event}/><div className="flex flex-wrap gap-3">{safeLink(event.url) && <a className="text-primary underline" href={event.url} target="_blank" rel="noreferrer">Open in Google Calendar</a>}{safeLink(event.meetingUrl) && <a className="text-primary underline" href={event.meetingUrl} target="_blank" rel="noreferrer">Join meeting</a>}</div>
   </div>
 }
 
@@ -48,6 +51,7 @@ export function GoogleCalendarWidget() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshedAt, setRefreshedAt] = useState('')
+  const [creating,setCreating]=useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   useEffect(() => {
     if (!connection?.connected || !connection.accountId) return
@@ -68,7 +72,8 @@ export function GoogleCalendarWidget() {
   if (!connection?.connected) return <div className="space-y-4"><GoogleCalendarConnection /><p className="text-xs text-muted-foreground">Connect the original Google account to view these events.</p></div>
   const visible = loadedAccount === connection.accountId && loadedWindow === (range?.from??date)+':'+(range?.to??date)+':'+timezone ? events : []
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><label className="sr-only" htmlFor={dayInput}>Calendar date</label><Input id={dayInput} className="w-auto" type="date" value={date} onChange={e => { if (e.target.value) calendar.setDate(e.target.value) }} /><span className="text-xs text-muted-foreground">{timezone}{range && range.from!==range.to ? ` · ${range.from} through ${range.to}` : ''}</span></div>{component && <select aria-label="Google calendar view" className="rounded-lg border border-border bg-card px-3 py-2 text-sm" value={mode} onChange={e=>component.change({calendarView:e.target.value as 'day'|'week'|'month'|'agenda',dateRange:undefined})}>{['day','week','month','agenda'].map(view=><option key={view} value={view}>{view[0].toUpperCase()+view.slice(1)}</option>)}</select>}<Button type="button" variant="outline" size="sm" disabled={loading} onClick={calendar.refreshEvents}><RefreshCw size={14} /> Refresh</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><label className="sr-only" htmlFor={dayInput}>Calendar date</label><Input id={dayInput} className="w-auto" type="date" value={date} onChange={e => { if (e.target.value) calendar.setDate(e.target.value) }} /><span className="text-xs text-muted-foreground">{timezone}{range && range.from!==range.to ? ` · ${range.from} through ${range.to}` : ''}</span></div>{component && <select aria-label="Google calendar view" className="rounded-lg border border-border bg-card px-3 py-2 text-sm" value={mode} onChange={e=>component.change({calendarView:e.target.value as 'day'|'week'|'month'|'agenda',dateRange:undefined})}>{['day','week','month','agenda'].map(view=><option key={view} value={view}>{view==='agenda'?'Agenda':view[0].toUpperCase()+view.slice(1)+' window'}</option>)}</select>}<Button type="button" variant="outline" size="sm" disabled={loading} onClick={calendar.refreshEvents}><RefreshCw size={14} /> Refresh</Button></div>
+    <Button size="sm" onClick={()=>setCreating(true)}>New meeting</Button><Dialog open={creating} onOpenChange={setCreating}><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>New Google meeting</DialogTitle><DialogDescription>Review the details before creating the event.</DialogDescription></DialogHeader><GoogleMeetingForm initialDate={date} goal="" onClose={()=>setCreating(false)} onCreated={()=>calendar.refreshEvents()}/></DialogContent></Dialog>
     <p className="text-xs text-muted-foreground">Google Calendar · {connection.email}{refreshedAt && ` · Last refreshed ${new Date(refreshedAt).toLocaleTimeString()}`}</p>
     {loading && <p className="text-sm text-muted-foreground" role="status">Loading your calendar…</p>}
     {error && <div className="space-y-2"><p className="text-sm text-destructive" role="alert">{error} {visible.length > 0 ? 'The last successful snapshot is shown below.' : ''}</p><Button size="sm" variant="outline" onClick={() => calendar.connect()}>Reconnect calendar</Button></div>}

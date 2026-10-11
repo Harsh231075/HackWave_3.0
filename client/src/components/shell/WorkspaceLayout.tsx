@@ -1,3 +1,4 @@
+import { RecordNotice } from '@/components/feedback/RecordNotice'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { defaultLightTheme, ThemeProvider } from '@openuidev/react-ui'
@@ -47,5 +48,5 @@ export function WorkspaceLayout() {
       left={!sidebarOpen && <SidebarToggleButton branded open={false} mobile={mobile} onClick={() => setSidebarOpen(true)} />}
       right={<div ref={setHeaderActions} className="flex flex-wrap items-center justify-end gap-2" />}
     /><PageHeaderContext.Provider value={headerSlot}><Outlet /></PageHeaderContext.Provider></div>
-  </div></ThemeProvider>
+  </div><RecordNotice/></ThemeProvider>
 }

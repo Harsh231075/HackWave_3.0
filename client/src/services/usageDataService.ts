@@ -37,7 +37,16 @@ export function createUsageDataService(database: BrowserDatabase) {
     }
     return { ...base, save, create: (input: Omit<T, 'id'>) => save({ ...input, id: crypto.randomUUID() } as T), update: (id: string, patch: Partial<Omit<T, 'id'>>) => { const record = base.getById(id); return record ? save({ ...record, ...patch, id }) : { ok: false as const, message: 'This usage record is no longer available.' } } }
   }
-  return { snapshot, observations: collection('usageObservations', usageObservationSchema), releases: collection('usageReleases', usageReleaseSchema),
+  const importObservations=(input:unknown)=>{
+    const parsed=usageObservationSchema.omit({id:true,source:true}).array().min(1).max(1000).safeParse(input),existing=read(database,'usageObservations',usageObservationSchema,10000),owners=ownership()
+    if(!parsed.success||existing.status!=='found'||!owners)return {ok:false as const,message:'Provide up to 1000 valid measurements in a JSON array.'}
+    const keys=new Set(existing.value.map(usageRecordKey))
+    for(const row of parsed.data){if(!owners.projects.some(p=>p.id===row.projectId&&p.clientId===row.clientId)||keys.has(usageRecordKey(row)))return {ok:false as const,message:'Import has duplicate measurements or invalid project ownership. Nothing was imported.'};keys.add(usageRecordKey(row))}
+    if(existing.value.length+parsed.data.length>10000)return {ok:false as const,message:'The measurement limit is 10000.'}
+    const added=parsed.data.map(row=>({...row,id:crypto.randomUUID(),source:'manual' as const})),saved=database.writeCollection('usageObservations',[...existing.value,...added])
+    return saved.status==='invalid'?{ok:false as const,message:'Saved records are invalid.'}:{ok:true as const,value:added}
+  }
+  return { snapshot, importObservations, observations: collection('usageObservations', usageObservationSchema), releases: collection('usageReleases', usageReleaseSchema),
     loadCatalog(): LoadResult<{ clients: z.infer<typeof clientSchema>[]; projects: z.infer<typeof adaptiveProjectSchema>[] }> {
       const data = snapshot()
       return data ? { status: 'found' as const, value: { clients: data.clients, projects: data.projects } } : { status: 'invalid' as const }

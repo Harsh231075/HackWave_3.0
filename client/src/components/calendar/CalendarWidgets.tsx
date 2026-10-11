@@ -1,6 +1,8 @@
+import { calendarDate } from '@/domain/calendar'
+import { useComponentView } from '@/state/ComponentViewContext'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { SelectedMeeting } from '@/components/resources/MeetingPreparationWidgets'
-import { availabilityService, eventService } from '@/services'
+import { availabilityService } from '@/services'
 import { useId, useState } from 'react'
 import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { format, parseISO } from 'date-fns'
@@ -15,12 +17,12 @@ import { DEMO_DATE, DEMO_TIME } from '@/data/demo'
 import { minutes } from '@/domain/workspace'
 import type { Event } from '@/domain/types'
 
-export function MeetingForm({ open, onClose, date, start = '13:30', event: initial }: { open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
+export function MeetingForm({ open, onClose, date, start = '13:30', event: initial, duration=60 }: { duration?:number; open: boolean; onClose: () => void; date: string; start?: string; event?: Event }) {
   const { saveEvent, notify } = useWorkspace()
   const [title, setTitle] = useState(initial?.title ?? '')
   const [day, setDay] = useState(initial?.date ?? date)
   const [begin, setBegin] = useState(initial?.start ?? start)
-  const [end, setEnd] = useState(initial?.end ?? (minutes(start) >= 23 * 60 ? '23:59' : `${String(Number(start.slice(0, 2)) + 1).padStart(2, '0')}:${start.slice(3)}`))
+  const [end, setEnd] = useState(initial?.end ?? (`${String(Math.floor(Math.min(1439,minutes(start)+duration)/60)).padStart(2,'0')}:${String(Math.min(1439,minutes(start)+duration)%60).padStart(2,'0')}`))
   const [participants, setParticipants] = useState(initial?.participants.join(', ') ?? 'Maya')
   const [agenda, setAgenda] = useState(initial?.agenda ?? '')
   const [category, setCategory] = useState<Event['category']>(initial?.category ?? 'meeting')
@@ -39,10 +41,11 @@ export function MeetingCard({ event, onSelect }: { event: Event; onSelect: () =>
 
 export function MeetingDetails({ event, onClose }: { event?: Event; onClose: () => void }) {
   const [editing, setEditing] = useState(false)
+  const [deleting,setDeleting]=useState(false)
   const { deleteEvent, notify } = useWorkspace()
   if (!event) return null
   if (editing) return <MeetingForm key={event.id} open date={event.date} event={event} onClose={() => { setEditing(false); onClose() }} />
-  return <Dialog open onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{event.title}</DialogTitle><DialogDescription>{format(parseISO(event.date), 'EEEE, MMMM d')} · {event.start}–{event.end}</DialogDescription></DialogHeader><StatusBadge tone="high">{event.category}</StatusBadge><p className="detail-line"><Users size={16} /> {event.participants.join(', ') || 'Personal session'}</p><div className="detail-notes"><h3>Agenda</h3><p>{event.agenda || 'No agenda yet. Add one by editing this session.'}</p></div><p className="text-[length:0.78rem] text-(--muted-foreground)">Times use your device’s local timezone.</p><DialogFooter><Button variant="destructive" onClick={() => { const result = deleteEvent(event.id); if (!result.ok) { notify(result.message); return } notify('Event deleted. Use Undo to restore it.'); onClose() }}>Delete event</Button><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit session</Button></DialogFooter></DialogContent></Dialog>
+  return <Dialog open onOpenChange={value => { if (!value) onClose() }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{event.title}</DialogTitle><DialogDescription>{format(parseISO(event.date), 'EEEE, MMMM d')} · {event.start}–{event.end}</DialogDescription></DialogHeader><StatusBadge tone="high">{event.category}</StatusBadge><p className="detail-line"><Users size={16} /> {event.participants.join(', ') || 'Personal session'}</p><div className="detail-notes"><h3>Agenda</h3><p>{event.agenda || 'No agenda yet. Add one by editing this session.'}</p></div><p className="text-[length:0.78rem] text-(--muted-foreground)">Times use your device’s local timezone.</p><DialogFooter>{deleting&&<p className="text-sm">Confirm deletion of this local event. Undo can restore it.</p>}<Button variant="destructive" onClick={() => { if(!deleting){setDeleting(true);return} const result = deleteEvent(event.id); if (!result.ok) { notify(result.message); return } notify('Event deleted. Use Undo to restore it.'); onClose() }}>{deleting?'Confirm delete event':'Delete event'}</Button><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit session</Button></DialogFooter></DialogContent></Dialog>
 }
 
 export function MeetingList({ displayState }: { displayState?: DisplayState }) {
@@ -50,7 +53,8 @@ export function MeetingList({ displayState }: { displayState?: DisplayState }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string>()
   const scope = useMeetingScope()
-  const events = state.events.filter(event => event.date >= DEMO_DATE).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
+  const today=useComponentView()?.plan.referenceDate??calendarDate()
+  const events = state.events.filter(event => event.date >= today).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
   if (scope) return <SelectedMeeting />
   return <><WidgetActions><span className="text-[length:0.78rem] text-(--muted-foreground)">{events.length} upcoming sessions</span><Button variant="outline" size="sm" onClick={() => setOpen(true)}><Plus size={14} /> Schedule</Button></WidgetActions><DataState state={displayState ?? (events.length ? 'ready' : 'empty')}><div className="flex flex-col [gap:0.65rem]">{events.map(event => <MeetingCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}</div></DataState><MeetingForm key={`${open}-${selectedDate}`} open={open} onClose={() => setOpen(false)} date={selectedDate} /><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }
@@ -62,10 +66,13 @@ export function AvailabilityPanel() {
   const { selectedDate, selectDate } = useWorkspace()
   const [slot, setSlot] = useState<string>()
   const [open, setOpen] = useState(false)
-  const times = Array.from({ length: 17 }, (_, index) => `${String(9 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`)
-  const endFor = (start: string) => `${String(Number(start.slice(0, 2)) + 1).padStart(2, '0')}:${start.slice(3)}`
+  const [duration,setDuration]=useState(60),[workStart,setWorkStart]=useState('09:00'),[workEnd,setWorkEnd]=useState('18:00')
+  const formatTime=(value:number)=>`${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`
+  const valid=duration>=15&&duration<=240&&Number.isInteger(duration)&&minutes(workStart)<minutes(workEnd)
+  const times=valid?Array.from({length:Math.max(0,Math.floor((minutes(workEnd)-minutes(workStart)-duration)/30)+1)},(_,index)=>formatTime(minutes(workStart)+index*30)):[]
+  const endFor=(start:string)=>formatTime(minutes(start)+duration)
   const busy = (start: string) => !availabilityService.isAvailable({ date: selectedDate, start, end: endFor(start) })
-  return <div className="flex flex-col [gap:0.85rem]"><p className="text-[length:0.78rem] text-(--muted-foreground)">One-hour slots · local time</p><label className="sr-only" htmlFor={dateInputId}>Availability date</label><Input id={dateInputId} type="date" value={selectedDate} onChange={e => { if (e.target.value) { selectDate(e.target.value); setSlot(undefined) } }} /><div className="grid grid-cols-2 [gap:0.65rem]">{times.map(time => <button key={time} className={`flex flex-col items-start [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [transition:all_0.15s] [&:not(:disabled):hover]:bg-(--surface-hover) [&:not(:disabled):hover]:border-(--ring) [&.selected]:bg-(--accent) [&.selected]:border-(--primary) [&.selected]:text-(--primary) disabled:opacity-50 disabled:bg-(--muted) disabled:cursor-not-allowed [&_span]:font-semibold [&_span]:text-[length:0.95rem] [&_span]:mt-1 [&_small]:text-[length:0.74rem] [&_small]:text-(--muted-foreground) ${slot === time ? 'selected' : ''}`} disabled={busy(time)} aria-pressed={slot === time} onClick={() => setSlot(time)}><Clock3 size={14} /><span>{time}</span><small>{busy(time) ? 'Busy' : 'Available'}</small></button>)}</div>{slot && busy(slot) && <p className="[color:#ef4444] text-[length:0.8rem] font-medium" role="alert">This slot is now occupied. Choose another time.</p>}<div className="flex items-center [gap:0.4rem] text-[length:0.8rem] text-(--muted-foreground)"><span className="[width:7px] [height:7px] rounded-full [background:#10b981] inline-block mr-2 shadow-[0_0_6px_#10b981]" /><p>Open time is calculated from the sessions in your calendar.</p></div><Button className="w-full" disabled={!slot || busy(slot)} onClick={() => setOpen(true)}>Use selected time</Button><MeetingForm key={`${open}-${slot}-${selectedDate}`} open={open} onClose={() => { setOpen(false); setSlot(undefined) }} date={selectedDate} start={slot} /></div>
+  return <div className="flex flex-col [gap:0.85rem]"><p className="text-[length:0.78rem] text-(--muted-foreground)">{duration}-minute slots · local time</p><label className="sr-only" htmlFor={dateInputId}>Availability date</label><Input id={dateInputId} type="date" value={selectedDate} onChange={e => { if (e.target.value) { selectDate(e.target.value); setSlot(undefined) } }} /><div className="grid grid-cols-3 gap-2"><label className="text-xs">Minutes<Input type="number" min={15} max={240} value={duration} onChange={e=>{setDuration(Number(e.target.value));setSlot(undefined)}}/></label><label className="text-xs">Work start<Input type="time" value={workStart} onChange={e=>{setWorkStart(e.target.value);setSlot(undefined)}}/></label><label className="text-xs">Work end<Input type="time" value={workEnd} onChange={e=>{setWorkEnd(e.target.value);setSlot(undefined)}}/></label></div>{!valid&&<p role="alert">Choose 15–240 minutes and an end after the start.</p>}<div className="grid grid-cols-2 [gap:0.65rem]">{times.map(time => <button key={time} className={`flex flex-col items-start [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [transition:all_0.15s] [&:not(:disabled):hover]:bg-(--surface-hover) [&:not(:disabled):hover]:border-(--ring) [&.selected]:bg-(--accent) [&.selected]:border-(--primary) [&.selected]:text-(--primary) disabled:opacity-50 disabled:bg-(--muted) disabled:cursor-not-allowed [&_span]:font-semibold [&_span]:text-[length:0.95rem] [&_span]:mt-1 [&_small]:text-[length:0.74rem] [&_small]:text-(--muted-foreground) ${slot === time ? 'selected' : ''}`} disabled={busy(time)} aria-pressed={slot === time} onClick={() => setSlot(time)}><Clock3 size={14} /><span>{time}</span><small>{busy(time) ? 'Busy' : 'Available'}</small></button>)}</div>{slot && busy(slot) && <p className="[color:#ef4444] text-[length:0.8rem] font-medium" role="alert">This slot is now occupied. Choose another time.</p>}<div className="flex items-center [gap:0.4rem] text-[length:0.8rem] text-(--muted-foreground)"><span className="[width:7px] [height:7px] rounded-full [background:#10b981] inline-block mr-2 shadow-[0_0_6px_#10b981]" /><p>Open time is calculated from the sessions in your calendar.</p></div><Button className="w-full" disabled={!slot || busy(slot)} onClick={() => setOpen(true)}>Use selected time</Button><MeetingForm key={`${open}-${slot}-${selectedDate}`} open={open} onClose={() => { setOpen(false); setSlot(undefined) }} date={selectedDate} start={slot} duration={duration} /></div>
 }
 
 export function TimeBlockCard({ event, onSelect }: { event: Event; onSelect: () => void }) {
@@ -75,12 +82,15 @@ export function TimeBlockCard({ event, onSelect }: { event: Event; onSelect: () 
 export function DailyTimeline() {
   const { state, selectedDate, selectDate } = useWorkspace()
   const [selected, setSelected] = useState<string>()
-  const events = eventService.list({ from: selectedDate, to: selectedDate })
+  const [creating,setCreating]=useState(false)
+  const scope=useComponentView()?.plan.bindings
+  const canCreate=!scope?.projectId&&!scope?.clientId
+  const events = state.events.filter(event=>event.date===selectedDate).sort((a,b)=>a.start.localeCompare(b.start))
   const planned = events.reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
-  const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span></>
+  const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span><Button variant="outline" size="sm" disabled={!canCreate} title={canCreate?undefined:'Create new local blocks in an unscoped Timeline or Calendar view.'} onClick={()=>setCreating(true)}><Plus size={14}/> Add block</Button></>
   return <><WidgetActions>{controls}</WidgetActions><div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {
     const starting = events.filter(event => Number(event.start.slice(0, 2)) === hour)
     const occupied = events.some(event => minutes(event.start) < (hour + 1) * 60 && minutes(event.end) > hour * 60)
     return <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={hour}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{String(hour).padStart(2, '0')}:00</span><div className="flex-1 [padding:0.35rem_0_0.35rem_1rem] flex flex-col [gap:0.35rem]">{selectedDate === DEMO_DATE && hour === 9 && <div className="absolute [left:-2px] right-0 top-3 h-0.5 [background:#ef4444] text-[length:0.72rem] font-semibold [color:#ef4444] flex items-center pl-2"><span />{DEMO_TIME} · demo now</div>}{starting.map(event => <TimeBlockCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}{!starting.length && !occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) italic [padding-top:0.35rem]">Open time</span>}{!starting.length && occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) opacity-70">Session continues</span>}</div></div>
-  })}{events.filter(event => Number(event.start.slice(0, 2)) < 8 || Number(event.start.slice(0, 2)) >= 18).map(event => <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={event.id}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{event.start}</span><TimeBlockCard event={event} onSelect={() => setSelected(event.id)} /></div>)}</div><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
+  })}{events.filter(event => Number(event.start.slice(0, 2)) < 8 || Number(event.start.slice(0, 2)) >= 18).map(event => <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={event.id}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{event.start}</span><TimeBlockCard event={event} onSelect={() => setSelected(event.id)} /></div>)}</div><MeetingForm key={selectedDate+'-'+creating} open={creating} date={selectedDate} onClose={()=>setCreating(false)}/><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }

@@ -3,9 +3,9 @@ import { modelText } from '../modelProvider.ts'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { calendarWindow, eventDraftSchema, zonedInstant, type CalendarEvent } from '../../src/domain/calendar.ts'
+import { calendarWindow, eventDraftSchema, eventEditSchema, zonedInstant, type CalendarEvent } from '../../src/domain/calendar.ts'
 import { createCalendarStore, type Session } from './store.ts'
-import { CalendarError, createGoogleProvider } from './google.ts'
+import { CalendarError, createGoogleProvider, normalizeGoogleEvent } from './google.ts'
 
 const readScope = 'https://www.googleapis.com/auth/calendar.events.readonly'
 const writeScope = 'https://www.googleapis.com/auth/calendar.events'
@@ -107,6 +107,32 @@ export function createCalendarHandler(env: NodeJS.ProcessEnv, transport: typeof 
       if (req.method === 'GET' && path.startsWith('/api/calendar/events/')) {
         send(res, 200, { accountId: connection.accountId, event: await google.event(connection, decodeURIComponent(path.slice('/api/calendar/events/'.length))) }); return true
       }
+      const mutation=path.match(/^\/api\/calendar\/events\/([^/]+)\/(update|cancel)$/)
+      if(req.method==='POST'&&mutation){
+        if(!canWrite(session!))throw new CalendarError(403,'Allow Google Calendar write access before changing meetings.')
+        const input=z.object({accountId:z.string().min(1),revision:z.string().min(1),draft:eventEditSchema.optional()}).safeParse(await body(req))
+        if(!input.success||input.data.accountId!==connection.accountId)throw new CalendarError(409,'This action belongs to a different calendar account. Reopen the meeting.')
+        const eventId=decodeURIComponent(mutation[1]),current=await google.event(connection,eventId)
+        if(current.revision!==input.data.revision)throw new CalendarError(409,'This meeting changed. Refresh it before saving or cancelling.')
+        const endpoint='/calendars/primary/events/'+encodeURIComponent(eventId)+'?sendUpdates=all'
+        if(mutation[2]==='cancel'){
+          await google.api(connection,endpoint,{method:'DELETE',headers:{'If-Match':current.revision}})
+          send(res,200,{cancelled:true,accountId:connection.accountId,eventId});return true
+        }
+        const draft=input.data.draft
+        if(!draft)throw new CalendarError(400,'Provide valid meeting details.')
+        const allDay='allDay' in draft&&draft.allDay
+        if(allDay!==current.allDay)throw new CalendarError(409,'The event type changed. Reopen it before editing.')
+        const start=allDay?zonedInstant(draft.start,'00:00',draft.timezone):draft.start,end=allDay?zonedInstant(draft.end,'00:00',draft.timezone):draft.end
+        if(draft.start!==current.start||draft.end!==current.end){
+          const conflicts=await google.events(connection,start,end,draft.timezone)
+          if(conflicts.some(e=>e.id!==eventId&&Date.parse(busy(e,draft.timezone).from)<Date.parse(end)&&Date.parse(busy(e,draft.timezone).to)>Date.parse(start)))throw new CalendarError(409,'This time overlaps another event. Choose a different time.')
+        }
+        const item=await google.api(connection,endpoint,{method:'PATCH',headers:{'If-Match':current.revision},body:JSON.stringify({summary:draft.title,description:draft.description,start:allDay?{date:draft.start}:{dateTime:draft.start,timeZone:draft.timezone},end:allDay?{date:draft.end}:{dateTime:draft.end,timeZone:draft.timezone},attendees:draft.attendees.map(email=>{const prior=current.attendees.find(a=>a.email===email);return {email,...(prior?.response?{responseStatus:prior.response}:{})}})})})
+        const event=normalizeGoogleEvent(item as Record<string,unknown>)
+        if(!event)throw new CalendarError(502,'The update could not be verified. Refresh the meeting before retrying.')
+        send(res,200,{accountId:connection.accountId,event});return true
+      }
       if (req.method === 'POST' && path === '/api/calendar/preparation') {
         const input = z.object({ eventId: z.string().min(1).max(512), goal: z.string().min(1).max(4000) }).safeParse(await body(req))
         if (!input.success) throw new CalendarError(400, 'Choose a meeting and describe your preparation goal.')
@@ -127,15 +153,15 @@ export function createCalendarHandler(env: NodeJS.ProcessEnv, transport: typeof 
         send(res, 200, { accountId: connection.accountId, event: current, ...plan, source }); return true
       }
       if (req.method === 'POST' && path === '/api/calendar/availability') {
-        const input = z.object({ date: z.iso.date(), duration: z.number().int().min(15).max(240), timezone: z.string().default('Asia/Kolkata').refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true } catch { return false } }) }).safeParse(await body(req))
-        if (!input.success) throw new CalendarError(400, 'Choose a valid date, timezone and duration between 15 and 240 minutes.')
+        const input = z.object({ date: z.iso.date(), duration: z.number().int().min(15).max(240), workStart:z.iso.time({precision:-1}).default('09:00'),workEnd:z.iso.time({precision:-1}).default('18:00'), timezone: z.string().default('Asia/Kolkata').refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true } catch { return false } }) }).safeParse(await body(req))
+        if (!input.success||input.data.workStart>=input.data.workEnd) throw new CalendarError(400, 'Choose a valid work window, date, timezone and duration between 15 and 240 minutes.')
         const value = input.data
         const timezone = value.timezone
         const { from, to } = calendarWindow(value.date!, timezone)
         const events = await google.events(connection, from, to, timezone)
         const occupied = events.map(e => busy(e, timezone))
         const slots: Array<{ start: string; end: string }> = []
-        for (let minutes = 9 * 60; minutes + value.duration! <= 18 * 60; minutes += 30) {
+        for (let minutes = Number(value.workStart.slice(0,2))*60+Number(value.workStart.slice(3)); minutes + value.duration! <= Number(value.workEnd.slice(0,2))*60+Number(value.workEnd.slice(3)); minutes += 30) {
           const start = zonedInstant(value.date!, `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`, timezone)
           const end = new Date(Date.parse(start) + value.duration! * 60000).toISOString()
           if (Date.parse(start) > Date.now() && !occupied.some(b => Date.parse(b.from) < Date.parse(end) && Date.parse(b.to) > Date.parse(start))) slots.push({ start, end })

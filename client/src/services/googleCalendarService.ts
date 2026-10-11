@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { calendarEventSchema, type CalendarConnection, type EventDraft } from '../domain/calendar.ts'
+import { calendarEventSchema, type EventEditDraft, type CalendarEvent, type CalendarConnection, type EventDraft } from '../domain/calendar.ts'
 import { createHttpClient } from './api/httpClient.ts'
 const connectionSchema = z.object({ connected: z.boolean(), configured: z.boolean(), accountId: z.string().optional(), email: z.string().optional(), canWrite: z.boolean().optional() })
 const eventListSchema = z.object({ accountId: z.string(), events: calendarEventSchema.array(), refreshedAt: z.string() })
@@ -25,9 +25,11 @@ export function createGoogleCalendarService() {
     async prepare(eventId: string, goal: string, signal?: AbortSignal) {
       return z.object({ accountId: z.string(), event: calendarEventSchema, widgets: z.array(z.enum(['details', 'outline', 'calendar'])), rationale: z.string(), source: z.enum(['ai', 'local']) }).parse(await request('preparation', { eventId, goal }, signal))
     },
-    async availability(date: string, duration: number, timezone: string, signal?: AbortSignal) {
-      return z.object({ slots: z.array(z.object({ start: z.string(), end: z.string() })), notice: z.string() }).parse(await request('availability', { date, duration, timezone }, signal))
+    async availability(date: string, duration: number, timezone: string, signal?: AbortSignal, options?:{workStart:string;workEnd:string}) {
+      return z.object({ slots: z.array(z.object({ start: z.string(), end: z.string() })), notice: z.string() }).parse(await request('availability', { date, duration, timezone, ...options }, signal))
     },
+    async update(event: CalendarEvent, draft: EventEditDraft, accountId:string) {return z.object({accountId:z.string(),event:calendarEventSchema}).parse(await request('events/'+encodeURIComponent(event.id)+'/update',{accountId,revision:event.revision,draft}))},
+    async cancel(event:CalendarEvent, accountId:string) {return z.object({cancelled:z.literal(true),accountId:z.string(),eventId:z.string()}).parse(await request('events/'+encodeURIComponent(event.id)+'/cancel',{accountId,revision:event.revision}))},
     async preview(draft: EventDraft) { return z.object({ id: z.string() }).parse(await request('event-drafts', draft)) },
     async confirm(id: string) { return operationSchema.parse(await request('event-drafts/' + encodeURIComponent(id) + '/confirm', {})) },
     async operation(id: string) { return operationSchema.parse(await request('operations/' + encodeURIComponent(id))) },

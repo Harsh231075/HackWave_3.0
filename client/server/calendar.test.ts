@@ -17,7 +17,9 @@ const item = { id: 'meeting-a', summary: 'Planning meeting', etag: 'revision-1',
 function harness() {
   const directory = mkdtempSync(join(tmpdir(), 'orlo-calendar-test-'))
   const env = { GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CLIENT_SECRET: 'test-secret', GOOGLE_REDIRECT_URI: 'http://localhost:5173/api/calendar/google/callback', APP_ORIGIN: 'http://localhost:5173', CALENDAR_DATA_DIR: directory }
-  const state = { scope: readScope + ' ' + writeScope, calls: 0, creates: 0, conflict: false, uncertain: false, revoked: false }
+  const state = { scope: readScope + ' ' + writeScope, calls: 0, creates: 0, conflict: false, uncertain: false, revoked: false, updates:0, cancels:0, lastMatch:'', precondition:false, otherConflict:false }
+  let existing:Record<string,unknown>={...item}
+  let cancelled=false
   const created = new Map<string, Record<string, unknown>>()
   const transport: typeof fetch = async (input, init) => {
     state.calls++
@@ -32,8 +34,16 @@ function harness() {
       if (state.uncertain) throw new TypeError('simulated lost response')
       return Response.json(created.get(String(value.id)))
     }
-    if (url.pathname.endsWith('/events')) return Response.json({ items: state.conflict ? [item] : [] })
-    if (url.pathname.includes('/events/')) { const id = decodeURIComponent(url.pathname.split('/').at(-1)!); return id === 'meeting-a' ? Response.json(item) : created.has(id) ? Response.json(created.get(id)) : new Response('', { status: 404 }) }
+    if(url.pathname.endsWith('/events/meeting-a')&&init?.method==='PATCH'){
+      state.lastMatch=String((init.headers as Record<string,string>)['If-Match'])
+      if(state.precondition)return new Response(null,{status:412})
+      state.updates++;existing={...existing,...JSON.parse(String(init.body)),etag:'revision-2'};return Response.json(existing)
+    }
+    if(url.pathname.endsWith('/events/meeting-a')&&init?.method==='DELETE'){
+      state.lastMatch=String((init.headers as Record<string,string>)['If-Match']);state.cancels++;cancelled=true;return new Response(null,{status:204})
+    }
+    if (url.pathname.endsWith('/events')) return Response.json({ items: state.otherConflict?[{...item,id:'other-event'}]:state.conflict ? [item] : [] })
+    if (url.pathname.includes('/events/')) { const id = decodeURIComponent(url.pathname.split('/').at(-1)!); return id === 'meeting-a' ? cancelled?new Response(null,{status:404}):Response.json(existing) : created.has(id) ? Response.json(created.get(id)) : new Response('', { status: 404 }) }
     throw new Error('Unexpected test transport')
   }
   const handler = createCalendarHandler(env, transport)
@@ -205,4 +215,24 @@ test('sign-in without calendar permission returns helpful recovery inside the ap
   assert.equal(callback.body, null)
   assert.equal((await h.invoke('/api/calendar/connections', { cookie: start.cookie })).body.connected, false)
   assert.equal(h.state.creates, 0)
+})
+
+test('manual Google update uses revision/account guards and preserves event identity',async()=>{
+ const h=harness(),cookie=await h.authorize()
+ const body={accountId:'account-a',revision:'revision-1',draft:{...draft,title:'Updated review'}}
+ const result=await h.invoke('/api/calendar/events/meeting-a/update',{method:'POST',cookie,body})
+ assert.equal(result.status,200);assert.equal(result.body.event.id,'meeting-a');assert.equal(result.body.event.title,'Updated review');assert.equal(h.state.updates,1);assert.equal(h.state.lastMatch,'revision-1')
+ assert.equal((await h.invoke('/api/calendar/events/meeting-a/update',{method:'POST',cookie,body})).status,409);assert.equal(h.state.updates,1)
+ assert.equal((await h.invoke('/api/calendar/events/meeting-a/cancel',{method:'POST',cookie,body:{accountId:'different',revision:'revision-2'}})).status,409);assert.equal(h.state.cancels,0)
+})
+test('Google cancellation handles an empty provider response and uses If-Match',async()=>{
+ const h=harness(),cookie=await h.authorize()
+ const result=await h.invoke('/api/calendar/events/meeting-a/cancel',{method:'POST',cookie,body:{accountId:'account-a',revision:'revision-1'}})
+ assert.equal(result.status,200);assert.equal(result.body.cancelled,true);assert.equal(h.state.cancels,1);assert.equal(h.state.lastMatch,'revision-1')
+})
+test('Google modifications reject write-denied, stale provider versions and rescheduling conflicts',async()=>{
+ const body={accountId:'account-a',revision:'revision-1',draft:{...draft,start:'2100-01-02T10:05:00Z'}}
+ const read=harness();read.state.scope=readScope;const readCookie=await read.authorize();assert.equal((await read.invoke('/api/calendar/events/meeting-a/update',{method:'POST',cookie:readCookie,body})).status,403);assert.equal(read.state.updates,0)
+ const race=harness(),cookie=await race.authorize();race.state.precondition=true;assert.equal((await race.invoke('/api/calendar/events/meeting-a/update',{method:'POST',cookie,body})).status,409);assert.equal(race.state.updates,0)
+ const conflict=harness(),conflictCookie=await conflict.authorize();conflict.state.otherConflict=true;assert.equal((await conflict.invoke('/api/calendar/events/meeting-a/update',{method:'POST',cookie:conflictCookie,body})).status,409);assert.equal(conflict.state.updates,0)
 })

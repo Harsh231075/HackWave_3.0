@@ -1,3 +1,4 @@
+import { intentDateSchema } from './intent.ts'
 import { eventError, type Action } from './workspace.ts'
 import type { Event, Task, WorkspaceState } from './types.ts'
 export type TaskInput = Omit<Task, 'id'> & { id?: string }
@@ -6,7 +7,7 @@ export type ActionResult<T> = { ok: true; value: T } | { ok: false; message: str
 export type PreparedAction<T> = ActionResult<{ action: Action; record: T }>
 export function prepareTask(input: TaskInput, state: WorkspaceState, createId: () => string = () => crypto.randomUUID()): PreparedAction<Task> {
   if (input.id && !state.tasks.some(task => task.id === input.id)) return { ok: false, message: 'This task is no longer available.' }
-  if (!input.title.trim() || !input.owner.trim() || !input.due || !Number.isFinite(input.duration) || input.duration < 5 || input.duration > 480) return { ok: false, message: 'Add a title, owner, due date, and duration between 5 and 480 minutes.' }
+  if (!input.title.trim() || !input.owner.trim() || !intentDateSchema.safeParse(input.due).success || !Number.isInteger(input.duration) || input.duration < 5 || input.duration > 480) return { ok: false, message: 'Add a title, owner, due date, and duration between 5 and 480 minutes.' }
   if (input.title.length > 160 || input.description.length > 2000) return { ok: false, message: 'Keep the title under 160 characters and description under 2000 characters.' }
   if (!['urgent', 'high', 'medium', 'low'].includes(input.priority) || !['pending', 'blocked', 'completed'].includes(input.status)) return { ok: false, message: 'Choose a valid priority and status.' }
   const record = { ...input, id: input.id ?? createId(), title: input.title.trim(), owner: input.owner.trim() }
