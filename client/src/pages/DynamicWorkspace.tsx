@@ -1,3 +1,4 @@
+import { ResponseWidgetsContext } from '@/state/ResponseWidgetsContext'
 import { HistoricalWorkspace } from '@/components/conversation/HistoricalWorkspace'
 import { captureWorkspaceSnapshot } from '@/lib/conversation/captureWorkspaceSnapshot'
 import { ConversationComposer } from '@/components/conversation/ConversationComposer'
@@ -7,7 +8,7 @@ import { GoogleCalendarConnection } from '@/components/calendar/GoogleCalendarWi
 import { LiveCalendarWorkspace, type LiveRequest } from '@/components/calendar/LiveCalendarWorkspace'
 import { liveCalendarLayoutService } from '@/services/liveCalendarLayoutService'
 import { calendarDate, shiftDate } from '@/domain/calendar'
-import { liveCalendarGoal, parseLayoutCommand, modifyWidgets, patchWorkspaceResponse, type LayoutCommand } from '@/domain/workspaceCommands'
+import { liveCalendarGoal, responseWidgetsForPrompt, responseForWidgets, parseLayoutCommand, modifyWidgets, patchWorkspaceResponse, type LayoutCommand } from '@/domain/workspaceCommands'
 import { validLayout } from '@/lib/workspace/layoutValidation'
 import { meetingCompositionSchema, serializeMeetingComposition } from '@/domain/adaptiveData'
 import { overdueCompositionSchema, serializeOverdueComposition } from '@/domain/overdueReview'
@@ -138,7 +139,7 @@ export function DynamicWorkspace() {
     if (!open) { speech.cancel(); workflow.cancel() }
     setCommandOpen(open)
   }
-  function completeTurn(id: string, status: Conversation['turns'][number]['status'], reply: string) { setConversation(current => finishTurn(current, id, status, reply)) }
+  function completeTurn(id: string, status: Conversation['turns'][number]['status'], reply: string, visibleWidgets?: string[]) { setConversation(current => finishTurn(current, id, status, reply, visibleWidgets)) }
   function stopConversation() { speech.cancel(); cancel(); if (activeTurn.current) completeTurn(activeTurn.current, 'cancelled', 'Stopped. Your existing workspace and edits are kept.'); activeTurn.current = null }
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
@@ -218,12 +219,18 @@ export function DynamicWorkspace() {
     activeTurn.current = id
     const answerText = answer ? answer.field === 'dateRange' ? `${answer.dateRange.from} through ${answer.dateRange.to}` : clarification?.choices.find(choice => choice.id === answer.selectedId)?.label ?? 'Use the selected option' : submittedGoal
     const previousTurn = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
-    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || /WorkspaceWidget\(\s*"calendar"/.test(response)) ? { accountId: calendar.connection.accountId } : {}) } : null
+    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || (currentResponseWidgets ? currentResponseWidgets.includes('calendar') : /WorkspaceWidget\(\s*"calendar"/.test(response))) ? { accountId: calendar.connection.accountId } : {}) } : null
     setConversation(current => beginTurn(previousTurn && previousSnapshot ? archiveWorkspace(current, previousTurn, previousSnapshot) : current, id, answerText))
     setGoal(''); setCommandOpen(false); setError('')
     if (!answer) {
       const modification = parseLayoutCommand(submittedGoal)
-      if (modification) { const changed = changeLayout(modification); completeTurn(id, changed ? 'ready' : 'error', changed ? 'Your workspace is updated. Existing records and edits are kept.' : workflow.getOutcome().error); return }
+      if (modification) {
+        const changed = changeLayout(modification)
+        const title = modification.widget === 'tasks' ? 'tasks' : modification.widget === 'outline' ? 'notes' : modification.widget
+        const reply = modification.action === 'remove' ? `${title[0].toUpperCase() + title.slice(1)} removed from the working layout.` : `Here ${title === 'tasks' || title === 'notes' ? 'are' : 'is'} your ${title}.`
+        completeTurn(id, changed ? 'ready' : 'error', changed ? reply : workflow.getOutcome().error, changed ? modification.action === 'remove' ? [] : [modification.widget] : undefined)
+        return
+      }
       const liveKind = !demo && !useDemoCalendar ? liveCalendarGoal(submittedGoal) : null
       if (liveKind) {
         rememberLayout()
@@ -270,7 +277,9 @@ export function DynamicWorkspace() {
   }
   function generate(event: FormEvent) { event.preventDefault(); void build() }
   const workspaceTurnId = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
-  const renderer = <Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} />
+  const currentResponseTurn = conversation.turns.find(turn => turn.id === workspaceTurnId)
+  const currentResponseWidgets = currentResponseTurn?.visibleWidgets ?? (currentResponseTurn ? responseWidgetsForPrompt(currentResponseTurn.prompt) : undefined)
+  const renderer = <Renderer key={revision} library={productivityLibrary} response={currentResponseWidgets?.length ? responseForWidgets(response, currentResponseWidgets) : response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} />
   return <div className={conversation.active ? "dynamic-canvas-page flex h-[calc(100dvh-64px)] flex-col max-sm:h-[calc(100dvh-60px)]" : "dynamic-canvas-page"} data-conversation-active={conversation.active}><PageHeaderActions><button className="command-trigger" onClick={() => changeCommand(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setCalendarSettings(true)}>Google Calendar connection</DropdownMenuItem><DropdownMenuItem disabled={!layoutUndo.length} onClick={undoLayout}>Undo layout change</DropdownMenuItem><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
 
     {conversation.active ? <>
@@ -281,7 +290,7 @@ export function DynamicWorkspace() {
             <div className="flex justify-end"><p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-muted px-4 py-3 text-sm text-foreground">{turn.prompt}</p></div>
             <div className="flex items-start gap-3"><span className="mt-1 shrink-0"><OrloLogo size={22} /></span><div className="min-w-0 flex-1"><p className={`text-sm leading-6 ${turn.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role={turn.status === 'error' ? 'alert' : turn.status === 'pending' ? 'status' : undefined}>{turn.status === 'pending' && <LoaderCircle size={15} className="mr-2 inline animate-spin" />}{turn.reply}</p>{(turn.status === 'error' || turn.status === 'cancelled') && <Button variant="ghost" size="sm" disabled={pending} onClick={() => void build(undefined, false, turn.prompt)}>Try again</Button>}</div></div>
             {turn.snapshot && turn.id !== workspaceTurnId && <HistoricalWorkspace snapshot={turn.snapshot} turnId={turn.id} accountId={calendar.connection?.accountId} />}
-          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace">{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</section>}
+          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && (turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt))?.length !== 0 && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace"><ResponseWidgetsContext.Provider value={turn.visibleWidgets ?? responseWidgetsForPrompt(turn.prompt) ?? null}>{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</ResponseWidgetsContext.Provider></section>}
             {turn.id === conversation.turns.at(-1)?.id && clarification && <section className="rounded-2xl border border-border bg-card p-4" aria-label="Clarify your goal"><ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={stopConversation} /></section>}
           </div>)}</div>
           {calendarSettings && <section className="space-y-3"><GoogleCalendarConnection /><Button variant="ghost" size="sm" onClick={() => setCalendarSettings(false)}>Hide connection settings</Button></section>}

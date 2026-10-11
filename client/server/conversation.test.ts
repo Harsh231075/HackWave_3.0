@@ -60,3 +60,11 @@ test('failed follow-ups keep the original response snapshot without marking the 
   assert.equal(state.turns[1].status, 'error')
   assert.equal(state.workspaceTurnId, 'two')
 })
+
+test('a task-only response does not inherit the preceding calendar response', () => {
+  let state = finishTurn(beginTurn(emptyConversation(), 'calendar', 'Add calendar'), 'calendar', 'ready', 'Here is your calendar', ['calendar'])
+  state = finishTurn(beginTurn(state, 'tasks', 'Add tasks'), 'tasks', 'ready', 'Here are your tasks', ['tasks'])
+  assert.deepEqual(state.turns[0].visibleWidgets, ['calendar'])
+  assert.deepEqual(state.turns[1].visibleWidgets, ['tasks'])
+  assert.deepEqual(conversationSchema.parse(JSON.parse(JSON.stringify(state))).turns[1].visibleWidgets, ['tasks'])
+})

@@ -1,3 +1,4 @@
+import { useResponseWidgets } from '@/state/ResponseWidgetsContext'
 import { useUsageScope } from '@/state/UsageScopeContext'
 import { usageWidgetTypes } from '@/domain/usageComposition'
 import { useOverdueScope } from '@/state/OverdueScopeContext'
@@ -23,6 +24,8 @@ const WorkspaceWidget = defineComponent({
     const overdue = useOverdueScope()
     const usage = useUsageScope()
     const scope = usage ?? overdue ?? meeting
+    const visible = useResponseWidgets()
+    if (visible && !visible.includes(props.id)) return null
     const Widget = registry[props.id].component
     const supported = !scope || scope.composition.widgets.some(widget => widget.type === props.id)
     const content = props.id === 'metrics' && !overdue && !usage ? <Widget /> : <WidgetFrame id={props.id}><Widget /></WidgetFrame>
@@ -41,8 +44,9 @@ const Workspace = defineComponent({
     const usage = useUsageScope()
     const scope = usage ?? overdue ?? meeting
     const { state } = useWorkspace()
+    const visible = useResponseWidgets()
     const present = scope?.composition.widgets.map(widget => widget.type) ?? []
-    const retained = scope ? state.pins.filter(id => widgetTypes.includes(id as typeof widgetTypes[number]) && !present.includes(id as typeof present[number])) : []
+    const retained = scope && !visible ? state.pins.filter(id => widgetTypes.includes(id as typeof widgetTypes[number]) && !present.includes(id as typeof present[number])) : []
     return <div className="workspace-grid">{renderNode(props.children)}{retained.map(id => {
       const widgetId = id as typeof widgetTypes[number]
       const Widget = registry[widgetId].component

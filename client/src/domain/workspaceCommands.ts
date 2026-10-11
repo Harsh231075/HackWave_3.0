@@ -53,3 +53,17 @@ export function liveCalendarGoal(goal: string) {
   if (/\b(prepare|preparation|prep|brief|agenda)\b/.test(text) && /\b(meeting|call|appointment)\b/.test(text)) return 'prepare' as const
   return null
 }
+
+export function responseWidgetsForPrompt(prompt: string): string[] | undefined {
+  const command = parseLayoutCommand(prompt)
+  return command ? command.action === 'remove' ? [] : [command.widget] : undefined
+}
+
+export function responseForWidgets(workingLayout: string, widgets: readonly string[]): string {
+  const calls = widgets.map(widget => {
+    if (!/^[a-z-]+$/.test(widget)) throw new Error('Invalid response widget.')
+    const span = [...workingLayout.matchAll(/WorkspaceWidget\(\s*"([a-z-]+)"\s*,\s*"(full|wide|narrow)"\s*\)/g)].find(match => match[1] === widget)?.[2] ?? 'full'
+    return `WorkspaceWidget("${widget}", "${span}")`
+  })
+  return `root = Card([Workspace([${calls.join(', ')}])])`
+}
