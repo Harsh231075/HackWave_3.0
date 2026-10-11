@@ -17,10 +17,12 @@
     "test": "node --experimental-strip-types --test server/*.test.ts",
     "test:render": "node scripts/integration-render.mjs",
     "test:continuity": "node scripts/verify-continuity.mjs",
+    "test:kanban": "node scripts/verify-kanban.mjs",
     "test:intent:live": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-intent-live.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@dnd-kit/react": "^0.5.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@openuidev/lang-core": "^0.3.2",
     "@openuidev/react-lang": "^0.3.2",
