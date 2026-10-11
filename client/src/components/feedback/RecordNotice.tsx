@@ -14,7 +14,7 @@ export function RecordNotice() {
     if (!notice) { toast.dismiss('workspace-notice'); return }
     const { state } = current.current
     const latest = getActivityRecords(browserDatabase)[0]
-    const undoable = state.history.length > 0 && !!latest && ['task','toggle','event','delete-event','delete-task','draft','delete-draft','rename-draft','dismiss','undo'].includes(latest.operation)
+    const undoable = noticeTone === 'success' && /\b(deleted|cancelled)\b/i.test(notice) && state.history.length > 0 && !!latest && ['delete-event','delete-task','delete-draft'].includes(latest.operation)
     const history = JSON.stringify(state.history)
     const success=noticeTone==='success', error=noticeTone==='error'
     toast.custom(t => <div role={error?'alert':'status'} className={`flex max-w-[calc(100vw-48px)] items-start gap-3 rounded-2xl border p-4 text-sm shadow-[0_8px_28px_rgba(37,41,54,.10)] ${success?'border-green-200 bg-green-50 text-green-900':error?'border-red-200 bg-red-50 text-red-900':'border-border bg-card text-foreground'} ${t.visible ? 'animate-in fade-in slide-in-from-top-2' : 'animate-out fade-out'}`}>
