@@ -338,7 +338,7 @@
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
-      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\", span: \"wide\" | \"narrow\" | \"full\")",
+      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"resource-create\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\", span: \"wide\" | \"narrow\" | \"full\")",
       "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
     },
     "Workspace": {
@@ -561,6 +561,7 @@
         "recommendation: Select an outstanding task and confirm an available local focus slot.",
         "outline: An editable outline turns preparation into work you can keep. Drafts are saved in your shared workspace.",
         "resources: These linked demo materials support the selected context. Open a source to inspect its actual contents.",
+        "resource-create: An inline editor lets you define and save a resource without opening another dialog.",
         "context: Context, courses or projects, and linked resources orient the preparation workspace.",
         "calendar: Month, week, day, and agenda views share event records and deadlines. Includes quick creation, event editing, deletion with undo, category filters, and an optional availability panel. Use this single calendar widget instead of adding duplicate meetings or availability widgets for a calendar goal.",
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
@@ -4820,6 +4821,7 @@
               "recommendation",
               "outline",
               "resources",
+              "resource-create",
               "context",
               "calendar",
               "availability",

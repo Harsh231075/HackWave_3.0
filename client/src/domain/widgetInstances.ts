@@ -71,12 +71,12 @@ export function fingerprint(value: unknown) {
   for (const c of JSON.stringify(canonical(value))) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619)
   return (hash >>> 0).toString(16)
 }
-export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' | 'binding' | 'viewState'>) {
+export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' | 'binding' | 'viewState'> & {instanceId?:string}) {
   const { widgetType: type, binding, viewState } = instance
   const filtersMatter = type === 'tasks' || (binding.kind === 'overdue' && ['context', 'metrics', 'recommendation'].includes(type))
   const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && (binding.kind === 'workspace' || binding.kind === 'google-calendar')
   const effectiveBinding = type === 'usage' && binding.kind === 'usage' ? { kind: 'usage-query', query: { clientId: binding.intent.clientId, projectId: binding.intent.projectId, dateRange: binding.intent.dateRange, segment: binding.intent.constraints?.segment } } : binding
-  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
+  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(type === 'resource-create' ? {formId:instance.instanceId} : {}), ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
 }
 export function activeInstanceId(type: WidgetType, binding: WidgetBinding) { return `active:${type}:${fingerprint(binding)}` }
 export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[], kind: WidgetBinding['kind'] = 'workspace') {

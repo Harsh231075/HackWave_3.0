@@ -146,7 +146,7 @@ test('canvas deduplicates exact selections, preserves different scopes and resto
   const active = widgetTypes.map(type => instance(type))
   const retained = Array.from({ length: 6 }, (_, index) => ({ ...saved, pinId: `pin-${index}`, instanceId: `pin:${index}`, viewState: { ...saved.viewState, taskFilters: { ...emptyFilters(), query: `${index}` } } })) as PinnedWidget[]
   const plan = planWidgetCanvas(active, retained)
-  assert.equal(plan.active.length + plan.pins.length, 14); assert.equal(plan.omitted, 7)
+  assert.equal(plan.active.length + plan.pins.length, 14); assert.equal(plan.omitted, active.length - plan.active.length)
   for (const required of ['metrics', 'tasks', 'context', 'usage', 'outline']) assert.ok(plan.active.some(w => w.widgetType === required))
   assert.equal(planWidgetCanvas(active, []).active.length, 14)
   const usagePlan = planWidgetCanvas(active.map(w => ({ ...w, binding: usage })), retained, 'usage')

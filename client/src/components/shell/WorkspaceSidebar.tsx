@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Settings, Users } from 'lucide-react'
+import { BookOpen, Clock3, Home, LayoutDashboard, LayoutGrid, ListTodo, Settings, Users } from 'lucide-react'
 import { SidebarToggleButton } from './SidebarToggleButton'
 import { Brand } from './AppShell'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,6 +10,7 @@ const pages = [
   { to: '/', label: 'Workspace', icon: LayoutDashboard },
   { to: '/tasks', label: 'Tasks', icon: ListTodo },
   { to: '/meetings', label: 'Meetings', icon: Users },
+  { to: '/resources', label: 'Resources', icon: BookOpen },
   { to: '/planner', label: 'Planner', icon: Clock3 },
 ]
 

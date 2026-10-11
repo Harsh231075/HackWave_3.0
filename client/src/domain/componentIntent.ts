@@ -17,7 +17,7 @@ export const viewBindingsSchema = z.object({
   recordQuery: z.string().max(160).optional(), projectId: z.string().optional(), clientId: z.string().optional(), draftKey: z.string().optional(),
 })
 export const componentViewSchema = z.object({
-  action: z.literal('view'), widgets: z.array(z.enum(widgetTypes)).min(1).max(15), bindings: viewBindingsSchema,
+  action: z.literal('view'), widgets: z.array(z.enum(widgetTypes)).min(1).max(widgetTypes.length), bindings: viewBindingsSchema,
   reply: z.string().min(1).max(1000), referenceDate: z.iso.date(), timezone: z.string(), source: z.enum(['ai','local']).optional(), continuation: continuationChangeSchema.optional(),
 }).superRefine((view, ctx) => {
   if (new Set(view.widgets).size !== view.widgets.length) ctx.addIssue({ code:'custom',message:'Components must be unique.' })
@@ -31,7 +31,7 @@ export const componentResolutionSchema = z.discriminatedUnion('action', [compone
   z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),continuation:continuationChangeSchema.optional(),source:z.enum(['ai','local']).optional() }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
-export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
+export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
   instances:z.array(z.object({pinned:z.boolean().optional(),instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
   catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
@@ -123,6 +123,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
 }
 function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   if(removalNeedsClarification(input.goal))return {action:'clarify',question:'Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.',choices:['Show my tasks','Show my calendar']}
+  if (!destructiveGoal(input.goal) && /\b(create|new|add|make|build)\b|banao|banana|बनाओ|बनाना/i.test(input.goal) && /resource|document|reference|संसाधन|दस्तावेज/i.test(input.goal)) return componentViewSchema.parse({action:'view',widgets:['resource-create'],bindings:{},reply:'Fill in the resource details and save it when ready.',referenceDate:input.referenceDate,timezone:input.timezone})
   const management=localManagement(input.goal);if(management)return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()

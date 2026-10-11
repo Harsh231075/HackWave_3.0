@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'recommendation', 'outline', 'resources', 'context', 'calendar', 'availability', 'chart', 'activity', 'usage', 'communications', 'issues'] as const
+export const widgetTypes = ['metrics', 'tasks', 'timeline', 'meetings', 'recommendation', 'outline', 'resources', 'resource-create', 'context', 'calendar', 'availability', 'chart', 'activity', 'usage', 'communications', 'issues'] as const
 export type WidgetType = typeof widgetTypes[number]
 export const configSchema = z.object({
   version: z.literal(1), id: z.string(), title: z.string(), description: z.string(),

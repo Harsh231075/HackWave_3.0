@@ -22,23 +22,29 @@ export function destructiveGoal(goal:string){
     return /^(?:remove|clear|delete|hide|replace|reset|keep only|only keep)\b/.test(command)||/(?:hatao|हटाओ|saaf karo)\s*[.!]?$/i.test(command)
   })
 }
-export function authorizesClear(goal:string){
-  if(!destructiveGoal(goal))return false
-  return /\b(?:remove|clear|delete|reset)\s+(?:(?:all|everything)(?:\s+(?:components|cards|widgets|views))?|(?:(?:the|my|entire|whole)\s+)?workspace)\s*(?:[.!?]|$|and\b|then\b)/i.test(goal)
+// Modifiers describe existing canvas components; they never authorize deleting records.
+export function normalizeWorkspaceRemoval(goal:string){
+ return goal.replace(/\b(remove|clear|delete|reset)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(all|everything)\b/gi,'$1 $2').replace(/\b(all|everything)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(components|cards|widgets|views)\b/gi,'$1 $2')
 }
+export function authorizesClear(goal:string){
+ if(!destructiveGoal(goal))return false
+ return /\b(?:remove|clear|delete|reset)\s+(?:(?:all|everything)(?:\s+(?:components|cards|widgets|views))?|(?:(?:the|my|entire|whole)\s+)?workspace)\s*(?:[.!?]|$|and\b|then\b)/i.test(normalizeWorkspaceRemoval(goal))
+}
+export function clearExistingBeforeAdding(goal:string){return /\b(?:current|existing|rendered)\b/i.test(goal)&&authorizesClear(goal)&&! /\bthen\b/i.test(goal)}
 export const removalNeedsClarification=(goal:string)=>removalWords.test(goal)&&!destructiveGoal(goal)
-const aliases:Record<string,string[]>={metrics:['overview','summary','metrics'],tasks:['tasks','task','todo','deadlines','kaam'],timeline:['timeline','planner'],meetings:['meetings','meeting'],recommendation:['suggestions','suggestion','recommendations','recommendation'],outline:['notes','outline'],resources:['resources','documents'],context:['context','background'],calendar:['calendar','calender'],availability:['availability','free slots'],chart:['chart','productivity','progress'],activity:['activity'],usage:['usage'],communications:['messages','communications','emails'],issues:['issues','risks']}
+const aliases:Record<string,string[]>={metrics:['overview','summary','metrics'],tasks:['tasks','task','todo','deadlines','kaam'],timeline:['timeline','planner'],meetings:['meetings','meeting'],recommendation:['suggestions','suggestion','recommendations','recommendation'],outline:['notes','outline'],resources:['resources','documents'],'resource-create':['resource creation','resource form'],context:['context','background'],calendar:['calendar','calender'],availability:['availability','free slots'],chart:['chart','productivity','progress'],activity:['activity'],usage:['usage'],communications:['messages','communications','emails'],issues:['issues','risks']}
 export function namedWidgets(text:string):typeof widgetTypes[number][] {
   return widgetTypes.filter(id=>aliases[id].some(alias=>new RegExp('\\b'+alias+'\\b','i').test(text))).flatMap(id=>id==='metrics'&&/overview/i.test(text)?['metrics','tasks','timeline','meetings'] as typeof widgetTypes[number][]:[id]).filter((id,index,all)=>all.indexOf(id)===index)
 }
 export function localManagement(goal:string) {
- const text=goal.toLowerCase().replace(/\s+(?:including pins|including pinned views|and pins|and pinned views)$/i,''), operations:WorkspaceOperation[]=[]
+ const text=normalizeWorkspaceRemoval(goal).toLowerCase().replace(/\s+(?:including pins|including pinned views|and pins|and pinned views)$/i,''), operations:WorkspaceOperation[]=[]
  if(recordMutationGoal(text)||removalNeedsClarification(text))return null
  if(/(?:do not|dont|don't|never)\s+(?:remove|clear|delete|hide|replace|reset)/i.test(text))return null
- const combined=text.split(/\s+(?:and|then|and then)\s+(?=(?:add|show|remove|clear|replace|move|hide)\b)/)
+ const combined=text.split(/\s+(?:and|then|and then)\s+(?=(?:add|show|create|make|remove|clear|replace|move|hide)\b)/)
  if(combined.length>1){
-   for(const clause of combined){const result=localManagement(clause);if(result)operations.push(...result.operations);else if(/^(?:add|show)\b/.test(clause)){const widgets=namedWidgets(clause);if(!widgets.length)return null;operations.push({type:'add',widgets})}else return null}
-   return managementSchema.parse({action:'manage',operations,reply:'Workspace updated. Other components and their settings are kept.'})
+   for(const clause of combined){const result=localManagement(clause);if(result)operations.push(...result.operations);else if(/^(?:create|make)\b.*\b(?:resource|document|reference)\b/.test(clause)){operations.push({type:'add',widgets:['resource-create']})}else if(/^(?:add|show)\b/.test(clause)){const widgets=namedWidgets(clause);if(!widgets.length)return null;operations.push({type:'add',widgets})}else return null}
+   const ordered=clearExistingBeforeAdding(goal)&&operations.some(op=>op.type==='clear')?[...operations.filter(op=>op.type==='clear'),...operations.filter(op=>op.type!=='clear')]:operations
+   return managementSchema.parse({action:'manage',operations:ordered,reply:'Workspace updated. Other components and their settings are kept.'})
  }
  const clear=text.match(/(?:remove|clear|delete|reset)\s+(?:all|everything|workspace)(?:\s+(?:components|cards|widgets))?(?:\s+(?:except|but)\s+(.+?))?(?=\s+and\s+(?:add|show)|$)/)
  if(clear){if(clear[1]){const widgets=namedWidgets(clear[1]);if(!widgets.length)return null;operations.push({type:'keep',widgets})}else operations.push({type:'clear'})

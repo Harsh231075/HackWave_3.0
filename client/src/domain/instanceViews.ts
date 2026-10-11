@@ -20,7 +20,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     return (matching.length ? matching : [undefined]).map(requestedTarget => ({ type, requestedTarget }))
   })
   for (const { type, requestedTarget } of requests) {
-    const another = /\b(another|second|additional|separate)\b/i.test(goal)
+    const another = type === 'resource-create' || /\b(another|second|additional|separate)\b/i.test(goal)
     const selectedExact = requestedTarget && [...active, ...pins].find(w => w.instanceId === requestedTarget && w.widgetType === type)
     const matchingScope = bindingOverride && !selectedExact ? active.filter(w => w.widgetType === type && sameBinding(w.binding, bindingOverride)) : []
     let existing = another ? undefined : matchingScope.length === 1 ? matchingScope[0] : bindingOverride && !selectedExact && active.filter(w => w.widgetType === type).length > 1 && !matchingScope.length ? undefined : resolveTarget({ ...document, active, pins }, selectedExact ? selectedExact.instanceId : type, !!selectedExact)
@@ -60,7 +60,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     if (!refined && /\b(all owners|everyone)\b/i.test(goal)) delete viewState.owner
     if (!refined && /\b(all priorities|any priority)\b/i.test(goal)) viewState.taskFilters.priority = 'all'
     const instance = { ...makeInstance(type, binding, viewState, existing?.instanceId), span: existing?.span ?? 'full', ...(sameScope && existing?.actions ? { actions: existing.actions } : {}), explanation: { type, reason: view.reply, evidence: [] }, label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? type : existing?.label ?? 'Google Calendar' } satisfies WidgetInstance
-    const duplicate = !existing && [...active, ...pins].find(w => widgetSelectionKey(w) === widgetSelectionKey(instance))
+    const duplicate = type !== 'resource-create' && !existing && [...active, ...pins].find(w => widgetSelectionKey(w) === widgetSelectionKey(instance))
     if (duplicate && !another) { targets.push(duplicate.instanceId); continue }
     const pin = pins.find(w => w.instanceId === existing?.instanceId)
     if (pin) pins = pins.map(w => w.instanceId === pin.instanceId ? { ...instance, pinId: pin.pinId, createdAt: pin.createdAt } : w)

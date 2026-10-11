@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
 import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
 import { WorkspaceProvider } from '@/state/WorkspaceProvider'
+import { ResourcesPage } from '@/pages/ResourcesPage'
 import { MeetingsPage } from '@/pages/MeetingsPage'
 import { AppPage } from '@/pages/AppPage'
 import { DynamicWorkspace } from '@/pages/DynamicWorkspace'
@@ -19,6 +20,7 @@ function App() {
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/meetings" element={<MeetingsPage />} />
             <Route path="/calendar" element={<Navigate to="/meetings?view=calendar" replace />} />
             <Route path="/planner" element={<PlannerPage />} />
