@@ -74,9 +74,9 @@ async function endpoint(goal:string,env:NodeJS.ProcessEnv={}){
 test('no API key yields an operational local view instead of 503',async()=>{const result=await endpoint('Show pending tasks today');assert.equal(result.status,200);assert.equal(result.body.action,'view');assert.equal(result.body.source,'local')})
 test('AI resolves a paraphrase and validated bindings survive the transport',async()=>{
  const original=globalThis.fetch
- try{globalThis.fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));assert.match(body.messages[0].content,/Hindi, Hinglish/);return Response.json({choices:[{message:{content:JSON.stringify({...view('Show pending tasks'),bindings:{taskFilters:{status:'pending'},taskView:'kanban'},source:undefined})}}]})}
+ try{globalThis.fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));assert.match(body.messages[0].content,/Hindi, Hinglish/);return Response.json({choices:[{message:{content:JSON.stringify({...view('Show unfinished tasks'),bindings:{taskFilters:{status:'all'},taskStatuses:['pending','blocked'],taskView:'kanban'},source:undefined})}}]})}
  const result=await endpoint('Bring up unfinished items as a compact board',{MODEL_PROVIDER:'groq',GROQ_API_KEY:'test-only',GROQ_MODEL:'test-model'})
- assert.equal(result.body.source,'ai');assert.equal(result.body.bindings.taskFilters.status,'pending');assert.equal(result.body.bindings.taskView,'kanban')
+ assert.equal(result.body.source,'ai');assert.equal(result.body.bindings.taskFilters.status,'all');assert.deepEqual(result.body.bindings.taskStatuses,['pending','blocked']);assert.equal(result.body.bindings.taskView,'kanban')
  }finally{globalThis.fetch=original}
 })
 test('invalid AI output falls back without rendering invented components',async()=>{

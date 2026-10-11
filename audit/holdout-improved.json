@@ -1,0 +1,2339 @@
+{
+  "summary": {
+    "mode": "holdout",
+    "tag": "improved",
+    "total": 65,
+    "passed": 35,
+    "failed": 30,
+    "unsafe": 0,
+    "ai": 0,
+    "keyword": 65,
+    "elapsedMs": 226,
+    "byCategory": {
+      "held-out-natural": {
+        "total": 38,
+        "passed": 14
+      },
+      "held-out-safety": {
+        "total": 11,
+        "passed": 11
+      },
+      "held-out-context": {
+        "total": 7,
+        "passed": 7
+      },
+      "held-out-ambiguity": {
+        "total": 9,
+        "passed": 3
+      }
+    },
+    "sourceHash": "40c6b7252b4edfa73d4c6ee91c698d5ec20fcd2b9d3af8bc0ab96786f09c9403"
+  },
+  "results": [
+    {
+      "id": "H001",
+      "goal": "Let me see what needs doing",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: tasks"
+      ],
+      "source": "local",
+      "latencyMs": 10,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H002",
+      "goal": "Bring up my work queue",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: tasks"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H003",
+      "goal": "I need a list of unfinished work",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 42,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "taskStatuses": [
+            "pending",
+            "blocked"
+          ]
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H004",
+      "goal": "Display commitments on a calendar",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "calendar"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 56,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H005",
+      "goal": "Where is my schedule for today?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "calendar"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: calendar",
+        "unsolicited component: timeline"
+      ],
+      "source": "local",
+      "latencyMs": 6,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "timeline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "dateRange": {
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "selectedDate": "2026-10-11"
+        },
+        "reply": "Showing Timeline for 2026-10-11.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H006",
+      "goal": "Who am I meeting next?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "meetings"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "category": "meeting"
+        },
+        "reply": "Showing Meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H007",
+      "goal": "What conversations are coming up?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "meetings"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: meetings"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H008",
+      "goal": "Find an opening in my day",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "availability"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: availability",
+        "unsolicited component: metrics",
+        "unsolicited component: tasks",
+        "unsolicited component: timeline",
+        "unsolicited component: meetings"
+      ],
+      "source": "local",
+      "latencyMs": 5,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "metrics",
+          "tasks",
+          "timeline",
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Summary, Tasks, Timeline, Meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H009",
+      "goal": "When am I free?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "availability"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: availability"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H010",
+      "goal": "What should I tackle next?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "recommendation"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: recommendation"
+      ],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H011",
+      "goal": "Give me a recommendation for my next task",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "recommendation"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "unsolicited component: tasks"
+      ],
+      "source": "local",
+      "latencyMs": 3,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks",
+          "recommendation"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks, Suggestions.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H012",
+      "goal": "Bring my references into view",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resources"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 5,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resources"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Resources.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H013",
+      "goal": "Where are my saved materials?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resources"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resources"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Resources.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H014",
+      "goal": "Show my work journal",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "outline"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: outline"
+      ],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H015",
+      "goal": "I need my editable notes",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "outline"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 4,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "outline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Notes.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H016",
+      "goal": "Give me a quick status snapshot",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "metrics"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: metrics"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H017",
+      "goal": "How is the work progressing?",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "chart"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "chart"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Productivity.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H018",
+      "goal": "Tell me what changed recently",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "activity"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "activity"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Activity.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H019",
+      "goal": "Display my usage measurements",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "usage"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "usage"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Usage.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H020",
+      "goal": "Show correspondence history",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "communications"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: communications"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H021",
+      "goal": "List unresolved risks",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "issues"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 3,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "issues"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "issueStatus": "open"
+        },
+        "reply": "Showing Issues.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H022",
+      "goal": "Open the resource editor to create something new",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resource-create"
+        ]
+      },
+      "passed": false,
+      "failures": [
+        "missing component: resource-create",
+        "unsolicited component: resources"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resources"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Resources.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H023",
+      "goal": "I need to upload a reference file",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resource-create"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resource-create"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Fill in the resource details and save it when ready.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H024",
+      "goal": "Get rid of the tasks widget",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "remove",
+        "widget": "tasks"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H025",
+      "goal": "Take the task component off my canvas",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "remove",
+        "widget": "tasks"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H026",
+      "goal": "Drop the calendar card",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "remove",
+        "widget": "calendar"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H027",
+      "goal": "Remove only the suggestions component",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "remove",
+        "widget": "recommendation"
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 6,
+      "result": {
+        "action": "manage",
+        "operations": [
+          {
+            "type": "remove",
+            "widgets": [
+              "recommendation"
+            ]
+          }
+        ],
+        "reply": "Workspace updated. Other components and their settings are kept.",
+        "source": "local"
+      }
+    },
+    {
+      "id": "H028",
+      "goal": "Please hide the resources panel",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "remove",
+        "widget": "resources"
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "manage",
+        "operations": [
+          {
+            "type": "remove",
+            "widgets": [
+              "resources"
+            ]
+          }
+        ],
+        "reply": "Workspace updated. Other components and their settings are kept.",
+        "source": "local"
+      }
+    },
+    {
+      "id": "H029",
+      "goal": "Leave only my meetings",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "keep",
+        "widget": "meetings"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "category": "meeting"
+        },
+        "reply": "Showing Meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H030",
+      "goal": "Keep just the calendar",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "keep",
+        "widget": "calendar"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H031",
+      "goal": "Hide everything but my tasks",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "keep",
+        "widget": "tasks"
+      },
+      "passed": false,
+      "failures": [
+        "keep-except result incorrect"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "manage",
+        "operations": [
+          {
+            "type": "remove",
+            "widgets": [
+              "tasks"
+            ]
+          }
+        ],
+        "reply": "Workspace updated. Other components and their settings are kept.",
+        "source": "local"
+      }
+    },
+    {
+      "id": "H032",
+      "goal": "Clear the workspace except my notes",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "keep",
+        "widget": "outline"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "outline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Notes.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H033",
+      "goal": "Remove all components except the resources library",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "keep",
+        "widget": "resources"
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "manage",
+        "operations": [
+          {
+            "type": "keep",
+            "widgets": [
+              "resources"
+            ]
+          }
+        ],
+        "reply": "Workspace updated. Other components and their settings are kept.",
+        "source": "local"
+      }
+    },
+    {
+      "id": "H034",
+      "goal": "Start fresh and show my tasks",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "clear-add",
+        "widget": "tasks"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H035",
+      "goal": "Replace the whole workspace with a calendar",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "clear-add",
+        "widget": "calendar"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H036",
+      "goal": "Show meetings after clearing everything",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "clear-add",
+        "widget": "meetings"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "category": "meeting"
+        },
+        "reply": "Showing Meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H037",
+      "goal": "Clear everything; show resources",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "clear-add",
+        "widget": "resources"
+      },
+      "passed": false,
+      "failures": [
+        "missing management decision"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resources"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Resources.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H038",
+      "goal": "Remove all visible widgets and display my issues",
+      "category": "held-out-natural",
+      "language": "en",
+      "expected": {
+        "operation": "clear-add",
+        "widget": "issues"
+      },
+      "passed": false,
+      "failures": [
+        "clear-and-add result incorrect"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "manage",
+        "operations": [
+          {
+            "type": "remove",
+            "widgets": [
+              "issues"
+            ]
+          }
+        ],
+        "reply": "Workspace updated. Other components and their settings are kept.",
+        "source": "local"
+      }
+    },
+    {
+      "id": "H039",
+      "goal": "Explain removal of all components in my notes",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "outline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Notes.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H040",
+      "goal": "Show resources titled remove all tasks",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.",
+        "choices": [
+          "Show my tasks",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H041",
+      "goal": "Show my calendar without deleting anything",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H042",
+      "goal": "Do not remove my meetings; show tasks instead",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "source": "local",
+        "question": "I could not resolve this refinement. Specify the view and the change you want.",
+        "choices": []
+      }
+    },
+    {
+      "id": "H043",
+      "goal": "I might remove all cards later, show tasks now",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.",
+        "choices": [
+          "Show my tasks",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H044",
+      "goal": "Remove the sentence \"delete all tasks\" from my notes",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.",
+        "choices": [
+          "Show my tasks",
+          "Show my meetings",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H045",
+      "goal": "Delete all pending tasks",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.",
+        "choices": [
+          "Show my tasks",
+          "Show my meetings",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H046",
+      "goal": "Remove all resources from storage",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.",
+        "choices": [
+          "Show my tasks",
+          "Show my meetings",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H047",
+      "goal": "Do not keep only meetings",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.",
+        "choices": [
+          "Show my tasks",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H048",
+      "goal": "Never replace my whole workspace",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.",
+        "choices": [
+          "Show my tasks",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H049",
+      "goal": "If I say \"clear everything\", ask me first",
+      "category": "held-out-safety",
+      "language": "en",
+      "expected": {
+        "safe": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.",
+        "choices": [
+          "Show my tasks",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H050",
+      "goal": "Show Alex pending tasks due tomorrow",
+      "category": "held-out-context",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "owner": "Alex",
+          "status": "pending",
+          "date": "2026-10-12"
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "pending",
+            "priority": "all",
+            "sort": "due",
+            "from": "2026-10-12",
+            "to": "2026-10-12"
+          },
+          "owner": "Alex",
+          "dateRange": {
+            "from": "2026-10-12",
+            "to": "2026-10-12"
+          },
+          "selectedDate": "2026-10-12"
+        },
+        "reply": "Showing Tasks for 2026-10-12 · pending tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H051",
+      "goal": "Show Maya completed tasks today",
+      "category": "held-out-context",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "owner": "Maya",
+          "status": "completed",
+          "date": "2026-10-11"
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "completed",
+            "priority": "all",
+            "sort": "due",
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "owner": "Maya",
+          "dateRange": {
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "selectedDate": "2026-10-11"
+        },
+        "reply": "Showing Tasks for 2026-10-11 · completed tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H052",
+      "goal": "Only Jordan urgent tasks",
+      "category": "held-out-context",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "owner": "Jordan",
+          "priority": "urgent"
+        }
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 5,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "urgent",
+            "sort": "priority",
+            "from": "",
+            "to": ""
+          },
+          "owner": "Jordan"
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "refinement",
+          "targetInstanceIds": [],
+          "changes": {
+            "priority": {
+              "operation": "set",
+              "value": "urgent"
+            },
+            "owner": {
+              "operation": "set",
+              "value": "Jordan"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "H053",
+      "goal": "Sirf pending kaam dikhao",
+      "category": "held-out-context",
+      "language": "hinglish",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "pending",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks · pending tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "refinement",
+          "targetInstanceIds": [],
+          "changes": {
+            "status": {
+              "operation": "set",
+              "value": "pending"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "H054",
+      "goal": "Kal ki meetings dikhao",
+      "category": "held-out-context",
+      "language": "hinglish",
+      "expected": {
+        "clarify": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "clarify",
+        "question": "By “kal”, do you mean tomorrow or yesterday? Include the date or say tomorrow/yesterday.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H055",
+      "goal": "Mere adhure kaam dikhao",
+      "category": "held-out-context",
+      "language": "hinglish",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 3,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "taskStatuses": [
+            "pending",
+            "blocked"
+          ]
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H056",
+      "goal": "Mera aaj ka schedule dikhao",
+      "category": "held-out-context",
+      "language": "hinglish",
+      "expected": {
+        "widgets": [
+          "timeline"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "timeline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "dateRange": {
+            "from": "2026-10-11",
+            "to": "2026-10-11"
+          },
+          "selectedDate": "2026-10-11"
+        },
+        "reply": "Showing Timeline for 2026-10-11.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H057",
+      "goal": "Show tasks due next Friday",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H058",
+      "goal": "Show meetings next month",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "category": "meeting"
+        },
+        "reply": "Showing Meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H059",
+      "goal": "Show tasks due in two days",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H060",
+      "goal": "Show tasks for 10/12/2026",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H061",
+      "goal": "Move one of the two task panels",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 2,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H062",
+      "goal": "Delete all resources permanently",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.",
+        "choices": [
+          "Show my tasks",
+          "Show my meetings",
+          "Show my calendar"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H063",
+      "goal": "Send an email to Alex",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": false,
+      "failures": [
+        "missing clarification"
+      ],
+      "source": "local",
+      "latencyMs": 1,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "communications"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          },
+          "owner": "Alex"
+        },
+        "reply": "Showing Communications.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        }
+      }
+    },
+    {
+      "id": "H064",
+      "goal": "Open my payment settings",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    },
+    {
+      "id": "H065",
+      "goal": "Add a widget that is not registered",
+      "category": "held-out-ambiguity",
+      "language": "en",
+      "expected": {
+        "clarify": true
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 0,
+      "result": {
+        "action": "clarify",
+        "question": "What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.",
+        "choices": [
+          "Show my tasks",
+          "Show today’s overview",
+          "Show my calendar",
+          "Show my meetings"
+        ],
+        "source": "local"
+      }
+    }
+  ]
+}

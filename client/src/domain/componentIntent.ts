@@ -1,6 +1,6 @@
 import { continuationChangeSchema, type IntentChanges } from './intentChanges.ts'
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
-import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal } from './workspaceManagement.ts'
+import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal, resourceCreationGoal } from './workspaceManagement.ts'
 import { z } from 'zod'
 import { widgetTypes } from '../lib/workspace/config.ts'
 import { shiftDate } from './calendar.ts'
@@ -76,6 +76,15 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if(b.projectId&&b.clientId&&input.catalog.projects.find(p=>p.id===b.projectId)?.clientId!==b.clientId)return reject('The selected project does not belong to the selected client.',['bindings','projectId'])
   // A recognized date must survive model interpretation, including Hinglish “aaj”.
   const local = fallbackComponentIntent(input)
+  const explicitStatus = /\b(?:pending|blocked|completed|overdue|unfinished|incomplete)\s+(?:tasks?|work|items?)\b|\b(?:tasks?|items?)\s+(?:that are\s+|which are\s+)?(?:pending|blocked|completed|overdue)\b/i.test(input.goal)
+  if (explicitStatus && local.action === 'view' && view.widgets.some(w=>w==='tasks'||w==='metrics')) {
+    const expected = local.bindings.taskFilters.status
+    const actualStatus = changes?.status?.operation === 'set' ? changes.status.value : changes?.status?.operation === 'clear' ? 'all' : b.taskFilters.status
+    const actualStatuses = changes?.taskStatuses?.operation === 'set' ? changes.taskStatuses.value : changes?.taskStatuses?.operation === 'clear' || changes?.status ? undefined : b.taskStatuses
+    const equivalent = expected !== 'all' && expected !== 'overdue' && actualStatus === 'all' && actualStatuses?.length === 1 && actualStatuses[0] === expected
+    if (actualStatus !== expected && !equivalent) return reject('The model contradicted the requested task status.',['bindings','taskFilters','status'])
+    if(local.bindings.taskStatuses && JSON.stringify([...(actualStatuses??[])].sort())!==JSON.stringify([...local.bindings.taskStatuses].sort()))return reject('The model did not preserve the requested task statuses.',['bindings','taskStatuses'])
+  }
   if (local.action === 'view' && local.bindings.dateRange) {
     const expected = local.bindings.dateRange
     if ((changes?.dateRange?.operation === 'set' ? changes.dateRange.value : b.dateRange)?.from !== expected.from || (changes?.dateRange?.operation === 'set' ? changes.dateRange.value : b.dateRange)?.to !== expected.to) return reject('The model did not preserve the requested date range.',['bindings','dateRange'])
@@ -123,7 +132,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
 }
 function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   if(removalNeedsClarification(input.goal))return {action:'clarify',question:'Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.',choices:['Show my tasks','Show my calendar']}
-  if (!destructiveGoal(input.goal) && /\b(create|new|add|make|build)\b|banao|banana|बनाओ|बनाना/i.test(input.goal) && /resource|document|reference|संसाधन|दस्तावेज/i.test(input.goal)) return componentViewSchema.parse({action:'view',widgets:['resource-create'],bindings:{},reply:'Fill in the resource details and save it when ready.',referenceDate:input.referenceDate,timezone:input.timezone})
+  if (!destructiveGoal(input.goal) && resourceCreationGoal(input.goal)) return componentViewSchema.parse({action:'view',widgets:['resource-create'],bindings:{},reply:'Fill in the resource details and save it when ready.',referenceDate:input.referenceDate,timezone:input.timezone})
   const management=localManagement(input.goal);if(management)return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
@@ -136,16 +145,16 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   const widgets: ComponentView['widgets'] = []
   const add=(id: ComponentView['widgets'][number])=>{if(!widgets.includes(id))widgets.push(id)}
   if (/overview|dashboard|my day|mera din|aaj ka din|आज का|day look|daily summary/.test(text)) ['metrics','tasks','timeline','meetings'].forEach(id=>add(id as ComponentView['widgets'][number]))
-  if (/deadlines?|tasks?|to[ -]?do|pending|unfinished|incomplete|left to do|whats left|remaining work|kaam|काम|कार्य|लंबित|अधूर|बाकी/.test(text)) add('tasks')
-  if (/calendar|calender|कैलेंडर/.test(text)) add('calendar')
+  if (/deadlines?|tasks?|to[ -]?do|pending|unfinished|incomplete|left to do|whats left|remaining work|work items?|kaam|काम|कार्य|लंबित|अधूर|बाकी/.test(text)) add('tasks')
+  if (/calendar|calender|schedule grid|कैलेंडर/.test(text)) add('calendar')
   if (/meetings?|appointments?|calls?|बैठक|मीटिंग/.test(text)) add('meetings')
-  if (/timeline|time.?block|schedule|planner|दिनचर्या/.test(text)) add('timeline')
-  if (/availab|free slots?|free time|खाली समय/.test(text)) add('availability')
+  if (/timeline|time.?block|schedule|planner|दिनचर्या/.test(text) && !/schedule grid/.test(text)) add('timeline')
+  if (/availab|free slots?|free time|khali time|खाली समय/.test(text)) add('availability')
   if (/recommend|suggest|next step|what.*focus|prioriti[sz]e/.test(text)) add('recommendation')
   if (/notes?|outline|draft|talking points|नोट्स/.test(text)) add('outline')
   if (/resources?|documents?|reference|materials?|दस्तावेज/.test(text)) add('resources')
   if (/context|project background|project summary/.test(text)) add('context')
-  if (/metrics?|stats|statistics|how many|counts?|kpis/.test(text) && !/resources|documents/.test(text)) add('metrics')
+  if (/metrics?|stats|statistics|how many|counts?|kpis|(?<!project )summary/.test(text) && (!/resources|documents/.test(text) || /\bmetrics?\b|\bkpis?\b/.test(text))) add('metrics')
   if (/productiv|progress|trend|chart|time allocation|time.*spent/.test(text)) add('chart')
   if (/activity|recent changes|what.*changed|log/.test(text)) add('activity')
   if (/usage|sessions|cohorts?/.test(text)) add('usage')

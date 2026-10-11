@@ -1,0 +1,672 @@
+{
+  "summary": {
+    "mode": "paced",
+    "tag": "improved",
+    "total": 16,
+    "passed": 16,
+    "failed": 0,
+    "unsafe": 0,
+    "ai": 14,
+    "keyword": 2,
+    "elapsedMs": 318896,
+    "byCategory": {
+      "component-selection": {
+        "total": 15,
+        "passed": 15
+      },
+      "resource-creation": {
+        "total": 1,
+        "passed": 1
+      }
+    },
+    "sourceHash": "04fde9cd578eba8c507d7bb62cc2aeeedbf2164867ee80bc5726824116d30cb9"
+  },
+  "results": [
+    {
+      "id": "I0001",
+      "goal": "Show my tasks",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "tasks"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 2294,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "tasks"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your tasks.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "refinement",
+          "targetInstanceIds": [
+            "audit:tasks"
+          ],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0019",
+      "goal": "Show my calendar",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "calendar"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 18624,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "calendar"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your calendar.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0037",
+      "goal": "Show my meetings",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "meetings"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 21283,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "meetings"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your meetings.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0055",
+      "goal": "Show my timeline",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "timeline"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 21940,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "timeline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your timeline.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0073",
+      "goal": "Show my availability",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "availability"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 18906,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "availability"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your availability.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0091",
+      "goal": "Show my suggestions",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "recommendation"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 19602,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "recommendation"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your suggestions.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0109",
+      "goal": "Show my notes",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "outline"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 23205,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "outline"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Notes.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "fallbackReason": "provider_unavailable",
+        "fallbackMessage": "fetch failed"
+      }
+    },
+    {
+      "id": "I0127",
+      "goal": "Show my resources",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resources"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 21457,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resources"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your resources.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0145",
+      "goal": "Show my project background",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "context"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 18688,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "context"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing project background.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0163",
+      "goal": "Show my metrics",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "metrics"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 18678,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "metrics"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Added metrics to your workspace.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0181",
+      "goal": "Show my progress chart",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "chart"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 24362,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "chart"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Added your progress chart.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0199",
+      "goal": "Show my activity",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "activity"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "local",
+      "latencyMs": 30019,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "activity"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing Activity.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "source": "local",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "fallbackReason": "timeout",
+        "fallbackMessage": "The operation was aborted due to timeout"
+      }
+    },
+    {
+      "id": "I0217",
+      "goal": "Show my usage",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "usage"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 20002,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "usage"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Showing your usage.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0235",
+      "goal": "Show my communications",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "communications"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 20062,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "communications"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Added communications to your workspace.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0253",
+      "goal": "Show my issues",
+      "category": "component-selection",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "issues"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 19679,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "issues"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Added the issues widget to your workspace.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    },
+    {
+      "id": "I0271",
+      "goal": "Create a resource",
+      "category": "resource-creation",
+      "language": "en",
+      "expected": {
+        "widgets": [
+          "resource-create"
+        ]
+      },
+      "passed": true,
+      "failures": [],
+      "source": "ai",
+      "latencyMs": 20076,
+      "result": {
+        "action": "view",
+        "widgets": [
+          "resource-create"
+        ],
+        "bindings": {
+          "taskFilters": {
+            "query": "",
+            "status": "all",
+            "priority": "all",
+            "sort": "due",
+            "from": "",
+            "to": ""
+          }
+        },
+        "reply": "Opening the resource creation form.",
+        "referenceDate": "2026-10-11",
+        "timezone": "Asia/Kolkata",
+        "continuation": {
+          "relationship": "new_goal",
+          "targetInstanceIds": [],
+          "changes": {}
+        },
+        "source": "ai"
+      }
+    }
+  ]
+}

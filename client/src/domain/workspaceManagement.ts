@@ -11,7 +11,8 @@ export const workspaceOperationSchema = z.discriminatedUnion('type', [
 ])
 export type WorkspaceOperation=z.infer<typeof workspaceOperationSchema>
 export const managementSchema=z.object({action:z.literal('manage'),operations:z.array(workspaceOperationSchema).min(1).max(20),reply:z.string().min(1).max(1000),source:z.enum(['ai','local']).optional()})
-export const recordMutationGoal = (goal: string) => /\b(?:delete|remove)\s+(?:(?:the|a|an|my)\s+)?(?:event|record|task|meeting|appointment)\b/i.test(goal) && !/\b(card|widget|component|view|panel)\b/i.test(goal)
+export const recordMutationGoal = (goal: string) => !/\b(card|widget|component|view|panel)\b/i.test(goal) && (/\b(?:delete|remove)\s+(?:(?:all|every|the|a|an|my|this|that|current|existing|overdue|pending|completed)\s+)*(?:events?|records?|tasks?|meetings?|appointments?|resources?|documents?|notes?)\b/i.test(goal) || /\b(?:remove|delete|replace)\s+(?:(?:the|a|an|this|that)\s+)?(?:word|text|sentence|paragraph|line|url|title|content)\b/i.test(goal))
+export const resourceCreationGoal = (goal:string) => /resource|document|reference|attachment|संसाधन|दस्तावेज/i.test(goal) && (/\b(?:create|make|build|write|upload)\b.{0,80}\b(?:resource|document|reference|attachment)\b|\b(?:new|another|second|separate|additional)\s+(?:resource|document|reference|attachment)\b|\bresource\s+(?:creation|form)\b|\badd\s+(?:(?:a|an|one)\s+)?resource\b|banao|banana|बनाओ|बनाना/i.test(goal))
 const removalWords=/\b(remove|clear|delete|hide|replace|reset|keep only|only keep|hatao|saaf karo)\b|हटाओ|हटा|साफ/i
 export function destructiveGoal(goal:string){
   const text=goal.toLowerCase().replace(/[’‘]/g,"'").replace(/[’‘]/g,"'").trim()
