@@ -1,0 +1,79 @@
+import { meetingWidgetTypes } from './adaptiveData.ts'
+import { usageWidgetTypes } from './usageComposition.ts'
+import { overdueWidgetTypes } from './overdueReview.ts'
+import { z } from 'zod'
+import type { Filters } from './types.ts'
+import { widgetTypes, type WidgetType } from '../lib/workspace/config.ts'
+import { resolvedIntentSchema } from './intent.ts'
+import { usageQuerySchema } from './usage.ts'
+import { emptyFilters } from './workspace.ts'
+
+export const widgetBindingKinds = ['workspace', 'meeting', 'usage', 'usage-query', 'overdue'] as const
+export const MAX_PINS = 6
+export const MAX_CANVAS_WIDGETS = 14
+export const taskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
+  query: z.string(), status: z.enum(['all', 'pending', 'blocked', 'completed', 'overdue']),
+  priority: z.enum(['all', 'urgent', 'high', 'medium', 'low']), sort: z.enum(['due', 'priority']),
+  from: z.union([z.literal(''), z.iso.date()]), to: z.union([z.literal(''), z.iso.date()]),
+}).refine(f => !f.from || !f.to || f.from <= f.to, 'Task filter dates must be ordered.')
+export const widgetBindingSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('workspace') }),
+  z.strictObject({ kind: z.literal('meeting'), meetingId: z.string().min(1), clientId: z.string().min(1), projectId: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('usage'), intent: resolvedIntentSchema.refine(i => i.goalType === 'usage_investigation') }),
+  z.strictObject({ kind: z.literal('usage-query'), query: usageQuerySchema }),
+  z.strictObject({ kind: z.literal('overdue'), intent: resolvedIntentSchema.refine(i => i.goalType === 'overdue_review'), referenceDate: z.iso.date() }),
+])
+export const widgetViewStateSchema = z.strictObject({
+  taskFilters: taskFiltersSchema.default(emptyFilters), selectedDate: z.iso.date().optional(),
+  calendarView: z.enum(['month', 'week', 'day', 'agenda']).optional(),
+  calendarCategory: z.enum(['all', 'meeting', 'class', 'focus', 'break']).optional(),
+})
+export const widgetExplanationSchema = z.strictObject({ type: z.enum(widgetTypes), reason: z.string().max(5000), evidence: z.array(z.strictObject({ kind: z.string().min(1), id: z.string().min(1) })).max(20) })
+export type WidgetExplanation = z.infer<typeof widgetExplanationSchema>
+const instanceShape = {
+  instanceId: z.string().min(1), widgetType: z.enum(widgetTypes), span: z.enum(['full', 'wide', 'narrow']),
+  binding: widgetBindingSchema, viewState: widgetViewStateSchema,
+  explanation: widgetExplanationSchema, fingerprint: z.string(), label: z.string().min(1),
+}
+const validInstance = (i: { explanation: WidgetExplanation; widgetType: WidgetType; binding: WidgetBinding }) => i.explanation.type === i.widgetType && supportsBinding(i.widgetType, i.binding.kind)
+export const widgetInstanceSchema = z.strictObject(instanceShape).refine(validInstance, 'Widget does not support this binding.')
+export const pinnedWidgetSchema = z.strictObject({ ...instanceShape, pinId: z.string().min(1), createdAt: z.iso.datetime() }).refine(validInstance, 'Widget does not support this binding.')
+export type WidgetBinding = z.infer<typeof widgetBindingSchema>
+export type WidgetViewState = z.infer<typeof widgetViewStateSchema>
+export type WidgetInstance = z.infer<typeof widgetInstanceSchema>
+export type PinnedWidget = WidgetInstance & { pinId: string; createdAt: string }
+const bindings: Record<WidgetBinding['kind'], readonly WidgetType[]> = {
+  workspace: widgetTypes.filter(t => t !== 'communications' && t !== 'issues'),
+  meeting: meetingWidgetTypes,
+  usage: usageWidgetTypes,
+  'usage-query': ['usage'], overdue: overdueWidgetTypes,
+}
+export function supportsBinding(type: WidgetType, kind: WidgetBinding['kind']) { return bindings[kind].includes(type) }
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)]))
+  return value
+}
+export function fingerprint(value: unknown) {
+  let hash = 2166136261
+  for (const c of JSON.stringify(canonical(value))) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619)
+  return (hash >>> 0).toString(16)
+}
+export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' | 'binding' | 'viewState'>) {
+  const { widgetType: type, binding, viewState } = instance
+  const filtersMatter = type === 'tasks' || (binding.kind === 'overdue' && ['context', 'metrics', 'recommendation'].includes(type))
+  const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && binding.kind === 'workspace'
+  const effectiveBinding = type === 'usage' && binding.kind === 'usage' ? { kind: 'usage-query', query: { clientId: binding.intent.clientId, projectId: binding.intent.projectId, dateRange: binding.intent.dateRange, segment: binding.intent.constraints?.segment } } : binding
+  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(filtersMatter ? { filters: viewState.taskFilters } : {}), ...(calendar ? { date: viewState.selectedDate, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
+}
+export function activeInstanceId(type: WidgetType, binding: WidgetBinding) { return `active:${type}:${fingerprint(binding)}` }
+export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[], kind: WidgetBinding['kind'] = 'workspace') {
+  const saved = new Set(pins.map(widgetSelectionKey))
+  const seen = new Set<string>()
+  const distinct = active.filter(w => { if (seen.has(w.widgetType)) return false; seen.add(w.widgetType); return !saved.has(widgetSelectionKey(w)) })
+  const required = kind === 'meeting' ? ['context', 'outline'] : kind === 'usage' ? ['context', 'usage'] : kind === 'overdue' ? ['context', 'tasks'] : [distinct[0]?.widgetType, 'tasks', 'context', 'usage', 'outline']
+  const mandatory = distinct.filter(w => required.includes(w.widgetType))
+  const optional = distinct.filter(w => !required.includes(w.widgetType))
+  const chosen = new Set([...mandatory, ...optional.slice(0, Math.max(0, MAX_CANVAS_WIDGETS - pins.length - mandatory.length))].map(w => w.instanceId))
+  return { active: distinct.filter(w => chosen.has(w.instanceId)), pins, omitted: distinct.length - chosen.size }
+}

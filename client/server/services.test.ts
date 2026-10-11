@@ -9,7 +9,7 @@ import { ServiceError } from '../src/services/serviceErrors.ts'
 import { prepareTask, prepareEvent, prepareFocusTime } from '../src/domain/commands.ts'
 import { emptyFilters, workspaceReducer } from '../src/domain/workspace.ts'
 import type { WorkspaceState } from '../src/domain/types.ts'
-const initial = (): WorkspaceState => ({ tasks: [], events: [], drafts: {}, dismissed: [], activity: [], filters: emptyFilters(), pins: [], history: [] })
+const initial = (): WorkspaceState => ({ tasks: [], events: [], drafts: {}, dismissed: [], activity: [], filters: emptyFilters(), history: [] })
 function memory() {
   const data = new Map<string, string>()
   const storage = createBrowserStorage(() => ({ getItem: key => data.get(key) ?? null, setItem: (key, value) => { data.set(key, value) }, removeItem: key => { data.delete(key) } }))

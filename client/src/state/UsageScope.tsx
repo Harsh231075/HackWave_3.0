@@ -1,3 +1,4 @@
+import type { WidgetExplanation } from '@/domain/widgetInstances'
 import { filterTasks } from '@/domain/workspace'
 import { DEMO_DATE } from '@/data/demo'
 import type { Filters } from '@/domain/types'
@@ -8,7 +9,7 @@ import { createRecordStore } from '@/services/preparationStore'
 import type { UsageLayout } from '@/services/layoutService'
 import type { UsageWorkspace } from '@/services/usageWorkspaceService'
 import { UsageScopeContext } from './UsageScopeContext'
-export function UsageScopeProvider({ session, onFilters, children }: { session: UsageLayout; onFilters: (filters: Filters) => void; children: ReactNode }) {
+export function UsageScopeProvider({ session, onFilters, children }: { session: Pick<UsageLayout, 'intent' | 'taskFilters' | 'snapshotFingerprint'> & { composition: { widgets: WidgetExplanation[] } }; onFilters: (filters: Filters) => void; children: ReactNode }) {
   const store = useMemo(() => createRecordStore<UsageWorkspace>(browserDatabase, () => usageWorkspaceService.load(session.intent)), [session.intent])
   const result = useSyncExternalStore(store.subscribe, store.getSnapshot)
   if (result.status !== 'found') return <p role="alert">These usage records are unavailable. Choose another workspace goal.</p>

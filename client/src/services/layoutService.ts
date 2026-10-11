@@ -1,4 +1,4 @@
-import type { Filters } from '../domain/types.ts'
+import { taskFiltersSchema as meetingTaskFiltersSchema } from '../domain/widgetInstances.ts'
 import { emptyFilters } from '../domain/workspace.ts'
 import { usageCompositionSchema, serializeUsageComposition } from '../domain/usageComposition.ts'
 import { overdueCompositionSchema, serializeOverdueComposition } from '../domain/overdueReview.ts'
@@ -8,11 +8,7 @@ import { meetingCompositionSchema, serializeMeetingComposition } from '../domain
 import { resolvedIntentSchema } from '../domain/intent.ts'
 export const layoutStorageKey = 'gogpt-app-layout-v1'
 const legacySchema = z.strictObject({ version: z.literal(1), response: z.string().min(1) })
-export const meetingTaskFiltersSchema: z.ZodType<Filters, Filters> = z.strictObject({
-  query: z.string(), status: z.enum(['all', 'pending', 'blocked', 'completed', 'overdue']),
-  priority: z.enum(['all', 'urgent', 'high', 'medium', 'low']), sort: z.enum(['due', 'priority']),
-  from: z.union([z.literal(''), z.iso.date()]), to: z.union([z.literal(''), z.iso.date()]),
-}).refine(filters => !filters.from || !filters.to || filters.from <= filters.to, 'Task filter dates must be ordered.')
+export { taskFiltersSchema as meetingTaskFiltersSchema } from '../domain/widgetInstances.ts'
 export const meetingLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('meeting'), taskFilters: meetingTaskFiltersSchema.default(emptyFilters), meetingId: z.string().min(1), intent: resolvedIntentSchema, composition: meetingCompositionSchema, response: z.string().min(1) })
   .refine(session => session.intent.goalType === 'meeting_preparation' && session.intent.meetingId === session.meetingId && session.response === serializeMeetingComposition(session.composition), 'Saved scope and composition must agree.')
 export const overdueLayoutSchema = z.strictObject({ version: z.literal(2), kind: z.literal('overdue'), projectId: z.string().min(1), referenceDate: z.iso.date(), intent: resolvedIntentSchema, composition: overdueCompositionSchema, response: z.string().min(1), filters: z.strictObject({ query: z.string(), status: z.string(), priority: z.string(), sort: z.enum(['due', 'priority']), from: z.string(), to: z.string() }) }).refine(s => s.intent.goalType === 'overdue_review' && s.intent.projectId === s.projectId && s.response === serializeOverdueComposition(s.composition), 'Saved overdue scope must agree.')

@@ -1,3 +1,4 @@
+import { createPinService } from './pinService'
 import { createUsageWorkspaceService } from './usageWorkspaceService'
 import { createUsageCompositionService } from './usageCompositionService'
 import { USAGE_DEMO } from '../data/usageDemo'
@@ -101,3 +102,5 @@ export const usageInvestigationService = createUsageInvestigationService(browser
 
 export const usageWorkspaceService = createUsageWorkspaceService(browserDatabase)
 export const usageCompositionService = createUsageCompositionService()
+
+export const pinService = createPinService(browserDatabase)

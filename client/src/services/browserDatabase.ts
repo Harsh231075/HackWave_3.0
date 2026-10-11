@@ -36,7 +36,7 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
     return { status: 'found', value: collections }
   }
   const listeners = new Set<() => void>()
-  const initial = (): WorkspaceState => ({ ...structuredClone(seed), filters: emptyFilters(), pins: [], history: [] })
+  const initial = (): WorkspaceState => ({ ...structuredClone(seed), filters: emptyFilters(), history: [] })
   const getState = () => {
     if (!state) {
       const result = repository.load()
@@ -49,7 +49,7 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
     const next = workspaceReducer(previous, action)
     if (next === previous) return
     state = next
-    if (action.type !== 'filters' && action.type !== 'pin') persistence = repository.save(next)
+    if (action.type !== 'filters') persistence = repository.save(next)
     for (const listener of listeners) listener()
   }
   return {
