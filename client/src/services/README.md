@@ -135,3 +135,14 @@ Pins capture validated selections, filters, layout span and provenance rather th
 The adaptive canvas reserves six pin slots within a fourteen-widget limit, deduplicates equivalent views, preserves required active widgets, and trims optional content in requested order. The stored response is retained so omitted widgets return after unpinning. Dedicated pages do not append pins. Reset layout preserves pins; Clear pins and demo reset remove them.
 
 Verification: run `npm test`, `npm run build` and `npm run lint` from `client`. The optional browser harness runs with `node scripts/verify-pins.mjs` when Playwright is available. Otherwise set `ORLO_PLAYWRIGHT_MODULE` to an installed Playwright module path and optionally `ORLO_CHROME_PATH` to a Chromium executable. The harness starts/stops its own Vite server, uses a fresh browser context and mocks model endpoints; it does not require an API key or modify the user's browser data.
+
+
+## Generated actions
+
+`workspaceActionService.prepare(payload, origin)` validates one of four strict action contracts and returns an app-owned editor descriptor or goal change. Origin contains binding, demo reference date, current layout revision and optional pin identity; models cannot supply it. `loadActionScope` retrieves base records independently of task view filters. Meeting/usage drafts derive their keys from ownership; overdue/manual usage have no draft action.
+
+`saveTask(prepared, input)` checks current scope and the full task captured at open before calling the existing task service. `saveDraft(prepared, value)` rejects changes to the saved draft or originating metadata, preserving the shared unsaved buffer. The React host also rejects stale revisions and pending generation; unpin/layout replacement dismisses those editors. Mutations retain existing persistence, activity and undo behavior.
+
+`focusSchedulingService.findSlots` and `schedule` now accept `{ taskId, date, binding }` as well as the legacy overdue `{ taskId, date, intent }`. `schedule` additionally requires `start` and `expectedDuration`. It re-reads current scope/status/duration and calendar/meeting conflicts. A matching existing stable-ID focus event is idempotent; a different event or newly occupied slot is rejected without overwrite.
+
+Optional composition `actions` entries contain only `{ label, action }` (maximum four). Structured output validates scoped task references before serialization; execution validates them again. The general-layout validator also rejects unsupported external/tool action plans before installation. Unsupported saved legacy controls remain readable and cannot execute application mutations through the renderer fallback.

@@ -1,3 +1,4 @@
+import { compositionActionsSchema, actionReferencesValid, serializeActionButtons } from './workspaceActions.ts'
 import { z } from 'zod'
 import { clientSchema, adaptiveProjectSchema, adaptiveTaskSchema, adaptiveResourceSchema, communicationSchema, issueSchema, relationshipSchema } from './adaptiveData.ts'
 import { resolvedIntentSchema } from './intent.ts'
@@ -22,7 +23,7 @@ export const usageSnapshotSchema = z.strictObject({
 })
 export type UsageSnapshot = z.infer<typeof usageSnapshotSchema>
 const evidence = z.strictObject({ kind: z.enum(['client', 'project', 'observation', 'release', 'task', 'resource', 'communication', 'issue']), id: z.string().min(1) })
-export const usageCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(usageWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidence.array().min(1).max(20) })).min(2).max(8) }).superRefine((plan, ctx) => {
+export const usageCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), actions: compositionActionsSchema, widgets: z.array(z.strictObject({ type: z.enum(usageWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidence.array().min(1).max(20) })).min(2).max(8) }).superRefine((plan, ctx) => {
   const types = plan.widgets.map(w => w.type)
   if (new Set(types).size !== types.length || !types.includes('context') || !types.includes('usage')) ctx.addIssue({ code: 'custom', message: 'Include context and usage exactly once.' })
 })
@@ -41,9 +42,10 @@ export function validateUsageComposition(value: unknown, request: UsageComposeRe
   return usageCompositionSchema.superRefine((plan, ctx) => {
     if (!input.success || plan.requestId !== request.requestId) ctx.addIssue({ code: 'custom', message: 'Usage identity or scope mismatch.' })
     for (const widget of plan.widgets) for (const ref of widget.evidence) if (!ids.has(ref.kind + ':' + ref.id)) ctx.addIssue({ code: 'custom', message: 'Unknown usage evidence.' })
+    if (!actionReferencesValid(plan.actions, input.success ? input.data.snapshot.tasks : [], true)) ctx.addIssue({ code: 'custom', message: 'Action references must belong to this scope and support the requested operation.' })
   }).safeParse(value)
 }
-export const serializeUsageComposition = (plan: UsageComposition) => 'root = Card([Workspace([' + plan.widgets.map(w => 'WorkspaceWidget(' + JSON.stringify(w.type) + ', ' + JSON.stringify(w.span) + ')').join(', ') + '])])'
+export const serializeUsageComposition = (plan: UsageComposition) => 'root = Card([Workspace([' + plan.widgets.map(w => 'WorkspaceWidget(' + JSON.stringify(w.type) + ', ' + JSON.stringify(w.span) + ')').join(', ') + '])' + serializeActionButtons(plan.actions) + '])'
 export const usageDraftKey = (intent: { clientId?: string; projectId?: string }) => 'usage-investigation:' + intent.clientId + ':' + (intent.projectId ?? 'all')
 export function usageSnapshotFingerprint(snapshot: UsageSnapshot) {
   let hash = 2166136261

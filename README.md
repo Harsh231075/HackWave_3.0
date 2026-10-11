@@ -138,3 +138,8 @@ Optional investigation notes use a separate client/project draft; save it and re
 The full continuous three-goal and accessibility evaluation remains tracked in PLAN.md.
 
 Scoped usage validation: 100 automated tests passed; production build/TypeScript and lint passed (existing warnings remain). Mocked browser checks include a continuous meeting → usage → overdue → meeting sequence with retained edits and a pin. The configured Groq usage flow passed intent/composition, reload and segment inheritance; a quota-limited request succeeded after the verification harness retried.
+
+
+Generated workspace buttons use four validated actions: edit a linked task, edit the originating agenda/notes, schedule focus through an available-slot confirmation, or immediately change the goal. Application code owns their scope and draft keys. Filters cannot hide a task from action validation; retained pins use their original meeting/project. Changed/deleted records and conflicting saves produce feedback without overwriting data. Optional actions are persisted with scoped layouts; old layouts without actions remain compatible.
+
+For deterministic browser verification, run `node scripts/verify-actions.mjs` from `client/` with an externally installed Playwright (or set `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH`). It starts/stops its own Vite server, uses fresh browser storage and mocked model responses, and requires no API key. Live-provider and comprehensive accessibility evaluation remain separate.

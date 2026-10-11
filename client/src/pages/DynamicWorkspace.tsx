@@ -1,3 +1,8 @@
+import { WorkspaceActionHost } from '@/lib/workspace/WorkspaceActionHost'
+import { applicationActionEvent } from '@/lib/workspace/actionValidation'
+import { useWorkspaceActions } from '@/lib/workspace/WorkspaceActionContext'
+import { ActionOriginProvider } from '@/lib/workspace/ActionOriginProvider'
+import type { WidgetBinding } from '@/domain/widgetInstances'
 import { ActiveWidgetCanvas } from '@/lib/workspace/WidgetCanvas'
 import { PinnedWidgets } from '@/lib/workspace/PinnedWidgets'
 import { usePinnedWidgets } from '@/hooks/usePinnedWidgets'
@@ -67,6 +72,15 @@ function ClarificationForm({ question, pending, onAnswer, onCancel }: { question
     else if (selection) onAnswer({ ...base, field: question.field, selectedId: selection })
   }}><p className="text-sm font-medium" role="status">{question.question}</p>{question.field === 'dateRange' ? <div className="flex gap-3"><label className="text-sm">From<input aria-label="Clarification from date" className="mt-1 block rounded border p-2" type="date" value={from} onChange={event => setFrom(event.target.value)} required disabled={pending} /></label><label className="text-sm">Through<input aria-label="Clarification through date" className="mt-1 block rounded border p-2" type="date" min={from} value={to} onChange={event => setTo(event.target.value)} required disabled={pending} /></label></div> : <Select items={question.choices.map(choice => ({ value: choice.id, label: choice.label }))} value={selection} onValueChange={setSelection} disabled={pending}><SelectTrigger aria-label="Clarification choice" className="h-auto w-full min-w-0 whitespace-normal"><SelectValue placeholder="Choose an option" /></SelectTrigger><SelectContent>{question.choices.map(choice => <SelectItem key={choice.id} value={choice.id}>{choice.label}</SelectItem>)}</SelectContent></Select>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={pending || (question.field === 'dateRange' ? !from || !to || from > to : !selection)}>Continue</Button></div></form>
 }
+function GeneratedRenderer({ response, componentState, onStateUpdate }: { response: string; componentState: Record<string, unknown>; onStateUpdate: (value: Record<string, unknown>) => void }) {
+  const actions = useWorkspaceActions()
+  const { notify } = useWorkspace()
+  return <Renderer library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={onStateUpdate} onAction={event => {
+    const action = applicationActionEvent(event)
+    if (action && actions) actions.dispatch(action)
+    else notify('This generated control is unavailable. Use the workspace’s task, draft or calendar controls.')
+  }} />
+}
 export function DynamicWorkspace() {
   const { state, draftBuffers, notify, notice } = useWorkspace()
   const pins = usePinnedWidgets()
@@ -80,7 +94,7 @@ export function DynamicWorkspace() {
   const [revision, setRevision] = useState(0)
   const [commandOpen, setCommandOpen] = useState(false)
   const workflow = useAdaptiveWorkspace(restored.usage?.intent ?? restored.overdue?.intent ?? restored.meeting?.intent, restored.usage?.composition.requestId ?? restored.overdue?.composition.requestId ?? restored.meeting?.composition.requestId, restored.usage?.composition)
-  const { pending, error, setError, clarification, cancel } = workflow
+  const { pending, error, clarification, cancel } = workflow
   const speech = useSpeechToText({ value: goal, onChange: setGoal, enabled: commandOpen && !pending && !clarification })
   const canvas = useRef<HTMLElement | null>(null)
   const [componentState, setComponentState] = useState<Record<string, unknown>>({})
@@ -111,10 +125,12 @@ export function DynamicWorkspace() {
     setPersistenceNotice(cleared ? '' : 'Layout reset for now. Device storage could not be cleared; the previous layout may return after reload.')
     requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
   }
-  async function build(answer?: IntentRequest['clarificationAnswer']) {
-    if ((!goal.trim() && !answer) || pending) return
+  async function build(answer?: IntentRequest['clarificationAnswer'], explicitGoal?: string) {
+    const submittedGoal = explicitGoal ?? goal
+    if ((!submittedGoal.trim() && !answer) || pending) return
     speech.cancel()
-    const result = await workflow.run({ goal: goal.trim(), previousUI: response, context: { demoDate: DEMO_DATE, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: pins.status === 'found' ? [...new Set(pins.value.map(pin => pin.widgetType))] : [], componentState } }, answer)
+    if (explicitGoal) setCommandOpen(true)
+    const result = await workflow.run({ goal: submittedGoal.trim(), previousUI: response, context: { demoDate: DEMO_DATE, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: pins.status === 'found' ? [...new Set(pins.value.map(pin => pin.widgetType))] : [], componentState } }, answer)
     if (!result) return
     if (result.kind === 'meeting') result.session = retainMeetingTaskFilters(meeting, result.session)
     const saved = result.kind === 'usage' ? layoutService.saveUsage(result.session) : result.kind === 'overdue' ? layoutService.saveOverdue(result.session) : result.kind === 'meeting' ? layoutService.saveMeeting(result.session) : layoutService.save(result.response)
@@ -147,10 +163,13 @@ export function DynamicWorkspace() {
     if (layoutService.saveOverdue(session).status !== 'saved') setPersistenceNotice('Review filters updated for this session. Device storage is unavailable.')
   }
   function generate(event: FormEvent) { event.preventDefault(); void build() }
-  const renderer = <ActiveWidgetCanvas key={revision} response={response}><Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} /></ActiveWidgetCanvas>
-  return <div className="dynamic-canvas-page"><PageHeaderActions><button className="command-trigger" onClick={() => changeCommand(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem><DropdownMenuItem onClick={() => { const result = pinService.clearPins(); notify(!result.ok ? result.message : result.persistence.status === 'saved' ? '' : 'Pins cleared for this session. Device storage is unavailable.') }}>Clear pins</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
-    <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}{usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}<PinnedWidgets /></main>
+  const renderer = <ActiveWidgetCanvas key={revision} response={response}><GeneratedRenderer key={revision} response={response} componentState={componentState} onStateUpdate={setComponentState} /></ActiveWidgetCanvas>
+  const meetingRecords = meeting ? meetingPreparationService.load(meeting.meetingId) : null
+  const binding: WidgetBinding = usage ? { kind: 'usage', intent: usage.intent } : overdue ? { kind: 'overdue', intent: overdue.intent, referenceDate: overdue.referenceDate } : meeting ? { kind: 'meeting', meetingId: meeting.meetingId, clientId: meetingRecords?.status === 'found' ? meetingRecords.value.client.id : '', projectId: meetingRecords?.status === 'found' ? meetingRecords.value.project.id : '' } : { kind: 'workspace' }
+  const boundRenderer = <ActionOriginProvider origin={{ binding, referenceDate: overdue?.referenceDate ?? DEMO_DATE, revision }}>{renderer}</ActionOriginProvider>
+  return <WorkspaceActionHost revision={revision} pending={pending} onGoalChange={next => build(undefined, next)}><div className="dynamic-canvas-page"><PageHeaderActions><button className="command-trigger" onClick={() => changeCommand(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem><DropdownMenuItem onClick={() => { const result = pinService.clearPins(); notify(!result.ok ? result.message : result.persistence.status === 'saved' ? '' : 'Pins cleared for this session. Device storage is unavailable.') }}>Clear pins</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
+    <main className="generated-canvas" ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace">{persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}{usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{boundRenderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{boundRenderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{boundRenderer}</MeetingScopeProvider> : boundRenderer}<PinnedWidgets /></main>
     {notice && <div className="notice-toast" role="status"><span>{notice}</span><button onClick={() => notify('')} aria-label="Dismiss message"><X size={16} /></button></div>}
     <Dialog open={commandOpen} onOpenChange={changeCommand}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Change your workspace</DialogTitle><DialogDescription className="sr-only">Describe a goal or choose the meeting to prepare. Escape cancels and closes this window.</DialogDescription></DialogHeader>{clarification ? <ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={() => changeCommand(false)} /> : <form onSubmit={generate} className="goal-form"><div className="goal-input-row"><OrloLogo size={20} /><label htmlFor="command-goal" className="sr-only">Describe the workspace you need</label><input id="command-goal" autoFocus value={goal} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" maxLength={4000} disabled={pending} /><Button type="button" variant={speech.listening ? 'secondary' : 'ghost'} size="icon" onClick={speech.toggle} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? (speech.listening ? 'Stop listening' : 'Speak your goal') : 'Speech input is unavailable in this browser'} className={speech.listening ? 'text-primary ring-2 ring-primary/20' : 'text-muted-foreground'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p>{speech.error && <p className="px-4 pb-2 text-xs text-destructive" role="alert">{speech.error}</p>}</form>}{pending && <div className="goal-progress" role="status">Preparing your workspace… <button type="button" onClick={workflow.cancel}>Cancel</button></div>}{error && <p className="goal-error" role="alert">{error}</p>}<div className="command-hint"><span>Demo date · {DEMO_DATE} · Asia/Kolkata</span><span>Esc to close</span></div></DialogContent></Dialog>
-  </div>
+  </div></WorkspaceActionHost>
 }

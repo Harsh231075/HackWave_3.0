@@ -1,3 +1,4 @@
+import { createWorkspaceActionService } from './workspaceActionService'
 import { createPinService } from './pinService'
 import { createUsageWorkspaceService } from './usageWorkspaceService'
 import { createUsageCompositionService } from './usageCompositionService'
@@ -104,3 +105,5 @@ export const usageWorkspaceService = createUsageWorkspaceService(browserDatabase
 export const usageCompositionService = createUsageCompositionService()
 
 export const pinService = createPinService(browserDatabase)
+
+export const workspaceActionService = createWorkspaceActionService(browserDatabase)

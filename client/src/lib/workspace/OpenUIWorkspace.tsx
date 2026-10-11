@@ -1,3 +1,6 @@
+import { useWorkspaceActions } from './WorkspaceActionContext'
+import { workspaceActionSchema } from '@/domain/workspaceActions'
+import { Button } from '@/components/ui/button'
 import { useContext } from 'react'
 import { WidgetCanvasContext } from './WidgetCanvasContext'
 import { useUsageScope } from '@/state/UsageScopeContext'
@@ -40,20 +43,30 @@ const Workspace = defineComponent({
   },
 })
 
+const WorkspaceAction = defineComponent({
+  name: 'WorkspaceAction',
+  props: z.object({ label: z.string().trim().min(1).max(80), action: workspaceActionSchema }),
+  description: 'Working application button. action is task.edit {taskId}, draft.edit {}, focus.schedule {taskId,date?}, or goal.change {goal}. Scope is owned by the application. Editors require user confirmation.',
+  component: function WorkspaceActionView({ props }) {
+    const actions = useWorkspaceActions()
+    return <Button className="mr-2 mt-3" variant="outline" disabled={!actions || actions.pending} onClick={() => actions?.dispatch(props.action)}>{props.label}</Button>
+  },
+})
+
 const baseCard = openuiChatLibrary.components.Card
 const ProductivityCard = defineComponent({
   name: 'Card',
-  props: baseCard.props.extend({ children: z.array(z.union([baseCard.props.shape.children.element, Workspace.ref])).min(1) }),
+  props: baseCard.props.extend({ children: z.array(z.union([baseCard.props.shape.children.element, Workspace.ref, WorkspaceAction.ref])).min(1) }),
   description: 'Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets.',
   component: ({ props, renderNode }) => <div className="productivity-response">{renderNode(props.children)}</div>,
 })
 
 export const productivityLibrary = createLibrary({
   root: 'Card',
-  components: [...Object.values(openuiChatLibrary.components).filter(component => component.name !== 'Card'), ProductivityCard, WorkspaceWidget, Workspace],
+  components: [...Object.values(openuiChatLibrary.components).filter(component => component.name !== 'Card'), ProductivityCard, WorkspaceWidget, Workspace, WorkspaceAction],
   componentGroups: [
     ...(openuiChatLibrary.componentGroups ?? []),
-    { name: 'Productivity', components: ['Workspace', 'WorkspaceWidget'], notes: widgetTypes.map(id => `${id}: ${registry[id].reason}`) },
+    { name: 'Productivity', components: ['Workspace', 'WorkspaceWidget', 'WorkspaceAction'], notes: widgetTypes.map(id => `${id}: ${registry[id].reason}`) },
   ],
 })
 
