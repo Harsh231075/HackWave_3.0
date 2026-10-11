@@ -22,7 +22,7 @@ export class TargetError extends Error {
   choices: Array<{ id: string; label: string }>
   constructor(type: string, instances: WidgetInstance[]) {
     super(`Choose which ${type} view to change.`)
-    this.choices = instances.map(w => ({ id: w.instanceId, label: w.label }))
+    this.choices = instances.map((w, index) => ({ id: w.instanceId, label: w.binding.kind === 'workspace' && !w.binding.projectId && !w.binding.clientId ? `${w.widgetType} view ${index + 1}` : w.label }))
   }
 }
 export function resolveTarget(document: WorkspaceDocument, target: string, includePins = false): WidgetInstance | undefined {

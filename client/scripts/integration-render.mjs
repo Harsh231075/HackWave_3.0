@@ -17,6 +17,7 @@ try {
   const dynamic = renderToString(wrap(React.createElement(DynamicWorkspace)))
   assert.match(dynamic, /Generated productivity workspace/)
   assert.match(dynamic, /data-instance-id/)
+  assert.doesNotMatch(dynamic, /All workspace records/)
   assert.match(dynamic, /Active workspace/)
   assert.match(dynamic, /Ctrl \/ Cmd \+ K to update/)
   assert.doesNotMatch(dynamic, /<details|<summary/)

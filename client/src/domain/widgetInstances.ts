@@ -90,5 +90,5 @@ export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[],
 }
 
 export function makeInstance(widgetType: WidgetType, binding: WidgetBinding = { kind: 'workspace' }, viewState: Partial<WidgetViewState> = {}, id: string = crypto.randomUUID()): WidgetInstance {
-  return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? 'All workspace records' : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
+  return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? widgetType : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
 }

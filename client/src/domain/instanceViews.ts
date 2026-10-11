@@ -28,7 +28,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     if ((changedFilters.status || /all statuses/i.test(goal)) && !state.taskStatuses) delete viewState.taskStatuses
     if (/\b(all owners|everyone)\b/i.test(goal)) delete viewState.owner
     if (/\b(all priorities|any priority)\b/i.test(goal)) viewState.taskFilters.priority = 'all'
-    const instance = { ...makeInstance(type, binding, viewState, existing?.instanceId), span: existing?.span ?? 'full', explanation: { type, reason: view.reply, evidence: [] }, label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? 'All workspace records' : existing?.label ?? 'Google Calendar' } satisfies WidgetInstance
+    const instance = { ...makeInstance(type, binding, viewState, existing?.instanceId), span: existing?.span ?? 'full', explanation: { type, reason: view.reply, evidence: [] }, label: binding.kind === 'workspace' ? binding.projectId ?? binding.clientId ?? type : existing?.label ?? 'Google Calendar' } satisfies WidgetInstance
     const duplicate = !existing && [...active, ...pins].find(w => widgetSelectionKey(w) === widgetSelectionKey(instance))
     if (duplicate && !another) { targets.push(duplicate.instanceId); continue }
     const pin = pins.find(w => w.instanceId === existing?.instanceId)

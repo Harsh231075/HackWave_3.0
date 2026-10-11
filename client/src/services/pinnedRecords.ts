@@ -33,5 +33,5 @@ export function loadPinnedRecords(database: BrowserDatabase, pin: Pick<PinnedWid
   if (!scope) return { status: 'missing' }
   const { events, drafts } = database.getState()
   const tasks = scope.tasks
-  return { status: 'found', value: { fingerprint: fingerprint({ tasks, events, drafts }), label: pin.viewState.selectedDate && ['calendar', 'timeline', 'availability', 'meetings'].includes(pin.widgetType) ? `Workspace · ${pin.viewState.selectedDate}` : binding.projectId ?? binding.clientId ?? 'All workspace records' } }
+  return { status: 'found', value: { fingerprint: fingerprint({ tasks, events, drafts }), label: pin.viewState.selectedDate && ['calendar', 'timeline', 'availability', 'meetings'].includes(pin.widgetType) ? `Workspace · ${pin.viewState.selectedDate}` : binding.projectId ?? binding.clientId ?? pin.widgetType } }
 }
