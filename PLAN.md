@@ -440,3 +440,5 @@ Validation for the project-only change: **316/316 unit tests passed**; productio
 - [ ] Archive, labels, colors, checklists, rich text and collaboration: outside this iteration.
 
 - [x] Tasks, Meetings, Notes, Resources and Planner share the right-side page action slot; reusable widget controls stay in component headers when embedded.
+
+- [x] Expand explicit seed: 8 tasks, 10 local calendar events, 10 populated notes, 4 tagged/linked resources, 4 communications and 3 issues per sample project; today’s planner and past/future calendar dates are populated without replacing user data.

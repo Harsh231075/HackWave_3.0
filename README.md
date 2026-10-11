@@ -163,3 +163,5 @@ project-scoped search, pinning, autosaving text editor, duplication, Markdown
 export and confirmed deletion. Meeting agendas and investigation notes share
 canonical content with their adaptive components and cannot be deleted independently.
 Notes are stored locally; no cloud sync or multi-user collaboration is provided yet.
+
+Settings → Seed sample data installs two linked sample projects, each with eight tasks, ten local calendar events, ten notes (including a pinned note), four resources, four communications and three issues. Dates are relative to the day of seeding. Today includes meetings, focus blocks and a break with free gaps for scheduling; previous meetings have matching calendar events. Clearly labeled sample completion history populates activity and progress views. Web/mobile usage observations and release records support the investigation demo. Existing records must be explicitly reset before reseeding; Google Calendar data is never simulated.

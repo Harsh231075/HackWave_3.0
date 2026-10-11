@@ -12,6 +12,11 @@ import { createUsageWorkspaceService } from '../src/services/usageWorkspaceServi
 import { createUsageDataService } from '../src/services/usageDataService.ts'
 import { createOverdueReviewService } from '../src/services/overdueReviewService.ts'
 import { workspaceDocumentStore } from '../src/services/workspaceDocumentStore.ts'
+import { createNoteService } from '../src/services/noteService.ts'
+import { createResourceModuleService } from '../src/services/resourceModuleService.ts'
+import { getActivityRecords } from '../src/services/recordHistory.ts'
+import { plannerSummary } from '../src/domain/plannerTime.ts'
+import { shiftDate } from '../src/domain/calendar.ts'
 import { loadActionScope } from '../src/services/actionScope.ts'
 const today = '2026-10-11'
 function setup() {
@@ -76,15 +81,15 @@ test('explicit seed installs linked runtime IDs, derives usage and overdue resul
   assert.ok(seed.seed().ok)
   const data=createAdaptiveDataService(database).snapshot()!;assert.ok(data)
   assert.equal(projects.projects.list().length,3)
-  assert.equal(data.meetings.length,4)
+  assert.equal(data.meetings.length,12)
   assert.equal(data.projects[1].clientIds?.length,1)
-  const projectId=projects.selectedId()!, meeting=data.meetings.find(record=>record.projectId===projectId && record.eventId)!
+  const projectId=projects.selectedId()!, meeting=data.meetings.find(record=>record.projectId===projectId && record.date==='2026-10-12')!
   const preparation=createAdaptiveDataService(database).loadPreparation(meeting.id);assert.equal(preparation.status,'found')
-  if(preparation.status==='found'){assert.equal(preparation.value.tasks.length,2);assert.equal(preparation.value.resources.length,1)}
-  const scope=loadActionScope(database,{kind:'workspace',projectId});assert.equal(scope?.tasks.length,2)
+  if(preparation.status==='found'){assert.equal(preparation.value.tasks.length,8);assert.equal(preparation.value.resources.length,4)}
+  const scope=loadActionScope(database,{kind:'workspace',projectId});assert.equal(scope?.tasks.length,8)
   const usage=createUsageWorkspaceService(database).load({goalType:'usage_investigation',projectId,dateRange:{from:'2026-09-28',to:today}})
   assert.equal(usage.status,'found')
-  if(usage.status==='found'){assert.equal(usage.value.snapshot.tasks.length,2);assert.equal(usage.value.observations.length,28);assert.ok(Math.abs(usage.value.periodComparisons.find(row=>row.segment==='mobile')!.currentAverage! - 85) < 0.000001)}
+  if(usage.status==='found'){assert.equal(usage.value.snapshot.tasks.length,8);assert.equal(usage.value.observations.length,28);assert.ok(Math.abs(usage.value.periodComparisons.find(row=>row.segment==='mobile')!.currentAverage! - 85) < 0.000001)}
   const overdue=createOverdueReviewService(database).load({goalType:'overdue_review',projectId,dateRange:{from:'0001-01-01',to:today}},today)
   assert.equal(overdue.status,'found');if(overdue.status==='found')assert.equal(overdue.value.tasks.length,2)
   assert.equal(seed.seed().ok,false)
@@ -122,4 +127,61 @@ test('legacy storage is blocked and preserved until Reset; corrupt task storage 
   assert.equal(projects.reset().status,'saved')
   assert.equal(projects.compatible(),true)
   assert.equal(createUsageDataService(database).snapshot()?.observations.length,0)
+})
+
+test('expanded seed populates calendar, planner and note/resource views with linked date-relative data', () => {
+  for (const anchor of [today, '2027-01-02']) {
+    const { database, projects } = setup()
+    assert.ok(createProjectSeedService(database, () => anchor).seed().ok)
+    const adaptive = createAdaptiveDataService(database), data = adaptive.snapshot()!, notes = createNoteService(database), resources = createResourceModuleService(database)
+    const state = database.getState()
+    assert.equal(state.events.length, 20)
+    assert.equal(state.tasks.length, 16)
+    assert.equal(getActivityRecords(database).length, 4)
+    assert.ok(getActivityRecords(database).every(record => state.tasks.some(task => task.id === record.entityId && task.status === 'completed') && record.summary.startsWith('Sample history:')))
+    for (const project of projects.projects.list().filter(project => project.id !== projects.settings()!.defaultProjectId)) {
+      const tasks = state.tasks.filter(task => task.projectId === project.id)
+      assert.deepEqual(new Set(tasks.map(task => task.status)), new Set(['pending', 'blocked', 'completed']))
+      assert.deepEqual(new Set(tasks.map(task => task.priority)), new Set(['urgent', 'high', 'medium', 'low']))
+      assert.ok(tasks.some(task => task.due === anchor))
+      assert.ok(tasks.some(task => task.due > anchor))
+      const events = state.events.filter(event => event.projectId === project.id)
+      assert.ok(events.some(event => event.date === shiftDate(anchor, -7)))
+      assert.ok(events.some(event => event.date === shiftDate(anchor, 1)))
+      assert.ok(events.some(event => event.date === shiftDate(anchor, 8)))
+      assert.deepEqual(new Set(events.map(event => event.category)), new Set(['meeting', 'focus', 'break', 'class']))
+      const summary = plannerSummary(events.filter(event => event.date === anchor), [], anchor, 'Asia/Kolkata')
+      assert.deepEqual(summary, { meetingMinutes: 75, focusMinutes: 105, freeMinutes: 330 })
+      const projectNotes = notes.list(project.id)
+      assert.equal(projectNotes.length, 10)
+      assert.ok(projectNotes.some(note => note.pinned && notes.canDelete(note)))
+      assert.ok(projectNotes.some(note => note.kind === 'investigation'))
+      assert.ok(projectNotes.every(note => note.body && note.createdAt && note.updatedAt))
+      for (const meeting of data.meetings.filter(meeting => meeting.projectId === project.id)) {
+        assert.ok(state.events.some(event => event.id === meeting.eventId && event.projectId === meeting.projectId))
+        assert.ok(projectNotes.some(note => note.meetingId === meeting.id && note.body === meeting.agenda))
+        assert.equal(adaptive.loadPreparation(meeting.id).status, 'found')
+      }
+      assert.ok(data.meetings.some(meeting => meeting.projectId === project.id && !meeting.clientId))
+      const review = data.meetings.find(meeting => meeting.projectId === project.id && meeting.date === shiftDate(anchor, 1))!
+      const preparation = adaptive.loadPreparation(review.id)
+      assert.equal(preparation.status, 'found')
+      if (preparation.status === 'found') {
+        assert.equal(preparation.value.communications.length, 4)
+        assert.equal(preparation.value.issues.length, 2)
+        assert.equal(preparation.value.previousMeeting?.date, shiftDate(anchor, -7))
+      }
+      const projectResources = data.resources.filter(resource => resource.projectId === project.id)
+      assert.equal(projectResources.length, 4)
+      assert.deepEqual(new Set(projectResources.map(resource => resource.kind)), new Set(['document', 'note', 'link']))
+      for (const resource of projectResources) {
+        assert.ok(resources.properties(resource.id).tags.length)
+        assert.ok(resources.properties(resource.id).links.every(link => link.kind === 'task' ? tasks.some(task => task.id === link.id) : data.meetings.some(meeting => meeting.id === link.id && meeting.projectId === project.id)))
+      }
+    }
+    assert.equal(state.events.some(event => event.id.startsWith('google:')), false)
+    const before = structuredClone(state)
+    assert.equal(createProjectSeedService(database, () => anchor).seed().ok, false)
+    assert.deepEqual(database.getState(), before)
+  }
 })
