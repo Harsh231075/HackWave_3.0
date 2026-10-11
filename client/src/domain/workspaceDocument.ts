@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { MAX_CANVAS_WIDGETS, MAX_PINS, pinnedWidgetSchema, widgetInstanceSchema, widgetSelectionKey, type WidgetInstance } from './widgetInstances.ts'
+import { MAX_CANVAS_WIDGETS, MAX_PINS, pinnedWidgetSchema, widgetInstanceSchema, widgetSelectionKey, makeInstance, type WidgetInstance } from './widgetInstances.ts'
 import type { WorkspaceOperation } from './workspaceManagement.ts'
-import type { WidgetType } from '../lib/workspace/config.ts'
+import { PRESETS, type WidgetType } from '../lib/workspace/config.ts'
 
 export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
 export const workspaceDocumentSchema = z.strictObject({
@@ -91,4 +91,15 @@ export function applyInstanceOperations(document: WorkspaceDocument, operations:
     }
   }
   return commitWorkspace(document, { active, pins, targets })
+}
+
+export function resetWorkspaceLayout(document: WorkspaceDocument): WorkspaceDocument {
+  const pinned = new Set(document.pins.map(widgetSelectionKey))
+  const active = PRESETS.home.widgets.map(widget => ({ ...makeInstance(widget.id), span: widget.span }))
+    .filter(widget => !pinned.has(widgetSelectionKey(widget))).slice(0, MAX_CANVAS_WIDGETS - document.pins.length)
+  return commitWorkspace(document, { active, targets: [] })
+}
+export function clearWorkspacePins(document: WorkspaceDocument): WorkspaceDocument {
+  const activeIds = new Set(document.active.map(widget => widget.instanceId))
+  return commitWorkspace(document, { pins: [], targets: document.targets.filter(id => activeIds.has(id)) })
 }

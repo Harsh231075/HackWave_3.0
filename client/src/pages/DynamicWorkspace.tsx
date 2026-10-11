@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Command, Mic, Square, ArrowUp, LoaderCircle, MoreHorizontal } from 'lucide-react'
+import { Command, Mic, Square, ArrowUp, LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react'
 import { useWorkspaceDocument } from '@/hooks/useWorkspaceDocument'
 import { useAdaptiveWorkspace, type Clarification } from '@/hooks/useAdaptiveWorkspace'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
@@ -10,7 +10,7 @@ import { resolveComponentIntent } from '@/services/componentIntentService'
 import { adaptiveDataService, resourceService } from '@/services'
 import { makeInstance, instancesFromLayout } from '@/services/workspaceDocumentService'
 import { instancePlan, applyComponentView } from '@/domain/instanceViews'
-import { commitWorkspace, emptyWorkspace, resolveTarget, applyInstanceOperations, TargetError, type WorkspaceDocument } from '@/domain/workspaceDocument'
+import { commitWorkspace, resetWorkspaceLayout, clearWorkspacePins, resolveTarget, applyInstanceOperations, TargetError, type WorkspaceDocument } from '@/domain/workspaceDocument'
 import { localManagement, namedWidgets } from '@/domain/workspaceManagement'
 import { componentViewSchema } from '@/domain/componentIntent'
 import { calendarDate, shiftDate } from '@/domain/calendar'
@@ -19,10 +19,12 @@ import { WorkspaceActionHost } from '@/lib/workspace/WorkspaceActionHost'
 import { extractActiveWidgets, extractGeneratedActions, extractGeneratedText } from '@/lib/workspace/workspaceNodes'
 import { productivityLibrary } from '@/lib/workspace/OpenUIWorkspace'
 import { GoogleCalendarConnection } from '@/components/calendar/GoogleCalendarWidgets'
+import { DEMO_DATE } from '@/data/demo'
+import { OrloLogo } from '@/components/shell/OrloLogo'
 import { PageHeaderActions } from '@/components/shell/PageHeaderActions'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuSeparator, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { IntentRequest } from '@/domain/intent'
 import type { WidgetInstance, PinnedWidget, WidgetBinding } from '@/domain/widgetInstances'
@@ -48,6 +50,7 @@ export function DynamicWorkspace() {
   const [goal, setGoal] = useState(initialGoal)
   const [commandOpen, setCommandOpen] = useState(!!initialGoal)
   const [settings, setSettings] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [resolving, setResolving] = useState(false)
   const [question, setQuestion] = useState<{ question: string; choices: Array<{ id?: string; label: string }> } | null>(null)
   const request = useRef<AbortController | null>(null)
@@ -65,12 +68,6 @@ export function DynamicWorkspace() {
     activeTurn.current = null
   }
   useEffect(() => () => { request.current?.abort() }, [])
-  useEffect(() => {
-    const handle = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(open => !open) }
-    }
-    window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle)
-  }, [])
   useEffect(() => {
     const url = new URL(window.location.href), outcome = url.searchParams.get('calendar')
     if (!outcome) return
@@ -145,23 +142,43 @@ export function DynamicWorkspace() {
       else finish(id, 'error', failure instanceof Error ? failure.message : 'Unable to update workspace.')
     } finally { if (request.current === controller) { request.current = null; setResolving(false) } }
   }
-  function close(open: boolean) { if (!open && pending) stop(); setCommandOpen(open) }
+  function close(open: boolean) {
+    if (!open) { speech.cancel(); if (pending) stop() }
+    else { setHistoryOpen(false); setSettings(false) }
+    setCommandOpen(open)
+  }
+  function openSettings() { close(false); setHistoryOpen(false); setSettings(true) }
+  function resetLayout() {
+    stop(); workflow.reset(); setQuestion(null); setGoal(''); setCommandOpen(false)
+    if (save(resetWorkspaceLayout(current.current))) requestAnimationFrame(() => canvas.current?.focus({ preventScroll: true }))
+  }
+  function clearPins() { stop(); save(clearWorkspacePins(current.current)) }
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); close(!commandOpen) }
+    }
+    window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle)
+  })
   const latest = document.turns.at(-1)
+  const successful = [...document.turns].reverse().find(turn => turn.status === 'ready')
   return <WorkspaceActionHost revision={document.revision} pending={pending} onGoalChange={async goal => { await build(undefined, goal) }}>
     <div className="dynamic-canvas-page">
-      <PageHeaderActions><Button variant="ghost" size="sm" onClick={() => setCommandOpen(true)}><Command size={14} /> Ctrl K</Button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => setSettings(true)}>Google Calendar connection</DropdownMenuItem><DropdownMenuItem disabled={!workspace.canUndo} onClick={workspace.undo}>Undo layout change</DropdownMenuItem><DropdownMenuItem onClick={() => { stop(); workflow.reset(); save({ ...emptyWorkspace(), revision: current.current.revision + 1 }); workspace.clearUndo() }}>Reset workspace and pins</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
+      <PageHeaderActions><button className="command-trigger" onClick={() => close(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => { speech.cancel(); setCommandOpen(false); setSettings(false); setHistoryOpen(true) }}>Conversation history</DropdownMenuItem><DropdownMenuItem disabled={!workspace.canUndo || pending} onClick={workspace.undo}>Undo layout change</DropdownMenuItem><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem><DropdownMenuItem onClick={clearPins}>Clear pins</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={openSettings}>Google Calendar connection</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
       <main className="generated-canvas" aria-label="Context-aware workspace">
-        {workspace.notice && <p role="status" className="mb-4 text-sm text-muted-foreground">{workspace.notice}</p>}
-        {latest && <div className="mb-4 flex items-center gap-3"><p role={latest.status === 'error' ? 'alert' : 'status'} className="text-sm">{pending && <LoaderCircle className="mr-2 inline animate-spin" size={15} />}{latest.reply}</p>{pending && <Button size="sm" variant="ghost" onClick={stop}>Stop</Button>}</div>}
+        {workspace.notice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground"><span>{workspace.notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setNotice('')}><X size={14} /></Button></div>}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">Active workspace</p><p className="mt-1 text-sm font-medium">{successful?.prompt ?? 'Describe the workspace you need'}</p></div><span className="text-xs text-muted-foreground">Ctrl / Cmd + K to update</span></div>
+        {latest && <div className="mb-8 flex items-start gap-3" aria-label="Workspace status"><OrloLogo size={22} /><p role={latest.status === 'error' ? 'alert' : 'status'} className={`min-w-0 flex-1 text-sm leading-6 ${latest.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{pending && <LoaderCircle className="mr-2 inline animate-spin" size={15} />}{latest.reply}</p>{pending && <Button size="sm" variant="ghost" onClick={stop}>Stop</Button>}</div>}
         <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace"><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} />
-          {!document.active.length && !document.pins.length && <div className="rounded-xl border border-dashed p-12 text-center"><p>Your workspace is empty.</p><Button className="mt-4" onClick={() => setCommandOpen(true)}>Add components</Button></div>}
+          {!document.active.length && !document.pins.length && <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"><p>Your workspace is empty.</p><Button className="mt-4" variant="outline" onClick={() => close(true)}>Press Ctrl / Cmd + K to add components</Button></div>}
         </section>
-        {!!document.turns.length && <details className="mt-6 text-sm"><summary>Conversation history</summary><ol className="mt-3 space-y-3">{document.turns.map(turn => <li key={turn.id}><p className="font-medium">{turn.prompt}</p><p className="text-muted-foreground">{turn.reply}</p></li>)}</ol></details>}
+
       </main>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}><DialogContent className="workspace-history-dialog"><DialogHeader><DialogTitle>Conversation history</DialogTitle><DialogDescription>Your workspace prompts and responses.</DialogDescription></DialogHeader><div className="min-h-0 overflow-y-auto pr-2">{document.turns.length ? <ol className="space-y-5">{document.turns.map(turn => <li key={turn.id} className="space-y-2 border-b pb-4"><p className="text-sm font-medium whitespace-pre-wrap">{turn.prompt}</p><div className="flex items-start gap-3"><OrloLogo size={18} /><p className="min-w-0 text-sm text-muted-foreground whitespace-pre-wrap">{turn.reply}</p></div><p className="text-xs text-muted-foreground">{({ pending: 'In progress', ready: 'Completed', error: 'Failed', cancelled: 'Cancelled', clarification: 'Needs clarification' })[turn.status]}</p></li>)}</ol> : <p className="py-8 text-center text-muted-foreground">No conversation history yet.</p>}</div></DialogContent></Dialog>
       <Dialog open={settings} onOpenChange={setSettings}><DialogContent><DialogHeader><DialogTitle>Calendar connection</DialogTitle><DialogDescription>Connect Google to read real events. Creating events requires additional permission and confirmation.</DialogDescription></DialogHeader><GoogleCalendarConnection /></DialogContent></Dialog>
-      <Dialog open={commandOpen} onOpenChange={close}><DialogContent><DialogHeader><DialogTitle>Change your workspace</DialogTitle><DialogDescription>Add, filter, move, resize, or remove a view.</DialogDescription></DialogHeader>
-        {question ? <div className="space-y-3"><p>{question.question}</p>{question.choices.map((choice, index) => <Button key={choice.id ?? index} variant="outline" disabled={pending} onClick={() => { if (choice.label === 'Connect Google Calendar') { setCommandOpen(false); setSettings(true) } else void build(undefined, choice.id || choice.label === 'Use demo records' ? lastGoal.current : choice.label, choice.id, choice.label === 'Use demo records') }}>{choice.label}</Button>)}<Button variant="ghost" onClick={() => setQuestion(null)}>Write a different prompt</Button></div> : workflow.clarification ? <ClarificationForm question={workflow.clarification} pending={pending} onCancel={() => { stop(); close(false) }} onAnswer={answer => void build(answer)} /> : <form className="flex items-center gap-2" onSubmit={(event: FormEvent) => { event.preventDefault(); void build() }}><label className="sr-only" htmlFor="workspace-goal">Workspace goal</label><input id="workspace-goal" className="min-w-0 flex-1 rounded border p-3" autoFocus value={goal} maxLength={4000} disabled={pending} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" /><Button type="button" size="icon" variant="ghost" disabled={pending || !speech.supported} onClick={speech.toggle} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'}>{speech.listening ? <Square size={16} /> : <Mic size={16} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Update workspace"><ArrowUp size={16} /></Button></form>}
-        {speech.error && <p role="alert">{speech.error}</p>}
+      <Dialog open={commandOpen} onOpenChange={close}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader className="sr-only"><DialogTitle>Change your workspace</DialogTitle><DialogDescription>Describe a goal or choose a view. Escape cancels and closes this window.</DialogDescription></DialogHeader>
+        {question ? <div className="space-y-3"><p>{question.question}</p>{question.choices.map((choice, index) => <Button key={choice.id ?? index} variant="outline" disabled={pending} onClick={() => { if (choice.label === 'Connect Google Calendar') { openSettings() } else void build(undefined, choice.id || choice.label === 'Use demo records' ? lastGoal.current : choice.label, choice.id, choice.label === 'Use demo records') }}>{choice.label}</Button>)}<Button variant="ghost" onClick={() => setQuestion(null)}>Write a different prompt</Button></div> : workflow.clarification ? <ClarificationForm question={workflow.clarification} pending={pending} onCancel={() => { stop(); close(false) }} onAnswer={answer => void build(answer)} /> : <form className="goal-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void build() }}><div className="goal-input-row"><OrloLogo size={20} /><label className="sr-only" htmlFor="workspace-goal">Describe the workspace you need</label><input id="workspace-goal" autoFocus value={goal} maxLength={4000} disabled={pending} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" /><Button type="button" size="icon" variant={speech.listening ? 'secondary' : 'ghost'} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} onClick={speech.toggle} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? 'Speak your goal' : 'Speech input is unavailable in this browser'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p></form>}
+        {speech.error && <p className="goal-error" role="alert">{speech.error}</p>}
+        <div className="command-hint"><span>{calendar.connection?.connected ? `Live calendar · ${calendar.timezone}` : `Demo date · ${DEMO_DATE} · Connect Google for real meetings`}</span><span>Esc to close</span></div>
       </DialogContent></Dialog>
     </div>
   </WorkspaceActionHost>

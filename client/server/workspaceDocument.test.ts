@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createBrowserStorage } from '../src/services/local/browserStorage.ts'
 import { createBrowserDatabase } from '../src/services/browserDatabase.ts'
 import { createWorkspaceDocumentService, makeInstance } from '../src/services/workspaceDocumentService.ts'
-import { emptyWorkspace, commitWorkspace, applyInstanceOperations, resolveTarget, TargetError } from '../src/domain/workspaceDocument.ts'
+import { emptyWorkspace, resetWorkspaceLayout, clearWorkspacePins, commitWorkspace, applyInstanceOperations, resolveTarget, TargetError } from '../src/domain/workspaceDocument.ts'
 import { applyComponentView } from '../src/domain/instanceViews.ts'
 import { fallbackComponentIntent, type ComponentRequest } from '../src/domain/componentIntent.ts'
 import { createPinService } from '../src/services/pinService.ts'
@@ -178,4 +178,26 @@ test('a workspace project binding enforces membership for local mutations', () =
   assert.ok(actions.prepare({ type: 'task.edit', taskId: scope.tasks[0].id }, origin).ok)
   assert.equal(actions.prepare({ type: 'task.edit', taskId: unrelated.id }, origin).ok, false)
   assert.equal(loadActionScope(database, { ...binding, clientId: 'westbridge' }), null)
+})
+
+test('header reset preserves pins and history without duplicating default pinned views', () => {
+  const pinned = { ...makeInstance('metrics'), pinId: 'pinned-metrics', createdAt: new Date().toISOString() }
+  const document = commitWorkspace(emptyWorkspace(), { active: [makeInstance('tasks')], pins: [pinned], targets: ['old-target'], turns: [{ id: 'turn', prompt: 'Show tasks', reply: 'Ready', status: 'ready' }] })
+  const reset = resetWorkspaceLayout(document)
+  assert.deepEqual(reset.pins, document.pins)
+  assert.deepEqual(reset.turns, document.turns)
+  assert.deepEqual(reset.targets, [])
+  assert.deepEqual(reset.active.map(widget => widget.widgetType), ['chart', 'timeline', 'activity'])
+  assert.equal(reset.revision, document.revision + 1)
+})
+test('header clear pins preserves active views and history and removes pinned targets', () => {
+  const active = makeInstance('tasks')
+  const pinned = { ...makeInstance('calendar'), pinId: 'calendar-pin', createdAt: new Date().toISOString() }
+  const document = commitWorkspace(emptyWorkspace(), { active: [active], pins: [pinned], targets: [active.instanceId, pinned.instanceId], turns: [{ id: 'turn', prompt: 'Show calendar', reply: 'Ready', status: 'ready' }] })
+  const cleared = clearWorkspacePins(document)
+  assert.deepEqual(cleared.active, document.active)
+  assert.deepEqual(cleared.turns, document.turns)
+  assert.deepEqual(cleared.pins, [])
+  assert.deepEqual(cleared.targets, [active.instanceId])
+  assert.equal(cleared.revision, document.revision + 1)
 })
