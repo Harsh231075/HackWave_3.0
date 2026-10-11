@@ -1,3 +1,4 @@
+import { isMailWidget } from './mail.ts'
 import { calendarDate } from './calendar.ts'
 import { mergeComponentBindings } from './componentContinuation.ts'
 import { componentViewSchema, type ComponentView } from './componentIntent.ts'
@@ -37,7 +38,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
       bindings = { ...bindings, projectId: undefined }
     }
     const explicitScope = !!bindings.projectId || !!bindings.clientId || !!view.continuation?.changes.projectId || !!view.continuation?.changes.clientId || /\b(all projects|all clients|all tasks|workspace tasks)\b/i.test(goal)
-    const binding: WidgetBinding = (bindingOverride && supportsBinding(type, bindingOverride.kind) && (bindingOverride.kind !== 'google-calendar' || bindingOverride.mode !== 'browse' || ['calendar', 'meetings', 'availability'].includes(type)) ? bindingOverride : undefined) ?? (explicitScope || !existing ? { kind: 'workspace', projectId: bindings.projectId, clientId: bindings.clientId, draftKey: bindings.draftKey } : existing.binding)
+    const binding: WidgetBinding = (isMailWidget(type) ? bindingOverride?.kind === 'gmail' ? bindingOverride : existing?.binding.kind === 'gmail' ? existing.binding : { kind: 'gmail' as const } : undefined) ?? (bindingOverride && supportsBinding(type, bindingOverride.kind) && (bindingOverride.kind !== 'google-calendar' || bindingOverride.mode !== 'browse' || ['calendar', 'meetings', 'availability'].includes(type)) ? bindingOverride : undefined) ?? (explicitScope || !existing ? { kind: 'workspace', projectId: bindings.projectId, clientId: bindings.clientId, draftKey: bindings.draftKey } : existing.binding)
     if (existing && pins.some(p => p.instanceId === existing?.instanceId) && !sameBinding(binding, existing.binding)) {
       // A scope change creates an active view instead of repurposing the original pin.
       existing = active.find(w => w.widgetType === type && sameBinding(w.binding, binding))

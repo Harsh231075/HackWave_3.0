@@ -1,3 +1,4 @@
+import { MailInboxWidget, MailMessageWidget, MailComposeWidget } from '@/extensions/mail/MailWidgets'
 import { Calculator } from '@/extensions/calculator/Calculator'
 import { ExternalPlugin } from '@/extensions/external/ExternalPlugin'
 import { QuickTimer } from '@/extensions/quick-timer/QuickTimer'
@@ -18,6 +19,9 @@ import { widgetTypes, type WidgetType } from './config'
 
 export type WidgetDefinition = { title: string; reason: string; icon: typeof ListTodo; component: ComponentType; supportedBindings: readonly WidgetBinding['kind'][]; supportedActions: readonly WorkspaceAction['type'][] }
 const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings' | 'supportedActions'>> = {
+  'mail-inbox': { title: 'Mail inbox', reason: 'Browse Gmail messages and folders. Requires user authorization; account-scoped.', icon: FileText, component: MailInboxWidget },
+  'mail-message': { title: 'Mail message', reason: 'Read the selected Gmail message. Email contents are not available to the model.', icon: FileText, component: MailMessageWidget },
+  'mail-compose': { title: 'Compose mail', reason: 'User-controlled Gmail composer. Commands never send mail.', icon: FileText, component: MailComposeWidget },
   calculator: {title:'Calculator',reason:'Calculate totals and arithmetic directly in your current view.',icon:CalculatorIcon,component:Calculator},
   'external-plugin':{title:'External plugin',reason:'An imported tool selected for your goal.',icon:Puzzle,component:ExternalPlugin},
   'quick-timer': { title: 'Quick Timer', reason: 'Time a focused work session linked to your project.', icon: Clock3, component: QuickTimer },

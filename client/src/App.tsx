@@ -1,3 +1,4 @@
+import { MailPage, MailRuntime } from '@/extensions/mail/MailWidgets'
 import { useSyncExternalStore } from 'react'
 import { browserDatabase } from '@/services'
 import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
@@ -19,12 +20,14 @@ function App() {
   const epoch = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getEpoch, browserDatabase.getEpoch)
   return (
     <BrowserRouter>
+      <MailRuntime/>
       <WorkspaceProvider key={epoch}><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/mail" element={<MailPage />} />
             <Route path="/plugins" element={<PluginsPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/resources" element={<ResourcesPage />} />

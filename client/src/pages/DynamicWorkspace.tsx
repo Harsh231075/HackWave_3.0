@@ -1,3 +1,5 @@
+import { isMailWidget } from '@/domain/mail'
+import { mailService } from '@/extensions/mail/mailRuntime'
 import { pluginImportService } from '@/services'
 import { projectDataService } from '@/services'
 import { extensionService } from '@/services'
@@ -164,13 +166,14 @@ export function DynamicWorkspace() {
       if (resolved?.action === 'manage') {
         const operations = exactTarget ? resolved.operations.map(op => op.type === 'remove' || op.type === 'keep' || op.type === 'replace' ? { ...op, widgets: op.widgets.map(type => previous?.widgetType === type ? exactTarget : type) } : op.type === 'move' || op.type === 'resize' ? { ...op, widget: previous?.widgetType === op.widget ? exactTarget : op.widget } : op) : resolved.operations
         const includePins = /\b(including pins|pinned|all pins)\b/i.test(submitted)
-        const next = applyInstanceOperations(current.current, operations, type => { if(type==='external-plugin' && input.catalog.externalPlugins.length!==1)throw new Error('Choose an enabled imported plugin by name.'); if(isExtension(type)&&!input.selectedProjectId)throw new Error('Select a project first.'); return makeInstance(type, { kind: 'workspace', ...(isExtension(type)?{projectId:input.selectedProjectId}:{}) }, { referenceDate: input.referenceDate, timezone: input.timezone,...(type==='external-plugin'?{externalPluginId:input.catalog.externalPlugins[0].id}:{}) }) }, includePins)
+        const next = applyInstanceOperations(current.current, operations, type => { if(type==='external-plugin' && input.catalog.externalPlugins.length!==1)throw new Error('Choose an enabled imported plugin by name.'); if(isExtension(type)&&!isMailWidget(type)&&!input.selectedProjectId)throw new Error('Select a project first.'); return makeInstance(type, isMailWidget(type) ? { kind: 'gmail', accountId: mailService.getSnapshot().accountId } : { kind: 'workspace', ...(isExtension(type)?{projectId:input.selectedProjectId}:{}) }, { referenceDate: input.referenceDate, timezone: input.timezone,...(type==='external-plugin'?{externalPluginId:input.catalog.externalPlugins[0].id}:{}) }) }, includePins)
         install(next, next.continuation?.lastSuccess)
         finish(id, 'ready', resolved.reply); return
       }
       if (resolved?.action === 'view') {
         let binding: WidgetBinding | undefined
         if (resolved.continuation?.relationship !== 'refinement' && !useDemo && calendar.connection?.connected && calendar.connection.accountId && resolved.widgets.some(type => ['calendar', 'meetings', 'availability'].includes(type))) binding = { kind: 'google-calendar', accountId: calendar.connection.accountId, calendarId: 'primary', mode: 'browse' }
+        if (resolved.widgets.some(isMailWidget)) binding = previous?.binding.kind === 'gmail' && resolved.continuation?.relationship === 'refinement' ? previous.binding : { kind: 'gmail', accountId: mailService.getSnapshot().accountId }
         if (!binding && previous?.binding.kind === 'google-calendar' && previous.binding.mode === 'prepare' && resolved.widgets.some(type => ['context', 'outline'].includes(type))) binding = previous.binding
         const next = applyComponentView(current.current, resolved, submitted, binding, exactTarget, input.catalog.projects)
         const target = [...next.active, ...next.pins].find(w => next.targets.includes(w.instanceId))

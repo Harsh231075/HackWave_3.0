@@ -179,3 +179,9 @@ Code lives in `client/src/extensions/quick-timer` and `client/src/extensions/voi
 Calculator is also available on `/plugins`, disabled by default. Enable it and use **Try it**, or ask the dashboard to “Show calculator”. It supports keyboard input, parentheses, arithmetic and percentages.
 
 The Plugins header includes **Import** for built external-plugin folders. Packages need an `orlo-plugin.json` manifest and an HTML entry page; local assets are embedded and the UI runs in an isolated iframe. Imported plugins start OFF, persist locally, and become available to the intent router when enabled. A working sample lives in `examples/plugins/mini-counter`. See [extension package format](client/src/extensions/README.md) for the manifest, supported assets and limits. React/TypeScript source projects need to be bundled first.
+
+## Gmail Mail extension
+
+Mail provides browser-only Gmail access: inbox/folders/search, message reading, plain-text compose, Gmail drafts, reply/forward, attachments and mailbox actions. Enable it in Plugins and use the Mail sidebar page or dashboard commands (“show my inbox”, “show sent mail”, “write an email”). Sending requires the composer’s Send button.
+
+Set the public `VITE_GOOGLE_CLIENT_ID` in `client/.env.local`; Mail adds no backend endpoints or server credentials. Google consent is required, and expired tokens require a user-triggered reconnect. See [Mail setup and verification](client/src/extensions/mail/README.md) for Google configuration, privacy/storage behavior and demo limitations.
