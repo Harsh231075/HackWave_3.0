@@ -4,6 +4,7 @@ import { defaultLightTheme, ThemeProvider } from '@openuidev/react-ui'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SidebarToggleButton } from './SidebarToggleButton'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { Brand } from './AppShell'
 import { PageHeader } from './PageHeader'
 import { PageHeaderContext } from './pageHeaderContext'
 
@@ -21,7 +22,7 @@ const fontTheme = {
 
 export function WorkspaceLayout() {
   const [headerActions, setHeaderActions] = useState<HTMLDivElement | null>(null)
-  const [activeSlots, setActiveSlots] = useState<Set<string>>(() => new Set())
+  const [, setActiveSlots] = useState<Set<string>>(() => new Set())
   const register = useCallback((id: string) => {
     setActiveSlots(slots => new Set(slots).add(id))
     return () => setActiveSlots(slots => {
@@ -43,8 +44,8 @@ export function WorkspaceLayout() {
   return <ThemeProvider mode="light" lightTheme={fontTheme}><div className="goal-workspace workspace-with-sidebar">
     {sidebarOpen && !mobile && <aside id="workspace-sidebar" className="workspace-sidebar"><WorkspaceSidebar onClose={() => setSidebarOpen(false)} /></aside>}
     {mobile && <Dialog open={sidebarOpen} onOpenChange={setSidebarOpen}><DialogContent id="workspace-sidebar" className="workspace-sidebar-drawer" showCloseButton={false}><DialogHeader><DialogTitle className="sr-only">Workspace navigation</DialogTitle><DialogDescription className="sr-only">Navigate between workspace pages.</DialogDescription></DialogHeader><WorkspaceSidebar mobile onClose={() => setSidebarOpen(false)} /></DialogContent></Dialog>}
-    <div className="workspace-main-panel"><PageHeader visible={mobile || !sidebarOpen || activeSlots.size > 0}
-      left={(mobile || !sidebarOpen) && <SidebarToggleButton branded open={sidebarOpen} mobile={mobile} onClick={() => setSidebarOpen(true)} />}
+    <div className="workspace-main-panel"><PageHeader visible
+      left={(mobile || !sidebarOpen) ? <SidebarToggleButton branded open={sidebarOpen} mobile={mobile} onClick={() => setSidebarOpen(true)} /> : <Brand />}
       right={<div ref={setHeaderActions} className="flex flex-wrap items-center justify-end gap-2" />}
     /><PageHeaderContext.Provider value={headerSlot}><Outlet /></PageHeaderContext.Provider></div>
   </div></ThemeProvider>

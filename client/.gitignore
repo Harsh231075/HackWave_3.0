@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Private Google OAuth sessions and encryption keys
+.calendar-data/

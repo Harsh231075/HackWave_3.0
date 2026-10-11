@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { clientSchema, adaptiveProjectSchema, adaptiveTaskSchema, adaptiveResourceSchema, communicationSchema, issueSchema, relationshipSchema } from './adaptiveData.ts'
 import { resolvedIntentSchema } from './intent.ts'
 import { usageObservationSchema, usageReleaseSchema, usageQuerySchema } from './usage.ts'
-export const usageWidgetTypes = ['context', 'usage', 'metrics', 'tasks', 'resources', 'communications', 'issues', 'outline'] as const
+export const usageWidgetTypes = ['context', 'usage', 'metrics', 'tasks', 'resources', 'communications', 'issues', 'outline', 'calendar'] as const
 export const usageSnapshotSchema = z.strictObject({
   query: usageQuerySchema, client: clientSchema, projects: adaptiveProjectSchema.array().max(1000),
   observations: usageObservationSchema.array().max(10000), releases: usageReleaseSchema.array().max(1000),
@@ -22,7 +22,7 @@ export const usageSnapshotSchema = z.strictObject({
 })
 export type UsageSnapshot = z.infer<typeof usageSnapshotSchema>
 const evidence = z.strictObject({ kind: z.enum(['client', 'project', 'observation', 'release', 'task', 'resource', 'communication', 'issue']), id: z.string().min(1) })
-export const usageCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(usageWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidence.array().min(1).max(20) })).min(2).max(8) }).superRefine((plan, ctx) => {
+export const usageCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(usageWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidence.array().min(1).max(20) })).min(2).max(9) }).superRefine((plan, ctx) => {
   const types = plan.widgets.map(w => w.type)
   if (new Set(types).size !== types.length || !types.includes('context') || !types.includes('usage')) ctx.addIssue({ code: 'custom', message: 'Include context and usage exactly once.' })
 })

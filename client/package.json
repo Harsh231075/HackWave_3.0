@@ -3,15 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": { "node": ">=22.18.0" },
   "scripts": {
     "dev": "npm run generate:openui && vite",
     "build": "npm run generate:openui && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "generate:openui": "node scripts/generate-openui.mjs",
-    "start": "node --env-file-if-exists=.env.local server/index.ts",
-    "test:chat": "node --test server/chat.test.ts",
-    "test": "node --test server/*.test.ts"
+    "start": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.ts",
+    "test:chat": "node --experimental-strip-types --test server/chat.test.ts",
+    "test": "node --experimental-strip-types --test server/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 open-intelligent-ui
 research_notes
+# Private Google OAuth sessions and encryption keys
+.calendar-data/

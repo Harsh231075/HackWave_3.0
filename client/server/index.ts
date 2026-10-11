@@ -1,3 +1,4 @@
+import { createCalendarHandler } from './calendar/handler.ts'
 import { adaptiveEndpoint } from './adaptive.ts'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
@@ -7,7 +8,9 @@ import { chat } from './chat.ts'
 
 const root = fileURLToPath(new URL('../dist', import.meta.url))
 const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }
+const calendar = createCalendarHandler(process.env)
 createServer(async (req, res) => {
+  if (await calendar(req, res)) return
   const path = new URL(req.url ?? '/', 'http://localhost').pathname
   if (path === '/api/intent') return adaptiveEndpoint('intent', req, res)
   if (path === '/api/workspace/compose') return adaptiveEndpoint('compose', req, res)

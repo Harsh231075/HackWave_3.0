@@ -1,0 +1,71 @@
+import { useEffect, useState } from 'react'
+import { CalendarDays, Link2, RefreshCw, Unplug } from 'lucide-react'
+import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
+import { googleCalendarService } from '@/services/googleCalendarService'
+import { calendarWindow, displayEventTime, type CalendarEvent } from '@/domain/calendar'
+import { CalendarView } from './CalendarWidgets'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+export function GoogleCalendarConnection() {
+  const { connection, loading, error, connect, disconnect, refresh } = useGoogleCalendar()
+  const [failure, setFailure] = useState('')
+  const [busy, setBusy] = useState(false)
+  return <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><CalendarDays size={18} /><div><p className="text-sm font-medium">Google Calendar</p><p className="text-xs text-muted-foreground">{loading ? 'Checking connection…' : connection?.connected ? connection.email : 'Connect your calendar to prepare and schedule real meetings.'}</p></div></div>
+      {connection?.connected ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => { setBusy(true); void disconnect().catch(e => setFailure(e.message)).finally(() => setBusy(false)) }}><Unplug size={14} /> Disconnect</Button> : <Button type="button" size="sm" disabled={loading || !connection?.configured} onClick={() => connect()}><Link2 size={14} /> Connect Google Calendar</Button>}
+    </div>
+    {!connection?.connected && connection?.configured && <p className="text-xs text-muted-foreground">On Google’s permissions screen, select access to view your calendar events before continuing. Google sign-in alone does not connect the calendar.</p>}
+    {!loading && connection && !connection.configured && <p className="text-xs text-muted-foreground">Google OAuth is not configured on this server yet.</p>}
+    {(failure || error) && <div className="flex items-center justify-between gap-2"><p className="text-xs text-destructive" role="alert">{failure || error}</p><Button variant="ghost" size="sm" onClick={() => void refresh()}>Retry</Button></div>}
+  </div>
+}
+
+export function GoogleEventDetails({ event }: { event: CalendarEvent }) {
+  const { timezone } = useGoogleCalendar()
+  const safeLink = (url: string) => /^https:\/\//i.test(url) ? url : undefined
+  return <div className="space-y-3 text-sm">
+    <p className="font-medium">{event.title}</p><p className="text-muted-foreground">{displayEventTime(event, timezone)}</p>
+    {event.location && <p>{event.location}</p>}
+    <p className="text-muted-foreground">{event.attendees.length ? event.attendees.map(a => a.name ? `${a.name} (${a.email})` : a.email).join(', ') : 'No attendees listed'}</p>
+    {event.description && <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-3">{event.description}</p>}
+    <div className="flex flex-wrap gap-3">{safeLink(event.url) && <a className="text-primary underline" href={event.url} target="_blank" rel="noreferrer">Open in Google Calendar</a>}{safeLink(event.meetingUrl) && <a className="text-primary underline" href={event.meetingUrl} target="_blank" rel="noreferrer">Join meeting</a>}</div>
+  </div>
+}
+
+export function GoogleCalendarWidget() {
+  const calendar = useGoogleCalendar()
+  const { connection, date, timezone, revision } = calendar
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [loadedAccount, setLoadedAccount] = useState('')
+  const [loadedWindow, setLoadedWindow] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [refreshedAt, setRefreshedAt] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  useEffect(() => {
+    if (!connection?.connected || !connection.accountId) return
+    const controller = new AbortController()
+    const load = async () => {
+      setLoading(true)
+      try {
+        const window = calendarWindow(date, timezone)
+        void googleCalendarService.events(window.from, window.to, timezone, controller.signal).then(result => {
+          setEvents(result.events); setLoadedAccount(result.accountId); setLoadedWindow(date + ':' + timezone); setError(''); setRefreshedAt(result.refreshedAt)
+        }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Calendar unavailable.') }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      } catch (failure) { setError(failure instanceof Error ? failure.message : 'Choose a valid date.'); setLoading(false) }
+    }
+    void load()
+    return () => controller.abort()
+  }, [connection?.connected, connection?.accountId, date, timezone, revision])
+  if (!connection?.connected) return <div className="space-y-4"><GoogleCalendarConnection /><p className="text-xs text-muted-foreground">Local demo calendar · these events are not synced with Google.</p><CalendarView /></div>
+  const visible = loadedAccount === connection.accountId && loadedWindow === date + ':' + timezone ? events : []
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><label className="sr-only" htmlFor="google-calendar-day">Calendar date</label><Input id="google-calendar-day" className="w-auto" type="date" value={date} onChange={e => { if (e.target.value) calendar.setDate(e.target.value) }} /><span className="text-xs text-muted-foreground">{timezone}</span></div><Button type="button" variant="outline" size="sm" disabled={loading} onClick={calendar.refreshEvents}><RefreshCw size={14} /> Refresh</Button></div>
+    <p className="text-xs text-muted-foreground">Google Calendar · {connection.email}{refreshedAt && ` · Last refreshed ${new Date(refreshedAt).toLocaleTimeString()}`}</p>
+    {loading && <p className="text-sm text-muted-foreground" role="status">Loading your calendar…</p>}
+    {error && <div className="space-y-2"><p className="text-sm text-destructive" role="alert">{error} {visible.length > 0 ? 'The last successful snapshot is shown below.' : ''}</p><Button size="sm" variant="outline" onClick={() => calendar.connect()}>Reconnect calendar</Button></div>}
+    {!loading && !error && !visible.length && <p className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">No events on this date.</p>}
+    <div className="space-y-2">{visible.map(event => <div key={event.id} className="rounded-xl border border-border p-3"><button type="button" className="flex w-full items-center gap-3 text-left" aria-expanded={selected === event.id} onClick={() => setSelected(selected === event.id ? null : event.id)}><CalendarDays size={17} className="shrink-0 text-primary" /><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{event.title}</span><span className="block text-xs text-muted-foreground">{displayEventTime(event, timezone)}</span></span></button>{selected === event.id && <div className="mt-3 border-t border-border pt-3"><GoogleEventDetails event={event} /></div>}</div>)}</div>
+  </div>
+}

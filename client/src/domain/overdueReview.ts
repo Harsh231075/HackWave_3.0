@@ -10,8 +10,8 @@ export const overdueReviewSchema = z.strictObject({ project: adaptiveProjectSche
   }
 })
 export type OverdueReview = z.infer<typeof overdueReviewSchema>
-export const overdueWidgetTypes = ['context', 'metrics', 'tasks', 'recommendation', 'resources'] as const
-export const overdueCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(overdueWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidenceSchema.array().min(1).max(20) })).min(2).max(5) }).superRefine((plan, ctx) => {
+export const overdueWidgetTypes = ['context', 'metrics', 'tasks', 'recommendation', 'resources', 'calendar'] as const
+export const overdueCompositionSchema = z.strictObject({ version: z.literal(1), requestId: z.string().min(1), widgets: z.array(z.strictObject({ type: z.enum(overdueWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().min(1).max(500), evidence: evidenceSchema.array().min(1).max(20) })).min(2).max(6) }).superRefine((plan, ctx) => {
   const types = plan.widgets.map(w => w.type)
   if (new Set(types).size !== types.length || !types.includes('context') || !types.includes('tasks')) ctx.addIssue({ code: 'custom', message: 'Include context and tasks exactly once.' })
 })
