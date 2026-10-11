@@ -8,6 +8,31 @@ import { widgetTypes } from '../src/lib/workspace/config.ts'
 import { componentIntentEndpoint } from './components.ts'
 import type { Task, Event } from '../src/domain/types.ts'
 const input: ComponentRequest={goal:'Show tasks',referenceDate:'2026-10-12',timezone:'Asia/Kolkata',catalog:{owners:['Alex','Maya'],draftKeys:['outline'],topics:['Statistics']}}
+test('disabled plugins produce only an enable message, never unrelated choices',()=>{
+ for(const [goal,title] of [['please render amil component i want sent email someone person','Mail'],['Show quick timer','Quick Timer'],['Show calculator','Calculator'],['Show voice note','Voice Note']]){
+  const request={...input,goal}
+  const result=fallbackComponentIntent(request)
+  assert.equal(result.action,'clarify')
+  if(result.action==='clarify'){assert.equal(result.question,`Enable ${title} in Plugins first.`);assert.deepEqual(result.choices,[])}
+  const model=validateComponentResolution({action:'clarify',question:'Would you like a meeting instead?',choices:['Schedule a meeting','Show tasks'],source:'ai'},request)
+  assert.equal(model.success,true)
+  if(model.success && model.data.action==='clarify'){assert.deepEqual(model.data.choices,[]);assert.equal(model.data.question,`Enable ${title} in Plugins first.`);assert.equal(model.data.source,'ai')}
+ }
+})
+test('clear email and task form requests cannot ask for form fields first',()=>{
+ for(const goal of ['I want to send email someone person','please render amil component i want sent email someone person','Create a task','Add a task','Create a task for Bob','Create a new task tomorrow']){
+  const request={...input,goal,enabledExtensions:['mail' as const]}
+  const result=fallbackComponentIntent(request)
+  assert.equal(result.action,'view',goal)
+  if(result.action==='view')assert.deepEqual(result.widgets,[/email/.test(goal)?'mail-compose':'tasks'])
+  assert.equal(validateComponentResolution({action:'clarify',question:'Who is the recipient or owner? What title?',choices:['Show meetings']},request).success,false)
+ }
+ const ambiguous={...input,goal:'Help me'}
+ assert.equal(validateComponentResolution({action:'clarify',question:'Which view would you like?',choices:['Show tasks']},ambiguous).success,true)
+ const sent=fallbackComponentIntent({...input,goal:'Show sent mail',enabledExtensions:['mail']})
+ assert.equal(sent.action,'view')
+ if(sent.action==='view'){assert.deepEqual(sent.widgets,['mail-inbox']);assert.equal(sent.bindings.mailFolder,'Sent')}
+})
 test('ambiguous sharing of time clarifies without removing workspace components',()=>{
  const goal='I want to send time is some person so please render a component'
  for(const enabledExtensions of [[],['mail']] as const){

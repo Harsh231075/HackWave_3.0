@@ -158,7 +158,10 @@ export function DynamicWorkspace() {
       }
       if (!valid()) return
       if(resolved?.source)save({...current.current,turns:current.current.turns.map(t=>t.id===id?{...t,source:resolved.source}:t)},false)
-      if (resolved?.action === 'clarify') { ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: [], useDemo, question: resolved.question, choices: resolved.choices.map(label => ({ label })) }); finish(id, 'clarification', resolved.question); setCommandOpen(true); return }
+      if (resolved?.action === 'clarify') {
+        if(!resolved.choices.length){setQuestion(null);save({...current.current,continuation:{lastSuccess:current.current.continuation?.lastSuccess}},false);finish(id,'error',resolved.question);setCommandOpen(false);return}
+        ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: [], useDemo, question: resolved.question, choices: resolved.choices.map(label => ({ label })) }); finish(id, 'clarification', resolved.question); setCommandOpen(true); return
+      }
       if(resolved?.action==='view' && resolved.widgets.includes('external-plugin') && !pluginImportService.getById(resolved.bindings.externalPluginId??'')?.enabled)throw new Error('The imported plugin is disabled or unavailable.')
       if(resolved?.action==='view' && resolved.widgets.some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')
       if(resolved?.action==='manage' && resolved.operations.flatMap(op=>op.type==='add'?op.widgets:op.type==='replace'?op.with:[]).some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')

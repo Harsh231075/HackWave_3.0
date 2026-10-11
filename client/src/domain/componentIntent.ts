@@ -1,7 +1,7 @@
 import { isMailWidget, mailFolders } from './mail.ts'
 import { requestsRemovedScope } from './intent.ts'
 import { extensionIds } from '../extensions/contracts.ts'
-import { capabilityAllowed, isExtension } from '../extensions/catalog.ts'
+import { capabilityAllowed, isExtension, extensionCatalog, extensionForWidget } from '../extensions/catalog.ts'
 import { continuationChangeSchema, type IntentChanges } from './intentChanges.ts'
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
 import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal, resourceCreationGoal } from './workspaceManagement.ts'
@@ -51,6 +51,13 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if (!result.success) return result
   if (requestsRemovedScope(input.goal) && result.data.action !== 'clarify') return { success: false as const, error: new z.ZodError([{ code: 'custom', message: 'Choose a meeting, date range, segment or owner instead.', path: ['action'] }]) }
   const reject=(message:string,path:string[]=[])=>({success:false as const,error:new z.ZodError([{code:'custom',message,path}])})
+  if(result.data.action==='clarify'){
+    const local=fallbackComponentIntent(input)
+    // Availability is an application fact, not a question for the user or model.
+    if(local.action==='clarify' && local.choices.length===0 && /^Enable .+ in Plugins first\.$/.test(local.question))return componentResolutionSchema.safeParse({...local,source:result.data.source})
+    const clearFormRequest=/\b(?:compose|write|send|sent)\b.*\b(?:email|mail)\b|\b(?:create|add|make)\b.*\btask\b/i.test(input.goal)
+    if(clearFormRequest && local.action==='view')return reject('Render the requested form; collect its fields through component controls instead of clarification.',['action'])
+  }
   if ('continuation' in result.data && result.data.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id))) return componentResolutionSchema.safeParse(null)
   const additions = result.data.action === 'view' ? result.data.widgets : result.data.action === 'manage' ? result.data.operations.flatMap(op => op.type === 'add' ? op.widgets : op.type === 'replace' ? op.with : []) : []
   if (additions.some(id => !capabilityAllowed(id,input.enabledExtensions))) return reject('Enable this extension in Plugins before adding it.')
@@ -114,7 +121,8 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
   if (requestsRemovedScope(input.goal)) return { action: 'clarify', source: 'local', question: 'Projects and clients are no longer separate scopes. Choose a meeting, dates, segment or owner.', choices: ['Show my tasks', 'Show my meetings', 'Show usage'] }
   const result = keywordComponentIntent(input)
   const additions=result.action==='view'?result.widgets:result.action==='manage'?result.operations.flatMap(op=>op.type==='add'?op.widgets:op.type==='replace'?op.with:[]):[]
-  if(additions.some(id=>!capabilityAllowed(id,input.enabledExtensions)))return {action:'clarify',source:'local',question:'Enable the requested extension in Plugins first.',choices:[]}
+  const disabled=additions.filter(id=>!capabilityAllowed(id,input.enabledExtensions))
+  if(disabled.length){const titles=[...new Set(disabled.map(id=>extensionCatalog.find(extension=>extension.id===extensionForWidget(id))?.title??'the requested extension'))];return {action:'clarify',source:'local',question:`Enable ${titles.join(' and ')} in Plugins first.`,choices:[]}}
   const text = input.goal.toLowerCase()
   const isRefinement = /^(only|just|sirf|same|show only)\b|\b(instead|too|again|all owners|all priorities|all statuses|all overdue tasks|reset filters|clear filters)\b/.test(text)
   if (!isRefinement) return { ...result, source: 'local', ...(result.action === 'view' || result.action === 'workflow' ? { continuation: { relationship: 'new_goal' as const, targetInstanceIds: [], changes: {} } } : {}) }
@@ -147,11 +155,14 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   const management=localManagement(input.goal);if(management && !(management.operations.length===1 && management.operations[0].type==='add' && management.operations[0].widgets.length===1 && isExtension(management.operations[0].widgets[0])))return management
   if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
+  if (/\b(?:create|make|add)\s+(?:(?:a|an|new|another|my)\s+)*task\b/.test(text) && !destructiveGoal(input.goal)) {
+    return componentViewSchema.parse({action:'view',widgets:['tasks'],bindings:{taskView:'list'},reply:'Use New task to enter the details and save your task.',referenceDate:input.referenceDate,timezone:input.timezone})
+  }
   if (/\b(?:send|share)\b/.test(text) && /\btime\b/.test(text) && !/\b(?:emails?|mails?|gmail|meetings?|appointments?|calendar|availability|slots?|schedule|timer|pomodoro|voice|audio|notes?|resources?|documents?|tasks?)\b/.test(text)) {
     return {action:'clarify',question:'Do you want to compose an email, show available meeting times, or schedule a meeting?',choices:[...(input.enabledExtensions?.includes('mail')?['Compose an email']:[]),'Show my availability','Schedule a meeting']}
   }
   if (/\b(gmail|inbox|mails?|emails?|sent mail|drafts)\b/.test(text) && !/\b(communications|linked|project messages)\b/.test(text)) {
-    const composing = /\b(write|compose|send|reply|forward|new email|new mail)\b/.test(text)
+    const composing = /\b(write|compose|send|reply|forward|new email|new mail)\b/.test(text) || /\bwant\s+(?:to\s+)?sent\b/.test(text)
     const folder = /\bsent\b/.test(text) ? 'Sent' : /\bdrafts?\b/.test(text) ? 'Drafts' : /\btrash\b/.test(text) ? 'Trash' : /\ball (?:mails?|emails?)\b/.test(text) ? 'All Mail' : 'Inbox'
     return componentViewSchema.parse({action:'view',widgets:[composing?'mail-compose':/mail message|email viewer/.test(text)?'mail-message':'mail-inbox'],bindings:{mailFolder:folder},reply:composing?'Review your message and use Send when ready.':'Browse Gmail using the mail controls.',referenceDate:input.referenceDate,timezone:input.timezone})
   }
