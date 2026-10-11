@@ -1,5 +1,7 @@
+import { HistoricalWorkspace } from '@/components/conversation/HistoricalWorkspace'
+import { captureWorkspaceSnapshot } from '@/lib/conversation/captureWorkspaceSnapshot'
 import { ConversationComposer } from '@/components/conversation/ConversationComposer'
-import { beginTurn, finishTurn, emptyConversation, conversationService, type Conversation } from '@/services/conversationService'
+import { beginTurn, finishTurn, emptyConversation, archiveWorkspace, conversationService, type Conversation } from '@/services/conversationService'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { GoogleCalendarConnection } from '@/components/calendar/GoogleCalendarWidgets'
 import { LiveCalendarWorkspace, type LiveRequest } from '@/components/calendar/LiveCalendarWorkspace'
@@ -81,10 +83,22 @@ export function DynamicWorkspace() {
   const [conversation, setConversation] = useState<Conversation>(() => conversationService.load())
   const composer = useRef<HTMLTextAreaElement | null>(null)
   const scrollArea = useRef<HTMLElement | null>(null)
+  const scrollContent = useRef<HTMLDivElement | null>(null)
+  const followLatest = useRef(true)
   const activeTurn = useRef<string | null>(null)
   useEffect(() => { conversationService.save(conversation) }, [conversation])
   const lastTurnStatus = conversation.turns.at(-1)?.status
-  useEffect(() => { if (conversation.active) scrollArea.current?.scrollTo({ top: scrollArea.current.scrollHeight, behavior: 'smooth' }) }, [conversation.active, conversation.turns.length, conversation.hasWorkspace, lastTurnStatus])
+  useEffect(() => {
+    if (!conversation.active) return
+    followLatest.current = true
+    scrollArea.current?.scrollTo({ top: scrollArea.current.scrollHeight, behavior: 'instant' })
+  }, [conversation.active, conversation.turns.length, conversation.hasWorkspace, lastTurnStatus])
+  useEffect(() => {
+    if (!conversation.active || !scrollContent.current) return
+    const observer = new ResizeObserver(() => { if (followLatest.current && scrollArea.current) scrollArea.current.scrollTop = scrollArea.current.scrollHeight })
+    observer.observe(scrollContent.current)
+    return () => observer.disconnect()
+  }, [conversation.active])
   useEffect(() => { if (conversation.active) requestAnimationFrame(() => composer.current?.focus({ preventScroll: true })) }, [conversation.active])
   const calendar = useGoogleCalendar()
   const [liveRequest, setLiveRequest] = useState<LiveRequest | null>(() => liveCalendarLayoutService.load())
@@ -203,7 +217,9 @@ export function DynamicWorkspace() {
     const id = crypto.randomUUID()
     activeTurn.current = id
     const answerText = answer ? answer.field === 'dateRange' ? `${answer.dateRange.from} through ${answer.dateRange.to}` : clarification?.choices.find(choice => choice.id === answer.selectedId)?.label ?? 'Use the selected option' : submittedGoal
-    setConversation(current => beginTurn(current, id, answerText))
+    const previousTurn = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
+    const previousSnapshot = canvas.current && conversation.hasWorkspace ? { ...captureWorkspaceSnapshot(canvas.current), ...(calendar.connection?.accountId && (liveRequest || /WorkspaceWidget\(\s*"calendar"/.test(response)) ? { accountId: calendar.connection.accountId } : {}) } : null
+    setConversation(current => beginTurn(previousTurn && previousSnapshot ? archiveWorkspace(current, previousTurn, previousSnapshot) : current, id, answerText))
     setGoal(''); setCommandOpen(false); setError('')
     if (!answer) {
       const modification = parseLayoutCommand(submittedGoal)
@@ -253,20 +269,23 @@ export function DynamicWorkspace() {
     if (layoutService.saveOverdue(session).status !== 'saved') setPersistenceNotice('Review filters updated for this session. Device storage is unavailable.')
   }
   function generate(event: FormEvent) { event.preventDefault(); void build() }
+  const workspaceTurnId = conversation.workspaceTurnId ?? [...conversation.turns].reverse().find(turn => turn.status === 'ready')?.id
   const renderer = <Renderer key={revision} library={productivityLibrary} response={response} isStreaming={false} initialState={componentState} onStateUpdate={setComponentState} onAction={() => { setCommandOpen(true); setError('Describe the next change you want to make.') }} />
   return <div className={conversation.active ? "dynamic-canvas-page flex h-[calc(100dvh-64px)] flex-col max-sm:h-[calc(100dvh-60px)]" : "dynamic-canvas-page"} data-conversation-active={conversation.active}><PageHeaderActions><button className="command-trigger" onClick={() => changeCommand(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => setCalendarSettings(true)}>Google Calendar connection</DropdownMenuItem><DropdownMenuItem disabled={!layoutUndo.length} onClick={undoLayout}>Undo layout change</DropdownMenuItem><DropdownMenuItem onClick={resetLayout}><RotateCcw size={14} /> Reset layout</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
 
     {conversation.active ? <>
-      <main ref={scrollArea} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Workspace conversation">
-        <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-8">
+      <main ref={scrollArea} onWheel={() => { followLatest.current = false }} onTouchStart={() => { followLatest.current = false }} onScroll={() => { const area = scrollArea.current; if (area && area.scrollHeight - area.scrollTop - area.clientHeight < 80) followLatest.current = true }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Workspace conversation">
+        <div ref={scrollContent} className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-8">
           {persistenceNotice && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground" role="status"><span>{persistenceNotice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setPersistenceNotice('')}><X size={14} /></Button></div>}
           <div className="space-y-6" aria-label="Conversation history">{conversation.turns.map(turn => <div key={turn.id} className="space-y-3">
             <div className="flex justify-end"><p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-muted px-4 py-3 text-sm text-foreground">{turn.prompt}</p></div>
             <div className="flex items-start gap-3"><span className="mt-1 shrink-0"><OrloLogo size={22} /></span><div className="min-w-0 flex-1"><p className={`text-sm leading-6 ${turn.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role={turn.status === 'error' ? 'alert' : turn.status === 'pending' ? 'status' : undefined}>{turn.status === 'pending' && <LoaderCircle size={15} className="mr-2 inline animate-spin" />}{turn.reply}</p>{(turn.status === 'error' || turn.status === 'cancelled') && <Button variant="ghost" size="sm" disabled={pending} onClick={() => void build(undefined, false, turn.prompt)}>Try again</Button>}</div></div>
+            {turn.snapshot && turn.id !== workspaceTurnId && <HistoricalWorkspace snapshot={turn.snapshot} turnId={turn.id} accountId={calendar.connection?.accountId} />}
+          {turn.id === workspaceTurnId && conversation.hasWorkspace && turn.status === 'ready' && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace">{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</section>}
+            {turn.id === conversation.turns.at(-1)?.id && clarification && <section className="rounded-2xl border border-border bg-card p-4" aria-label="Clarify your goal"><ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={stopConversation} /></section>}
           </div>)}</div>
           {calendarSettings && <section className="space-y-3"><GoogleCalendarConnection /><Button variant="ghost" size="sm" onClick={() => setCalendarSettings(false)}>Hide connection settings</Button></section>}
-          {clarification && <section className="rounded-2xl border border-border bg-card p-4" aria-label="Clarify your goal"><ClarificationForm key={clarification.requestId} question={clarification} pending={pending} onAnswer={answer => void build(answer)} onCancel={stopConversation} /></section>}
-          {conversation.hasWorkspace && <section ref={canvas} className="outline-none" tabIndex={-1} aria-label="Active workspace">{liveRequest ? <LiveCalendarWorkspace request={liveRequest} onChange={updateLive} onClose={() => { setLiveRequest(null); liveCalendarLayoutService.clear() }} onDemo={() => { setUseDemoCalendar(true); const original = liveRequest.goal; setLiveRequest(null); liveCalendarLayoutService.clear(); setGoal(original); requestAnimationFrame(() => composer.current?.focus()); setError('Demo records selected. Send a specific saved meeting or project name.'); }} /> : usage ? <UsageScopeProvider session={usage} onFilters={updateUsageFilters}>{renderer}</UsageScopeProvider> : overdue ? <OverdueScopeProvider session={overdue} onFilters={updateReviewFilters}>{renderer}</OverdueScopeProvider> : meeting ? <MeetingScopeProvider key={meeting.meetingId} session={meeting} onFilters={updateMeetingFilters}>{renderer}</MeetingScopeProvider> : renderer}</section>}
+
           {error && conversation.turns.at(-1)?.status !== 'error' && <p className="text-sm text-destructive" role="alert">{error}</p>}
         </div>
       </main>

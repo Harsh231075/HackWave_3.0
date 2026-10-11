@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyConversation, beginTurn, finishTurn, conversationSchema } from '../src/domain/conversation.ts'
+import { emptyConversation, beginTurn, finishTurn, archiveWorkspace, conversationSchema } from '../src/domain/conversation.ts'
 
 test('the initial state preserves the dashboard until a prompt is submitted', () => {
   assert.deepEqual(emptyConversation(), { active: false, hasWorkspace: false, turns: [] })
@@ -39,4 +39,24 @@ test('history is bounded and persisted state rejects malformed conversations', (
   assert.equal(state.turns.length, 60); assert.equal(state.turns[0].id, '5')
   assert.equal(conversationSchema.safeParse(state).success, true)
   assert.equal(conversationSchema.safeParse({ active: true, turns: [] }).success, false)
+})
+
+test('new responses have their own workspace position below the archived previous response', () => {
+  let state = finishTurn(beginTurn(emptyConversation(), 'one', 'Show tasks'), 'one', 'ready', 'Tasks ready')
+  const snapshot = { nodes: [{ tag: 'p', attributes: {}, children: ['Original tasks'] }], truncated: false }
+  state = archiveWorkspace(state, 'one', snapshot)
+  state = finishTurn(beginTurn(state, 'two', 'Add calendar'), 'two', 'ready', 'Calendar ready')
+  assert.equal(state.workspaceTurnId, 'two')
+  assert.equal(state.turns[0].snapshot?.nodes[0].children[0], 'Original tasks')
+  assert.equal(state.turns[1].prompt, 'Add calendar')
+  assert.equal(state.turns[1].snapshot, undefined)
+  assert.equal(conversationSchema.safeParse(JSON.parse(JSON.stringify(state))).success, true)
+})
+test('failed follow-ups keep the original response snapshot without marking the new response ready', () => {
+  let state = finishTurn(beginTurn(emptyConversation(), 'one', 'Show tasks'), 'one', 'ready', 'Ready')
+  state = archiveWorkspace(state, 'one', { nodes: [{ tag: 'div', attributes: {}, children: ['Original view'] }], truncated: false })
+  state = finishTurn(beginTurn(state, 'two', 'New request'), 'two', 'error', 'Try again')
+  assert.equal(state.turns[0].snapshot?.nodes[0].children[0], 'Original view')
+  assert.equal(state.turns[1].status, 'error')
+  assert.equal(state.workspaceTurnId, 'two')
 })

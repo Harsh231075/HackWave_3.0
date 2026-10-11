@@ -1,5 +1,5 @@
 import { conversationSchema, emptyConversation, type Conversation } from '../domain/conversation'
-export { beginTurn, finishTurn, emptyConversation } from '../domain/conversation'
+export { beginTurn, finishTurn, emptyConversation, archiveWorkspace } from '../domain/conversation'
 export type { Conversation } from '../domain/conversation'
 const key = 'orlo-workspace-conversation-v1'
 export const conversationService = {
