@@ -3,9 +3,11 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { WorkspaceLayout } from '@/components/shell/WorkspaceLayout'
 import { DisplayPreferencesProvider } from '@/state/DisplayPreferencesProvider'
 import { WorkspaceProvider } from '@/state/WorkspaceProvider'
+import { MeetingsPage } from '@/pages/MeetingsPage'
 import { AppPage } from '@/pages/AppPage'
 import { DynamicWorkspace } from '@/pages/DynamicWorkspace'
 import { LandingPage } from '@/pages/LandingPage'
+import { PlannerPage } from '@/pages/PlannerPage'
 import { ComponentGallery } from '@/pages/ComponentGallery'
 
 function App() {
@@ -17,6 +19,10 @@ function App() {
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
+            <Route path="/meetings" element={<MeetingsPage />} />
+            <Route path="/calendar" element={<Navigate to="/meetings?view=calendar" replace />} />
+            <Route path="/planner" element={<PlannerPage />} />
+            <Route path="/priorities" element={<Navigate to="/tasks" replace />} />
             <Route path="/:view/:mode?" element={<AppPage />} />
             <Route path="/dev/components" element={<ComponentGallery />} />
           </Route>

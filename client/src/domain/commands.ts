@@ -3,7 +3,7 @@ import { eventError, type Action } from './workspace.ts'
 import type { Event, Task, WorkspaceState } from './types.ts'
 export type TaskInput = Omit<Task, 'id'> & { id?: string }
 export type EventInput = Omit<Event, 'id'> & { id?: string }
-export type ActionResult<T> = { ok: true; value: T } | { ok: false; message: string }
+export type ActionResult<T> = { ok: true; value: T; message?: never } | { ok: false; message: string; value?: never }
 export type PreparedAction<T> = ActionResult<{ action: Action; record: T }>
 export function prepareTask(input: TaskInput, state: WorkspaceState, createId: () => string = () => crypto.randomUUID()): PreparedAction<Task> {
   if (input.id && !state.tasks.some(task => task.id === input.id)) return { ok: false, message: 'This task is no longer available.' }
