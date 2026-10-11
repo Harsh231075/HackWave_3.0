@@ -1,3 +1,4 @@
+import { workspaceContinuationSchema } from './workspaceContinuation.ts'
 import { z } from 'zod'
 import { MAX_CANVAS_WIDGETS, MAX_PINS, pinnedWidgetSchema, widgetInstanceSchema, widgetSelectionKey, makeInstance, type WidgetInstance } from './widgetInstances.ts'
 import type { WorkspaceOperation } from './workspaceManagement.ts'
@@ -5,7 +6,7 @@ import { PRESETS, type WidgetType } from '../lib/workspace/config.ts'
 
 export const turnSchema = z.strictObject({ id: z.string(), prompt: z.string().max(4000), reply: z.string().max(2000), source:z.enum(['ai','local']).optional(), status: z.enum(['pending', 'ready', 'error', 'cancelled', 'clarification']) })
 export const workspaceDocumentSchema = z.strictObject({
-  version: z.literal(1), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
+  version: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const), continuation: workspaceContinuationSchema.optional(), active: widgetInstanceSchema.array(), pins: pinnedWidgetSchema.array().max(MAX_PINS),
   revision: z.number().int().nonnegative(), turns: turnSchema.array().max(60), targets: z.string().array(),
 }).superRefine((document, ctx) => {
   const ids = [...document.active, ...document.pins].map(w => w.instanceId)
@@ -16,7 +17,7 @@ export const workspaceDocumentSchema = z.strictObject({
 export type WorkspaceDocument = z.infer<typeof workspaceDocumentSchema>
 export type ConversationTurn = z.infer<typeof turnSchema>
 export const workspaceCollectionKey = 'workspaceDocument'
-export const emptyWorkspace = (): WorkspaceDocument => ({ version: 1, active: [], pins: [], revision: 0, turns: [], targets: [] })
+export const emptyWorkspace = (): WorkspaceDocument => ({ version: 2, active: [], pins: [], revision: 0, turns: [], targets: [] })
 
 export class TargetError extends Error {
   choices: Array<{ id: string; label: string }>
@@ -36,7 +37,11 @@ export function resolveTarget(document: WorkspaceDocument, target: string, inclu
   return matching[0]
 }
 export function commitWorkspace(document: WorkspaceDocument, patch: Partial<WorkspaceDocument>): WorkspaceDocument {
-  return workspaceDocumentSchema.parse(JSON.parse(JSON.stringify({ ...document, ...patch, revision: document.revision + 1 })))
+  const next = workspaceDocumentSchema.parse(JSON.parse(JSON.stringify({ ...document, ...patch, revision: document.revision + 1 })))
+  const ids = new Set([...next.active, ...next.pins].map(w => w.instanceId))
+  if (next.continuation?.lastSuccess?.targetInstanceIds.some(id => !ids.has(id))) delete next.continuation.lastSuccess
+  if (next.continuation?.pending?.targetInstanceIds.some(id => !ids.has(id))) delete next.continuation.pending
+  return next
 }
 export function applyInstanceOperations(document: WorkspaceDocument, operations: WorkspaceOperation[], create: (type: WidgetType) => WidgetInstance, includePins = false): WorkspaceDocument {
   let active = [...document.active], pins = [...document.pins]
@@ -97,7 +102,7 @@ export function resetWorkspaceLayout(document: WorkspaceDocument): WorkspaceDocu
   const pinned = new Set(document.pins.map(widgetSelectionKey))
   const active = PRESETS.home.widgets.map(widget => ({ ...makeInstance(widget.id), span: widget.span }))
     .filter(widget => !pinned.has(widgetSelectionKey(widget))).slice(0, MAX_CANVAS_WIDGETS - document.pins.length)
-  return commitWorkspace(document, { active, targets: [] })
+  return commitWorkspace(document, { active, targets: [], continuation: undefined })
 }
 export function clearWorkspacePins(document: WorkspaceDocument): WorkspaceDocument {
   const activeIds = new Set(document.active.map(widget => widget.instanceId))

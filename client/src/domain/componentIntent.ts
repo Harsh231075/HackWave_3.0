@@ -1,3 +1,4 @@
+import { continuationChangeSchema, type IntentChanges } from './intentChanges.ts'
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
 import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal } from './workspaceManagement.ts'
 import { z } from 'zod'
@@ -17,7 +18,7 @@ export const viewBindingsSchema = z.object({
 })
 export const componentViewSchema = z.object({
   action: z.literal('view'), widgets: z.array(z.enum(widgetTypes)).min(1).max(15), bindings: viewBindingsSchema,
-  reply: z.string().min(1).max(1000), referenceDate: z.iso.date(), timezone: z.string(), source: z.enum(['ai','local']).optional(),
+  reply: z.string().min(1).max(1000), referenceDate: z.iso.date(), timezone: z.string(), source: z.enum(['ai','local']).optional(), continuation: continuationChangeSchema.optional(),
 }).superRefine((view, ctx) => {
   if (new Set(view.widgets).size !== view.widgets.length) ctx.addIssue({ code:'custom',message:'Components must be unique.' })
   if (view.bindings.dateRange && view.bindings.dateRange.from > view.bindings.dateRange.to) ctx.addIssue({ code:'custom',message:'Dates must be ordered.' })
@@ -27,11 +28,11 @@ export type ComponentView = z.infer<typeof componentViewSchema>
 export type ViewBindings = z.infer<typeof viewBindingsSchema>
 export const componentResolutionSchema = z.discriminatedUnion('action', [componentViewSchema, managementSchema,
   z.object({ action:z.literal('clarify'), question:z.string().min(1).max(1000), choices:z.array(z.string().max(4000)).max(6),source:z.enum(['ai','local']).optional() }),
-  z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),source:z.enum(['ai','local']).optional() }),
+  z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),continuation:continuationChangeSchema.optional(),source:z.enum(['ai','local']).optional() }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
-export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
-  instances:z.array(z.object({instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
+export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
+  instances:z.array(z.object({pinned:z.boolean().optional(),instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
   catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 export type ComponentRequest = z.infer<typeof componentRequestSchema>
@@ -42,6 +43,7 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   const result = componentResolutionSchema.safeParse(value)
   if (!result.success) return result
   const reject=(message:string,path:string[]=[])=>({success:false as const,error:new z.ZodError([{code:'custom',message,path}])})
+  if ('continuation' in result.data && result.data.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id))) return componentResolutionSchema.safeParse(null)
   if (result.data.action === 'manage') {
     if (recordMutationGoal(input.goal)) return reject('Record mutation is not a workspace layout operation.',['operations'])
     if(result.data.operations.some(op=>op.type==='clear')&&!authorizesClear(input.goal))return reject('Clearing the workspace was not explicitly authorized.',['operations'])
@@ -57,6 +59,14 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   }
   if (result.data.action !== 'view') return result
   const view = result.data, b = view.bindings
+  if (view.continuation?.targetInstanceIds.some(id => input.instances?.some(instance => instance.instanceId === id && instance.pinned)) && !/\b(pinned|pin)\b/i.test(input.goal)) return componentResolutionSchema.safeParse(null)
+  const localRefinement = fallbackComponentIntent(input)
+  if (!view.continuation && localRefinement.action === 'view' && localRefinement.continuation?.relationship === 'refinement') return componentResolutionSchema.safeParse(null)
+  if (view.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id && view.widgets.includes(instance.widgetType)))) return componentResolutionSchema.safeParse(null)
+  const changes = view.continuation?.changes
+  if (changes?.owner?.operation === 'set' && !input.catalog.owners.includes(changes.owner.value)) return componentResolutionSchema.safeParse(null)
+  if (changes?.projectId?.operation === 'set' && !input.catalog.projects.some(p => p.id === (changes.projectId as { value: string }).value)) return componentResolutionSchema.safeParse(null)
+  if (changes?.clientId?.operation === 'set' && !input.catalog.clients.some(c => c.id === (changes.clientId as { value: string }).value)) return componentResolutionSchema.safeParse(null)
   if (view.referenceDate !== input.referenceDate) return reject('The model used a different reference date.',['referenceDate'])
   if(view.timezone!==input.timezone)return reject('The model used a different timezone.',['timezone'])
   if(b.projectId&&!input.catalog.projects.some(p=>p.id===b.projectId))return reject('The model selected a project outside the available catalog.',['bindings','projectId'])
@@ -68,8 +78,8 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   const local = fallbackComponentIntent(input)
   if (local.action === 'view' && local.bindings.dateRange) {
     const expected = local.bindings.dateRange
-    if (b.dateRange?.from !== expected.from || b.dateRange?.to !== expected.to) return reject('The model did not preserve the requested date range.',['bindings','dateRange'])
-    if (view.widgets.some(widget => widget === 'tasks' || widget === 'metrics') && b.taskFilters.status !== 'overdue' && (b.taskFilters.from !== expected.from || b.taskFilters.to !== expected.to)) return reject('Task date filters do not match the requested date range.',['bindings','taskFilters'])
+    if ((changes?.dateRange?.operation === 'set' ? changes.dateRange.value : b.dateRange)?.from !== expected.from || (changes?.dateRange?.operation === 'set' ? changes.dateRange.value : b.dateRange)?.to !== expected.to) return reject('The model did not preserve the requested date range.',['bindings','dateRange'])
+    if (view.widgets.some(widget => widget === 'tasks' || widget === 'metrics') && b.taskFilters.status !== 'overdue' && changes?.dateRange?.operation !== 'set' && (b.taskFilters.from !== expected.from || b.taskFilters.to !== expected.to)) return reject('Task date filters do not match the requested date range.',['bindings','taskFilters'])
   }
   return result
 }
@@ -81,7 +91,36 @@ export function selectViewEvents(events: Event[], view: ComponentView) {
   return events.filter(e=>(!b.dateRange || (e.date>=b.dateRange.from && e.date<=b.dateRange.to)) && (!b.category || b.category==='all' || e.category===b.category))
 }
 const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Project context',recommendation:'Suggestions'}
-export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {return {...keywordComponentIntent(input),source:'local'}}
+export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {
+  const result = keywordComponentIntent(input)
+  const text = input.goal.toLowerCase()
+  const isRefinement = /^(only|just|sirf|same|show only)\b|\b(instead|too|again|all owners|all priorities|all statuses|all overdue tasks|reset filters|clear filters)\b/.test(text)
+  if (!isRefinement) return { ...result, source: 'local', ...(result.action === 'view' || result.action === 'workflow' ? { continuation: { relationship: 'new_goal' as const, targetInstanceIds: [], changes: {} } } : {}) }
+  const changes: IntentChanges = {}
+  const set = (field: keyof IntentChanges, value: unknown) => Object.assign(changes, { [field]: { operation: 'set', value } })
+  const clear = (field: keyof IntentChanges) => Object.assign(changes, { [field]: { operation: 'clear' } })
+  if (/blocked/.test(text)) set('status', 'blocked')
+  else if (/pending/.test(text)) set('status', 'pending')
+  else if (/completed/.test(text)) set('status', 'completed')
+  else if (/all statuses|all overdue tasks/.test(text)) { clear('status'); clear('taskStatuses') }
+  for (const priority of ['urgent','high','medium','low']) if (new RegExp('\\b'+priority+'\\b').test(text)) set('priority', priority)
+  if (/all priorities|any priority/.test(text)) clear('priority')
+  if (/all owners|everyone/.test(text)) clear('owner')
+  if (/reset filters|clear filters/.test(text)) for (const key of ['status','taskStatuses','priority','owner','query','from','to'] as const) clear(key)
+  if (result.action === 'view') {
+    const bindings = result.bindings
+    if (/today|tomorrow|yesterday|\d{4}-\d{2}-\d{2}|this week|next week/.test(text) && bindings.dateRange) set('dateRange', bindings.dateRange)
+    if (/kanban|list/.test(text) && bindings.taskView) set('taskView', bindings.taskView)
+    if (bindings.owner && input.catalog.owners.some(owner => text.includes(owner.toLowerCase()))) set('owner', bindings.owner)
+    if (bindings.projectId && input.catalog.projects.some(p => text.includes(p.name.toLowerCase()))) set('projectId', bindings.projectId)
+    if (bindings.clientId && !changes.projectId && input.catalog.clients.some(c => text.includes(c.name.toLowerCase()))) set('clientId', bindings.clientId)
+  }
+  if (!Object.keys(changes).length) return { action: 'clarify', source: 'local', question: 'I could not resolve this refinement. Specify the view and the change you want.', choices: [] }
+  const parsed = continuationChangeSchema.safeParse({ relationship: 'refinement', targetInstanceIds: [], changes })
+  if (!parsed.success) return { action: 'clarify', source: 'local', question: 'Choose a valid refinement.', choices: [] }
+  if (result.action === 'view') return { ...result, widgets: input.previous?.widgets ?? result.widgets, continuation: parsed.data, source: 'local' }
+  return { action: 'clarify', source: 'local', question: 'Specify the view to refine.', choices: [] }
+}
 function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   if(removalNeedsClarification(input.goal))return {action:'clarify',question:'Your wording does not explicitly authorize removing components. Describe the change you want, for example “remove the suggestions card”.',choices:['Show my tasks','Show my calendar']}
   const management=localManagement(input.goal);if(management)return management

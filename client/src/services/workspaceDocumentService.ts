@@ -11,7 +11,7 @@ export function instancesFromLayout(value: unknown, id: () => string = () => cry
   const layout = meeting.success ? meeting.data : usage.success ? usage.data : overdue.success ? overdue.data : null
   if (!layout) return []
   const binding: WidgetBinding = meeting.success ? { kind: 'meeting', meetingId: meeting.data.meetingId, clientId: meeting.data.intent.clientId!, projectId: meeting.data.intent.projectId! } : usage.success ? { kind: 'usage', intent: usage.data.intent } : { kind: 'overdue', intent: overdue.data!.intent, referenceDate: overdue.data!.referenceDate }
-  return layout.composition.widgets.map(widget => ({ ...makeInstance(widget.type, binding, { taskFilters: overdue.success ? overdue.data.filters : meeting.success ? meeting.data.taskFilters : usage.data!.taskFilters }, id()), span: widget.span, explanation: { type: widget.type, reason: widget.reason, evidence: widget.evidence }, fingerprint: usage.success ? usage.data.snapshotFingerprint : '' }))
+  return layout.composition.widgets.map((widget, index) => ({ ...makeInstance(widget.type, binding, { taskFilters: overdue.success ? overdue.data.filters : meeting.success ? meeting.data.taskFilters : usage.data!.taskFilters }, id()), span: widget.span, ...(index === 0 && layout.composition.actions ? { actions: layout.composition.actions } : {}), explanation: { type: widget.type, reason: widget.reason, evidence: widget.evidence }, fingerprint: usage.success ? usage.data.snapshotFingerprint : '' }))
 }
 const initializedDatabases=new WeakSet<BrowserDatabase>()
 export function createWorkspaceDocumentService(database: BrowserDatabase) {
@@ -25,16 +25,18 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
     const parsed = workspaceDocumentSchema.safeParse(document)
     return parsed.success ? database.writeCollection(workspaceCollectionKey, parsed.data) : { status: 'invalid' }
   }
+  let initial: { document: WorkspaceDocument; notice: string; persistence: SaveResult } | undefined
   function initialize(): { document: WorkspaceDocument; notice: string; persistence: SaveResult } {
     const firstLoad=!initializedDatabases.has(database)
     initializedDatabases.add(database)
     const existing = load()
+    if (initial && existing.status === 'missing') return initial
     if (existing.status === 'found') {
-      // Route remounts must be read-only and must not cancel a live request.
-      const interrupted=firstLoad&&existing.value.turns.some(t=>t.status==='pending'||t.status==='clarification')
-      if(!interrupted)return {document:existing.value,notice:'',persistence:database.getPersistenceResult()}
-      const document={...existing.value,turns:existing.value.turns.map(t=>t.status==='pending'||t.status==='clarification'?{...t,status:'cancelled' as const,reply:'This request was interrupted. Send it again to continue.'}:t)}
-      return {document,notice:'',persistence:save(document)}
+      // Route remounts preserve live requests; fresh loads retain resumable clarifications.
+      const interrupted = firstLoad && existing.value.turns.some(turn => turn.status === 'pending' || (turn.status === 'clarification' && !existing.value.continuation?.pending))
+      if (!interrupted) return { document: existing.value, notice: '', persistence: database.getPersistenceResult() }
+      const document = { ...existing.value, turns: existing.value.turns.map(turn => turn.status === 'pending' ? { ...turn, status: 'cancelled' as const, reply: 'This request was interrupted. Send it again to continue.' } : turn.status === 'clarification' && !existing.value.continuation?.pending ? { ...turn, status: 'cancelled' as const, reply: 'This question was interrupted. Send it again to continue.' } : turn) }
+      return { document, notice: '', persistence: save(document) }
     }
     let document = emptyWorkspace(), skipped = 0
     if (existing.status === 'invalid') return { document, notice: 'Saved workspace is invalid and has been preserved. Reset the workspace to start again.', persistence: { status: 'invalid' } }
@@ -102,8 +104,9 @@ export function createWorkspaceDocumentService(database: BrowserDatabase) {
     const parsed = workspaceDocumentSchema.safeParse(document)
     if (!parsed.success) return { document: emptyWorkspace(), notice: 'Legacy workspace could not be migrated and has been preserved.', persistence: { status: 'invalid' } }
     document = parsed.data
-    const persistence = save(document)
-    return { document, persistence, notice: persistence.status !== 'saved' ? 'Workspace restored for this session. Device storage is unavailable.' : skipped ? `${skipped} invalid or excess saved entries were skipped. Original storage has been preserved.` : '' }
+    const persistence: SaveResult = database.storage.readJson('orlo-browser-db-v1').status === 'unavailable' ? { status: 'unavailable' } : { status: 'saved' }
+    initial = { document, persistence, notice: persistence.status !== 'saved' ? 'Workspace restored for this session. Device storage is unavailable.' : skipped ? `${skipped} invalid or excess saved entries were skipped. Original storage has been preserved.` : '' }
+    return initial
   }
   return { load, save, initialize }
 }

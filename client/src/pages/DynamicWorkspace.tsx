@@ -1,3 +1,7 @@
+import { fingerprint } from '@/domain/widgetInstances'
+import { validateSavedContinuation } from '@/services/continuationService'
+import type { PendingClarification, SuccessfulContinuation } from '@/domain/workspaceContinuation'
+import type { ComponentView } from '@/domain/componentIntent'
 import { useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Command, Mic, Square, ArrowUp, LoaderCircle, MoreHorizontal, RotateCcw, History, Undo2, PinOff, CalendarDays, X } from 'lucide-react'
@@ -7,7 +11,7 @@ import { useSpeechToText } from '@/hooks/useSpeechToText'
 import { useWorkspace } from '@/state/WorkspaceProvider'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { resolveComponentIntent } from '@/services/componentIntentService'
-import { adaptiveDataService, resourceService } from '@/services'
+import { adaptiveDataService, resourceService, browserDatabase } from '@/services'
 import { makeInstance, instancesFromLayout } from '@/services/workspaceDocumentService'
 import { instancePlan, applyComponentView } from '@/domain/instanceViews'
 import { commitWorkspace, resetWorkspaceLayout, clearWorkspacePins, resolveTarget, applyInstanceOperations, TargetError, type WorkspaceDocument } from '@/domain/workspaceDocument'
@@ -41,7 +45,7 @@ function ClarificationForm({ question, pending, onAnswer, onCancel }: { question
 }
 export function DynamicWorkspace() {
   const workspace = useWorkspaceDocument()
-  const { document, current, save, setNotice } = workspace
+  const { document, current, save, setNotice, interrupt } = workspace
   const { state, draftBuffers } = useWorkspace()
   const calendar = useGoogleCalendar()
   const workflow = useAdaptiveWorkspace()
@@ -52,100 +56,164 @@ export function DynamicWorkspace() {
   const [settings, setSettings] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [resolving, setResolving] = useState(false)
-  const [question, setQuestion] = useState<{ question: string; choices: Array<{ id?: string; label: string }> } | null>(null)
+  const [question, setQuestion] = useState<Extract<PendingClarification, { kind: 'component' }> | null>(() => { const pending = document.continuation?.pending; return pending?.kind === 'component' ? pending : null })
+  const [staleQuestion, setStaleQuestion] = useState(false)
   const request = useRef<AbortController | null>(null)
   const activeTurn = useRef<string | null>(null)
   const pending = resolving || workflow.pending
   const speech = useSpeechToText({ value: goal, onChange: setGoal, enabled: commandOpen && !pending && !workflow.clarification })
-  const lastGoal = useRef('')
+  const lastGoal = useRef(document.continuation?.pending?.goal ?? '')
   const canvas = useRef<HTMLElement | null>(null)
   function finish(id: string, status: WorkspaceDocument['turns'][number]['status'], reply: string) {
     save({ ...current.current, turns: current.current.turns.map(t => t.id === id ? { ...t, status, reply: reply.slice(0, 2000) } : t) }, false)
   }
   function stop() {
-    request.current?.abort(); request.current = null; workflow.cancel(); setResolving(false); speech.cancel()
-    if (activeTurn.current) finish(activeTurn.current, 'cancelled', 'Stopped. Existing workspace and edits are kept.')
+    request.current?.abort(); request.current = null; workflow.cancel(); setResolving(false); speech.cancel(); setQuestion(null); setStaleQuestion(false)
+    if (current.current.continuation?.pending) save({ ...current.current, continuation: { lastSuccess: current.current.continuation.lastSuccess } }, false)
+    const turn = current.current.turns.find(t => t.id === activeTurn.current) ?? current.current.turns.at(-1)
+    if (turn && (turn.status === 'pending' || turn.status === 'clarification')) finish(turn.id, 'cancelled', 'Stopped. Existing workspace and edits are kept.')
     activeTurn.current = null
   }
-  useEffect(() => () => { request.current?.abort() }, [])
+  useEffect(() => () => {
+    if (request.current) {
+      request.current.abort()
+      const turnId = activeTurn.current
+      if (turnId) interrupt(turnId)
+    }
+  }, [interrupt])
   useEffect(() => {
     const url = new URL(window.location.href), outcome = url.searchParams.get('calendar')
     if (!outcome) return
-    setNotice(outcome === 'connected' ? 'Google Calendar connected. Send your meeting goal to continue.' : 'Calendar connection could not complete. Open Calendar connection to retry.')
-    setSettings(outcome !== 'connected'); url.searchParams.delete('calendar'); window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    const timer = window.setTimeout(() => {
+      setNotice(outcome === 'connected' ? 'Google Calendar connected. Send your meeting goal to continue.' : 'Calendar connection could not complete. Open Calendar connection to retry.')
+      setSettings(outcome !== 'connected')
+      url.searchParams.delete('calendar'); window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [setNotice])
   function update(instance: WidgetInstance | PinnedWidget) {
     try { save(commitWorkspace(current.current, { active: current.current.active.map(w => w.instanceId === instance.instanceId ? instance : w), pins: current.current.pins.map(w => w.instanceId === instance.instanceId ? { ...instance, pinId: w.pinId, createdAt: w.createdAt } : w) })) }
     catch (failure) { setNotice(failure instanceof Error ? failure.message : 'Invalid view update.') }
   }
   async function build(answer?: IntentRequest['clarificationAnswer'], retry?: string, exactTarget?: string, useDemo = false) {
+    const offered = current.current.continuation?.pending
     const submitted = answer?.originalGoal ?? retry ?? goal.trim()
+    useDemo ||= !!offered && offered.kind === 'component' && offered.useDemo
     if (!submitted || request.current || pending) return
+    const restored = validateSavedContinuation(current.current, browserDatabase, calendar.connection?.accountId)
+    if ((answer || exactTarget) && (!restored.pending || (answer ? restored.pending.kind !== 'adaptive' : restored.pending.kind !== 'component'))) { setStaleQuestion(true); setCommandOpen(true); return }
+    workflow.restore(restored.lastSuccess?.provider === 'demo' ? restored.lastSuccess : undefined, answer && offered?.kind === 'adaptive' ? offered.question : undefined)
     const controller = new AbortController(); request.current = controller; setResolving(true)
     const id = crypto.randomUUID(); activeTurn.current = id; lastGoal.current = submitted
-    save({ ...current.current, turns: [...current.current.turns, { id, prompt: submitted, reply: 'Preparing your workspace…', status: 'pending' as const }].slice(-60) }, false)
+    save({ ...current.current, continuation: { lastSuccess: current.current.continuation?.lastSuccess }, turns: [...current.current.turns, { id, prompt: submitted, reply: 'Preparing your workspace…', status: 'pending' as const }].slice(-60) }, false)
     setCommandOpen(false); setGoal(''); setQuestion(null); speech.cancel()
+    const baseline = JSON.stringify({ active: current.current.active, pins: current.current.pins })
+    let proposed: ComponentView | undefined
+    const install = (next: WorkspaceDocument, context?: SuccessfulContinuation) => {
+      if (baseline !== JSON.stringify({ active: current.current.active, pins: current.current.pins })) throw new Error('The workspace changed while resolving this request. Try again.')
+      if (!save({ ...next, continuation: context ? { lastSuccess: context } : undefined })) throw new Error('Workspace could not be saved.')
+    }
+    const ask = (pendingQuestion: Extract<PendingClarification, { kind: 'component' }>) => {
+      pendingQuestion = { ...pendingQuestion, targetSignatures: Object.fromEntries([...current.current.active, ...current.current.pins].filter(w => pendingQuestion.targetInstanceIds.includes(w.instanceId)).map(w => [w.instanceId, fingerprint({ binding: w.binding, viewState: w.viewState })])) }
+      setQuestion(pendingQuestion)
+      save({ ...current.current, continuation: { ...current.current.continuation, pending: pendingQuestion } }, false)
+      setCommandOpen(true)
+    }
     const valid = () => !controller.signal.aborted && activeTurn.current === id
     try {
       const records = adaptiveDataService.snapshot()
       const all = [...current.current.active, ...current.current.pins]
       const types = namedWidgets(submitted)
-      const previous = /\b(another|second|additional|separate)\b/i.test(submitted) ? undefined : exactTarget ? all.find(w => w.instanceId === exactTarget) : types.length === 1 ? resolveTarget(current.current, types[0], true) : all.find(w => current.current.targets.includes(w.instanceId))
-      const input = { goal: submitted, referenceDate: calendarDate(undefined, calendar.timezone), timezone: calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all, componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { owners: [...new Set(state.tasks.map(t => t.owner))], projects: records?.projects ?? [], clients: records?.clients ?? [], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
-      const resolved = answer ? null : await resolveComponentIntent(input, controller.signal)
+      const previousForType = () => { try { return types.length === 1 ? resolveTarget(current.current, types[0], false) : current.current.active.find(w => current.current.targets.includes(w.instanceId)) } catch (error) { if (error instanceof TargetError) return undefined; throw error } }
+      const previous = /\b(another|second|additional|separate)\b/i.test(submitted) ? undefined : exactTarget ? all.find(w => w.instanceId === exactTarget) : previousForType()
+      const input = { goal: submitted, referenceDate: useDemo || previous && ['meeting', 'usage', 'overdue'].includes(previous.binding.kind) ? DEMO_DATE : calendarDate(undefined, calendar.timezone), timezone: calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all.map(w => ({ ...w, pinned: 'pinId' in w })), componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { owners: [...new Set(state.tasks.map(t => t.owner))], projects: records?.projects ?? [], clients: records?.clients ?? [], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
+      let resolved = answer ? null : exactTarget && offered?.kind === 'component' && offered.proposed ? { ...offered.proposed, continuation: offered.proposed.continuation ? { ...offered.proposed.continuation, targetInstanceIds: [exactTarget] } : undefined } : await resolveComponentIntent({ ...input, lastTargetIds: restored.lastSuccess?.targetInstanceIds }, controller.signal)
+      proposed = resolved?.action === 'view' ? resolved : undefined
+      if (resolved?.action === 'view' && resolved.continuation?.relationship === 'refinement') {
+        const name = exactTarget ?? resolved.continuation.targetInstanceIds[0] ?? resolved.widgets[0]
+        const target = resolveTarget(current.current, name, !!exactTarget || resolved.continuation.targetInstanceIds.length > 0)
+        const selected = resolved.continuation.targetInstanceIds.map(id => all.find(w => w.instanceId === id)!).filter(Boolean)
+        if (selected.some(w => ['meeting', 'usage', 'overdue'].includes(w.binding.kind)) && selected.some(w => fingerprint(w.binding) !== fingerprint(selected[0].binding))) throw new TargetError('scoped', selected)
+        const binding = target?.binding
+        const fields = Object.keys(resolved.continuation.changes)
+        if (binding && ['meeting', 'usage', 'overdue'].includes(binding.kind) && (!current.current.pins.some(p => p.instanceId === target?.instanceId) || fields.some(field => ['meetingId', 'clientId', 'projectId', 'dateRange', 'segment'].includes(field))) && fields.some(field => ['meetingId', 'clientId', 'projectId', 'dateRange', 'segment', 'status', 'priority'].includes(field))) {
+          const intent = binding.kind === 'usage' || binding.kind === 'overdue' ? binding.intent : binding.kind === 'meeting' ? { goalType: 'meeting_preparation' as const, meetingId: binding.meetingId, clientId: binding.clientId, projectId: binding.projectId, dateRange: { from: records?.meetings.find(m => m.id === binding.meetingId)?.date ?? DEMO_DATE, to: records?.meetings.find(m => m.id === binding.meetingId)?.date ?? DEMO_DATE } } : undefined
+          if (intent) {
+            const context: SuccessfulContinuation = { ...(restored.lastSuccess ?? { requestId: id, goal: submitted, referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata' }), provider: 'demo', intent, targetInstanceIds: [target!.instanceId] }
+            workflow.restore(context)
+            useDemo = true
+            resolved = { action: 'workflow', kind: intent.goalType, continuation: { ...resolved.continuation, targetInstanceIds: [target!.instanceId] }, source: resolved.source }
+          }
+        }
+      }
       if (!valid()) return
       if(resolved?.source)save({...current.current,turns:current.current.turns.map(t=>t.id===id?{...t,source:resolved.source}:t)},false)
-      if (resolved?.action === 'clarify') { setQuestion({ question: resolved.question, choices: resolved.choices.map(label => ({ label })) }); finish(id, 'clarification', resolved.question); setCommandOpen(true); return }
+      if (resolved?.action === 'clarify') { ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: [], useDemo, question: resolved.question, choices: resolved.choices.map(label => ({ label })) }); finish(id, 'clarification', resolved.question); setCommandOpen(true); return }
       if (resolved?.action === 'manage') {
         const operations = exactTarget ? resolved.operations.map(op => op.type === 'remove' || op.type === 'keep' || op.type === 'replace' ? { ...op, widgets: op.widgets.map(type => previous?.widgetType === type ? exactTarget : type) } : op.type === 'move' || op.type === 'resize' ? { ...op, widget: previous?.widgetType === op.widget ? exactTarget : op.widget } : op) : resolved.operations
         const includePins = /\b(including pins|pinned|all pins)\b/i.test(submitted)
         const next = applyInstanceOperations(current.current, operations, type => makeInstance(type, { kind: 'workspace' }, { referenceDate: input.referenceDate, timezone: input.timezone }), includePins)
-        if (!save(next)) throw new Error('Workspace could not be saved.')
+        install(next, next.continuation?.lastSuccess)
         finish(id, 'ready', resolved.reply); return
       }
       if (resolved?.action === 'view') {
         let binding: WidgetBinding | undefined
-        if (!useDemo && calendar.connection?.connected && calendar.connection.accountId && resolved.widgets.some(type => ['calendar', 'meetings', 'availability'].includes(type))) binding = { kind: 'google-calendar', accountId: calendar.connection.accountId, calendarId: 'primary', mode: 'browse' }
+        if (resolved.continuation?.relationship !== 'refinement' && !useDemo && calendar.connection?.connected && calendar.connection.accountId && resolved.widgets.some(type => ['calendar', 'meetings', 'availability'].includes(type))) binding = { kind: 'google-calendar', accountId: calendar.connection.accountId, calendarId: 'primary', mode: 'browse' }
         if (!binding && previous?.binding.kind === 'google-calendar' && previous.binding.mode === 'prepare' && resolved.widgets.some(type => ['context', 'outline'].includes(type))) binding = previous.binding
-        if (!save(applyComponentView(current.current, resolved, submitted, binding, exactTarget))) throw new Error('Workspace could not be saved.')
+        const next = applyComponentView(current.current, resolved, submitted, binding, exactTarget, input.catalog.projects)
+        const target = [...next.active, ...next.pins].find(w => next.targets.includes(w.instanceId))
+        if (target?.binding.kind === 'google-calendar' && target.binding.accountId !== calendar.connection?.accountId) throw new Error('Reconnect this view’s original Google account.')
+        install(next, { requestId: id, goal: submitted, targetInstanceIds: next.targets, referenceDate: input.referenceDate, timezone: input.timezone, provider: target?.binding.kind === 'google-calendar' ? 'google-calendar' : 'components', accountId: target?.binding.kind === 'google-calendar' ? target.binding.accountId : undefined })
         finish(id, 'ready', resolved.reply); return
       }
-      if (resolved?.action === 'workflow' && ['meeting_preparation', 'meeting_scheduling'].includes(resolved.kind) && !useDemo) {
+      if (resolved?.action === 'workflow' && ['meeting_preparation', 'meeting_scheduling'].includes(resolved.kind) && !useDemo && restored.lastSuccess?.provider !== 'demo') {
         if (!calendar.connection?.connected || !calendar.connection.accountId) {
-          setQuestion({ question: 'Use a real Google Calendar meeting or demo records?', choices: [{ label: 'Connect Google Calendar' }, { label: 'Use demo records' }] }); finish(id, 'clarification', 'Connect Google Calendar or choose demo records.'); setCommandOpen(true); return
+          ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: input.referenceDate, timezone: input.timezone, targetInstanceIds: [], useDemo: false, question: 'Use a real Google Calendar meeting or demo records?', choices: [{ label: 'Connect Google Calendar' }, { label: 'Use demo records' }] }); finish(id, 'clarification', 'Connect Google Calendar or choose demo records.'); setCommandOpen(true); return
         }
         const binding: WidgetBinding = { kind: 'google-calendar', accountId: calendar.connection.accountId, calendarId: 'primary', mode: resolved.kind === 'meeting_scheduling' ? 'schedule' : 'prepare' }
         const plan = componentViewSchema.parse({ action: 'view', widgets: ['meetings'], bindings: { taskFilters: state.filters, selectedDate: /tomorrow/i.test(submitted) ? shiftDate(input.referenceDate, 1) : input.referenceDate }, referenceDate: input.referenceDate, timezone: input.timezone, reply: 'Your Google Calendar workspace is ready.' })
         const next = applyComponentView(current.current, plan, submitted, binding, exactTarget)
         next.active = next.active.map(w => next.targets.includes(w.instanceId) ? { ...w, viewState: { ...w.viewState, goal: submitted } } : w)
-        if (!save(next)) throw new Error('Workspace could not be saved.')
+        install(next, { requestId: id, goal: submitted, targetInstanceIds: next.targets, referenceDate: input.referenceDate, timezone: input.timezone, provider: 'google-calendar', accountId: binding.accountId })
         finish(id, 'ready', plan.reply); return
       }
-      const result = await workflow.run({ goal: submitted, previousUI: '', context: { demoDate: input.referenceDate, tasks: state.tasks, events: state.events, drafts: state.drafts, pins: current.current.pins.map(p => p.widgetType), componentState: {} } }, answer)
+      const result = await workflow.run({ goal: submitted, previousUI: '', context: { demoDate: input.referenceDate, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: current.current.pins.map(p => p.widgetType), componentState: {} } }, answer, resolved && 'continuation' in resolved ? resolved.continuation : offered?.kind === 'adaptive' ? offered.continuation : undefined)
       if (!valid()) return
-      if (!result) { finish(id, workflow.getOutcome().clarification ? 'clarification' : 'error', workflow.getOutcome().error || 'Choose the details needed to continue.'); setCommandOpen(true); return }
+      if (!result) {
+        const clarification = workflow.getOutcome().clarification
+        if (clarification) save({ ...current.current, continuation: { ...current.current.continuation, pending: { kind: 'adaptive', requestId: clarification.requestId, goal: submitted, referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', targetInstanceIds: restored.lastSuccess?.targetInstanceIds ?? [], question: clarification, continuation: resolved && 'continuation' in resolved ? resolved.continuation : undefined } } }, false)
+        finish(id, workflow.getOutcome().clarification ? 'clarification' : 'error', workflow.getOutcome().error || 'Choose the details needed to continue.'); setCommandOpen(true); return }
       const instances = result.kind === 'general' ? extractActiveWidgets(result.response, productivityLibrary.toJSONSchema(), productivityLibrary.root).map(w => ({ ...makeInstance(w.id), span: w.span })) : instancesFromLayout(result.session)
       let next = current.current
+      const installedTargets: string[] = []
       for (const instance of instances) {
         const plan = instancePlan(instance)
-        next = applyComponentView(next, plan, submitted, instance.binding, exactTarget)
+        next = applyComponentView(next, plan, submitted, instance.binding, exactTarget && instance.widgetType === previous?.widgetType ? exactTarget : undefined)
+        installedTargets.push(...next.targets)
         next.active = next.active.map(w => next.targets.includes(w.instanceId) ? { ...w, span: instance.span, explanation: instance.explanation, fingerprint: instance.fingerprint } : w)
       }
       const response = result.kind === 'general' ? result.response : result.session.response
       const buttons = extractGeneratedActions(response, productivityLibrary.toJSONSchema(), productivityLibrary.root)
       const origin = instances[0] && [...next.active, ...next.pins].find(w => w.widgetType === instances[0].widgetType && JSON.stringify(w.binding) === JSON.stringify(instances[0].binding))
       if (origin && buttons.length) next = { ...next, active: next.active.map(w => w.instanceId === origin.instanceId ? { ...w, actions: buttons } : w), pins: next.pins.map(w => w.instanceId === origin.instanceId ? { ...w, actions: buttons } : w) }
-      if (!save(next)) throw new Error('Workspace could not be saved.')
+      next = { ...next, targets: [...new Set(installedTargets)] }
+      install(next, result.kind === 'general' ? { requestId: id, goal: submitted, targetInstanceIds: next.targets, referenceDate: input.referenceDate, timezone: input.timezone, provider: 'components' } : workflow.getContinuation(submitted, next.targets))
       finish(id, 'ready', extractGeneratedText(response, productivityLibrary.toJSONSchema(), productivityLibrary.root) || 'Your workspace is ready.')
     } catch (failure) {
       if (!valid()) return
-      if (failure instanceof TargetError) { setQuestion({ question: failure.message, choices: failure.choices.map(choice => ({ id: choice.id, label: choice.label })) }); finish(id, 'clarification', failure.message); setCommandOpen(true) }
+      if (failure instanceof TargetError) { ask({ kind: 'component', requestId: id, goal: submitted, referenceDate: calendarDate(undefined, calendar.timezone), timezone: calendar.timezone, targetInstanceIds: failure.choices.map(c => c.id), useDemo, proposed, question: failure.message, choices: failure.choices.map(choice => ({ id: choice.id, label: choice.label })) }); finish(id, 'clarification', failure.message); setCommandOpen(true) }
       else finish(id, 'error', failure instanceof Error ? failure.message : 'Unable to update workspace.')
     } finally { if (request.current === controller) { request.current = null; setResolving(false) } }
   }
   function close(open: boolean) {
     if (!open) { speech.cancel(); if (pending) stop() }
-    else { setHistoryOpen(false); setSettings(false) }
+    else {
+      setHistoryOpen(false); setSettings(false)
+      const restored = validateSavedContinuation(current.current, browserDatabase, calendar.connection?.accountId)
+      setStaleQuestion(!!current.current.continuation?.pending && !restored.pending)
+      setQuestion(restored.pending?.kind === 'component' ? restored.pending : null)
+      workflow.restore(restored.lastSuccess?.provider === 'demo' ? restored.lastSuccess : undefined, restored.pending?.kind === 'adaptive' ? restored.pending.question : undefined)
+    }
     setCommandOpen(open)
   }
   function openSettings() { close(false); setHistoryOpen(false); setSettings(true) }
@@ -156,9 +224,10 @@ export function DynamicWorkspace() {
   function clearPins() { stop(); save(clearWorkspacePins(current.current)) }
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && commandOpen && !window.document.querySelector('[role="listbox"][data-open]')) { event.preventDefault(); stop(); close(false); return }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); close(!commandOpen) }
     }
-    window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle)
+    window.addEventListener('keydown', handle, true); return () => window.removeEventListener('keydown', handle, true)
   })
   const latest = document.turns.at(-1)
   return <WorkspaceActionHost revision={document.revision} pending={pending} onGoalChange={async goal => { await build(undefined, goal) }}>
@@ -175,7 +244,7 @@ export function DynamicWorkspace() {
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}><DialogContent className="workspace-history-dialog"><DialogHeader><DialogTitle>History</DialogTitle><DialogDescription>Your workspace prompts and responses.</DialogDescription></DialogHeader><div className="min-h-0 overflow-y-auto pr-2">{document.turns.length ? <ol className="space-y-5">{[...document.turns].reverse().map(turn => <li key={turn.id} className="space-y-2 border-b pb-4"><p className="text-sm font-medium whitespace-pre-wrap">{turn.prompt}</p><div className="flex items-start gap-3"><OrloLogo size={18} /><p className="min-w-0 text-sm text-muted-foreground whitespace-pre-wrap">{turn.reply}</p></div><p className="text-xs text-muted-foreground">{({ pending: 'In progress', ready: 'Completed', error: 'Failed', cancelled: 'Cancelled', clarification: 'Needs clarification' })[turn.status]}</p></li>)}</ol> : <p className="py-8 text-center text-muted-foreground">No conversation history yet.</p>}</div></DialogContent></Dialog>
       <Dialog open={settings} onOpenChange={setSettings}><DialogContent><DialogHeader><DialogTitle>Calendar connection</DialogTitle><DialogDescription>Connect Google to read real events. Creating events requires additional permission and confirmation.</DialogDescription></DialogHeader><GoogleCalendarConnection /></DialogContent></Dialog>
       <Dialog open={commandOpen} onOpenChange={close}><DialogContent className="goal-command-dialog" showCloseButton={false}><DialogHeader className="sr-only"><DialogTitle>Change your workspace</DialogTitle><DialogDescription>Describe a goal or choose a view. Escape cancels and closes this window.</DialogDescription></DialogHeader>
-        {question ? <div className="space-y-3"><p>{question.question}</p>{question.choices.map((choice, index) => <Button key={choice.id ?? index} variant="outline" disabled={pending} onClick={() => { if (choice.label === 'Connect Google Calendar') { openSettings() } else void build(undefined, choice.id || choice.label === 'Use demo records' ? lastGoal.current : choice.label, choice.id, choice.label === 'Use demo records') }}>{choice.label}</Button>)}<Button variant="ghost" onClick={() => setQuestion(null)}>Write a different prompt</Button></div> : workflow.clarification ? <ClarificationForm question={workflow.clarification} pending={pending} onCancel={() => { stop(); close(false) }} onAnswer={answer => void build(answer)} /> : <form className="goal-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void build() }}><div className="goal-input-row"><OrloLogo size={20} /><label className="sr-only" htmlFor="workspace-goal">Describe the workspace you need</label><input id="workspace-goal" autoFocus value={goal} maxLength={4000} disabled={pending} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" /><Button type="button" size="icon" variant={speech.listening ? 'secondary' : 'ghost'} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} onClick={speech.toggle} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? 'Speak your goal' : 'Speech input is unavailable in this browser'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p></form>}
+        {staleQuestion ? <div className="space-y-3"><p>This question’s records or target changed.</p><Button onClick={() => { const original = current.current.continuation?.pending?.goal; setStaleQuestion(false); if (original) void build(undefined, original) }}>Refresh question</Button><Button variant="outline" onClick={() => { stop(); close(false) }}>Cancel</Button></div> : question ? <div className="space-y-3"><p>{question.question}</p>{question.choices.map((choice, index) => <Button key={choice.id ?? index} variant="outline" disabled={pending} onClick={() => { if (choice.label === 'Connect Google Calendar') { openSettings() } else void build(undefined, choice.id || choice.label === 'Use demo records' ? lastGoal.current : choice.label, choice.id, choice.label === 'Use demo records') }}>{choice.label}</Button>)}<Button variant="ghost" onClick={() => { stop(); setCommandOpen(true) }}>Write a different prompt</Button></div> : workflow.clarification ? <ClarificationForm question={workflow.clarification} pending={pending} onCancel={() => { stop(); close(false) }} onAnswer={answer => void build(answer)} /> : <form className="goal-form" onSubmit={(event: FormEvent) => { event.preventDefault(); void build() }}><div className="goal-input-row"><OrloLogo size={20} /><label className="sr-only" htmlFor="workspace-goal">Describe the workspace you need</label><input id="workspace-goal" autoFocus value={goal} maxLength={4000} disabled={pending} onChange={event => { speech.cancel(); setGoal(event.target.value) }} placeholder="Describe your workspace or a change…" /><Button type="button" size="icon" variant={speech.listening ? 'secondary' : 'ghost'} disabled={pending || !speech.supported || (!speech.listening && goal.length >= 4000)} onClick={speech.toggle} aria-label={speech.listening ? 'Stop speech input' : 'Speak your goal'} aria-pressed={speech.listening} title={speech.supported ? 'Speak your goal' : 'Speech input is unavailable in this browser'}>{speech.listening ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}</Button><Button type="submit" size="icon" disabled={pending || !goal.trim()} aria-label="Build workspace">{pending ? <LoaderCircle className="animate-spin" size={18} /> : <ArrowUp size={18} />}</Button></div><p className="px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{speech.listening ? 'Listening… speak your goal, then tap stop.' : speech.supported ? 'Type or speak using your browser’s speech service. Review before sending.' : 'Speech input is unavailable in this browser. Type your goal instead.'}</p></form>}
         {speech.error && <p className="goal-error" role="alert">{speech.error}</p>}
         <div className="command-hint"><span>{calendar.connection?.connected ? `Live calendar · ${calendar.timezone}` : `Demo date · ${DEMO_DATE} · Connect Google for real meetings`}</span><span>Esc to close</span></div>
       </DialogContent></Dialog>

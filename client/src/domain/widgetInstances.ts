@@ -65,6 +65,7 @@ function canonical(value: unknown): unknown {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)]))
   return value
 }
+export function sameBinding(left: WidgetBinding, right: WidgetBinding) { return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right)) }
 export function fingerprint(value: unknown) {
   let hash = 2166136261
   for (const c of JSON.stringify(canonical(value))) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619)
