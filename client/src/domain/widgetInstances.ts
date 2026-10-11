@@ -35,7 +35,7 @@ export const widgetViewStateSchema = z.strictObject({
   dateRange: z.object({ from: z.iso.date(), to: z.iso.date() }).refine(r => r.from <= r.to).optional(),
   taskView: z.enum(['list', 'kanban']).optional(), chartType: z.enum(['trend', 'comparison', 'allocation']).optional(),
   resourceQuery: z.string().max(160).optional(), recordQuery: z.string().max(160).optional(), issueStatus: z.enum(['open', 'closed']).optional(),
-  goal: z.string().max(4000).optional(),
+  goal: z.string().max(4000).optional(), externalPluginId: z.string().optional(), timerDurationMinutes: z.number().int().min(1).max(180).optional(), selectedTaskId: z.string().min(1).optional(),
 })
 export const widgetExplanationSchema = z.strictObject({ type: z.enum(widgetTypes), reason: z.string().max(5000), evidence: z.array(z.strictObject({ kind: z.string().min(1), id: z.string().min(1) })).max(20) })
 export type WidgetExplanation = z.infer<typeof widgetExplanationSchema>
@@ -76,7 +76,7 @@ export function widgetSelectionKey(instance: Pick<WidgetInstance, 'widgetType' |
   const filtersMatter = type === 'tasks' || (binding.kind === 'overdue' && ['context', 'metrics', 'recommendation'].includes(type))
   const calendar = ['calendar', 'timeline', 'availability', 'meetings'].includes(type) && (binding.kind === 'workspace' || binding.kind === 'google-calendar')
   const effectiveBinding = type === 'usage' && binding.kind === 'usage' ? { kind: 'usage-query', query: { clientId: binding.intent.clientId, projectId: binding.intent.projectId, dateRange: binding.intent.dateRange, segment: binding.intent.constraints?.segment } } : binding
-  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(type === 'resource-create' ? {formId:instance.instanceId} : {}), ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
+  return JSON.stringify(canonical({ type, binding: effectiveBinding, ...(type==='external-plugin'?{externalPluginId:viewState.externalPluginId}:{}), ...(type === 'resource-create' ? {formId:instance.instanceId} : {}), ...(filtersMatter ? { filters: viewState.taskFilters, owner: viewState.owner, statuses: viewState.taskStatuses } : {}), ...(calendar ? { date: viewState.selectedDate, range: viewState.dateRange, timezone: viewState.timezone, ...(type === 'calendar' ? { view: viewState.calendarView, category: viewState.calendarCategory } : {}) } : {}) }))
 }
 export function activeInstanceId(type: WidgetType, binding: WidgetBinding) { return `active:${type}:${fingerprint(binding)}` }
 export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[], kind: WidgetBinding['kind'] = 'workspace') {

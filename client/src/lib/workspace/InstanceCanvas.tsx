@@ -1,3 +1,6 @@
+import { DisabledExtension } from '@/extensions/DisabledExtension'
+import { isExtension } from '@/extensions/catalog'
+import { extensionService, pluginImportService } from '@/services'
 import { motion, useReducedMotion } from 'motion/react'
 import { GeneratedActionButtons } from './GeneratedActionButtons'
 import { useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react'
@@ -66,23 +69,25 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   }}><DisplayPreferencesContext.Provider value={{ preferences: { taskView: view.taskView ?? preferences.taskView, calendarView: view.calendarView ?? preferences.calendarView, calendarCategory: view.calendarCategory ?? preferences.calendarCategory }, update: patch => update(patch) }}><ComponentViewProvider plan={plan} onChange={change}>{scoped}</ComponentViewProvider></DisplayPreferencesContext.Provider></WorkspaceViewProvider></UnscopedWidget>
 }
 
-function InstanceCard({ instance, update, pageActions = false }: { pageActions?: boolean; instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+function InstanceCard({ instance, update, remove, pageActions = false }: { remove?:(id:string)=>void; pageActions?: boolean; instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+  useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getRevision, browserDatabase.getRevision)
   const calendar = useGoogleCalendar()
   const reducedMotion = useReducedMotion()
   const store = useMemo(() => createRecordStore(browserDatabase, () => loadPinnedRecords(browserDatabase, instance)), [instance])
   const records = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const Widget = registry[instance.widgetType].component
-  let content: ReactNode = instance.binding.kind === 'usage-query' ? <DataUsageExplorer boundQuery={instance.binding.query} /> : <Widget />
+  let content: ReactNode = instance.binding.kind === 'usage-query' ? <DataUsageExplorer boundQuery={instance.binding.query} /> : <Widget key={isExtension(instance.widgetType)?JSON.stringify([instance.binding,instance.viewState.timerDurationMinutes,instance.viewState.selectedTaskId,instance.viewState.externalPluginId]):undefined} />
   if (instance.binding.kind === 'google-calendar') content = calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId ? <GoogleBoundWidget instance={instance} update={update} /> : <div className="space-y-3"><p>This view belongs to its original Google account. Connect that account to continue.</p><GoogleCalendarConnection /></div>
   if (records.status !== 'found' || !loadActionScope(browserDatabase, instance.binding)) content = <p role="alert">This view’s original records are unavailable. Restore them or remove this view.</p>
+  if (isExtension(instance.widgetType) && (!extensionService.isWidgetEnabled(instance.widgetType) || instance.widgetType==='external-plugin' && !!instance.viewState.externalPluginId && !pluginImportService.getById(instance.viewState.externalPluginId)?.enabled)) content = <DisabledExtension id={instance.widgetType} remove={remove?()=>remove(instance.instanceId):undefined} />
   const label = records.status === 'found' ? records.value.label === instance.widgetType ? '' : records.value.label : instance.binding.kind === 'workspace' && !instance.binding.clientId && !instance.binding.projectId ? '' : instance.label
   return <motion.div layout={reducedMotion ? false : 'position'} transition={{ layout: { duration: 0.3, ease: 'easeOut' } }} className={`workspace-cell span-${instance.span} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300`} data-workspace-component={instance.widgetType} data-instance-id={instance.instanceId}>
     <p className="mb-2 text-xs text-muted-foreground" hidden={!label && !('pinId' in instance)}>{'pinId' in instance ? label ? 'Pinned · ' : 'Pinned' : ''}{label}</p>
     <InstanceHost instance={instance} update={patch => update({ ...instance, viewState: { ...instance.viewState, ...patch } })}>
-      <WidgetFrame id={instance.widgetType} pageActions={pageActions} instance={instance} recordsChanged={records.status === 'found' && !!instance.fingerprint && records.value.fingerprint !== instance.fingerprint}>{content}{instance.actions && (instance.binding.kind !== 'google-calendar' || calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId) && <GeneratedActionButtons buttons={instance.actions} />}</WidgetFrame>
+      <WidgetFrame id={instance.widgetType} pageActions={pageActions} instance={instance} recordsChanged={records.status === 'found' && !!instance.fingerprint && records.value.fingerprint !== instance.fingerprint}>{content}{extensionService.isWidgetEnabled(instance.widgetType) && instance.actions && (instance.binding.kind !== 'google-calendar' || calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId) && <GeneratedActionButtons buttons={instance.actions} />}</WidgetFrame>
     </InstanceHost>
   </motion.div>
 }
-export function InstanceCanvas({ instances, update, pageActionWidget }: { pageActionWidget?: WidgetType; instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
-  return <div className="workspace-grid">{instances.map(instance => <InstanceCard key={instance.instanceId} instance={instance} update={update} pageActions={instance.widgetType === pageActionWidget} />)}</div>
+export function InstanceCanvas({ instances, update, remove, pageActionWidget }: { remove?:(id:string)=>void; pageActionWidget?: WidgetType; instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+  return <div className="workspace-grid">{instances.map(instance => <InstanceCard key={instance.instanceId} instance={instance} update={update} remove={remove} pageActions={instance.widgetType === pageActionWidget} />)}</div>
 }

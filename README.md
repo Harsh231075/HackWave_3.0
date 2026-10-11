@@ -165,3 +165,17 @@ canonical content with their adaptive components and cannot be deleted independe
 Notes are stored locally; no cloud sync or multi-user collaboration is provided yet.
 
 Settings → Seed sample data installs two linked sample projects, each with eight tasks, ten local calendar events, ten notes (including a pinned note), four resources, four communications and three issues. Dates are relative to the day of seeding. Today includes meetings, focus blocks and a break with free gaps for scheduling; previous meetings have matching calendar events. Clearly labeled sample completion history populates activity and progress views. Web/mobile usage observations and release records support the investigation demo. Existing records must be explicitly reset before reseeding; Google Calendar data is never simulated.
+
+## Optional extensions
+
+Open `/plugins` to enable **Quick Timer**, **Voice Note**, or **Calculator**. All start OFF. Enabled extensions become available to the intent router and generated dashboard; disabled saved components retain their position with enable/remove controls.
+
+Quick Timer provides Start, Pause, Resume and Reset, optional task linking, and 1–180 minute sessions. Its saved end time survives navigation and reload. Disabling pauses it; enabling again does not resume automatically. Completed sessions are recorded once and do not mark tasks complete.
+
+Voice Note records on explicit user action, up to two minutes / 5 MB. Save creates a normal editable note with optional text and locally stored IndexedDB audio. Open that note in `/notes` to play it, including when the extension is OFF. There is no automatic transcription. Stopping, disabling or navigating releases the microphone; captured unsaved drafts stay in memory and can be saved, downloaded or discarded from the header. Save/download before reloading or closing the tab. Microphone access requires a supported browser on HTTPS or localhost.
+
+Code lives in `client/src/extensions/quick-timer` and `client/src/extensions/voice-note`. Settings, timer state/sessions and voice-note metadata use browserDatabase; only audio blobs use IndexedDB. Reset local data clears extension data and settings. `npm test` includes extension service tests; `npm run test:extensions` runs Chromium browser verification, with optional `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH` environment variables for an existing Playwright installation.
+
+Calculator is also available on `/plugins`, disabled by default. Enable it and use **Try it**, or ask the dashboard to “Show calculator”. It supports keyboard input, parentheses, arithmetic and percentages.
+
+The Plugins header includes **Import** for built external-plugin folders. Packages need an `orlo-plugin.json` manifest and an HTML entry page; local assets are embedded and the UI runs in an isolated iframe. Imported plugins start OFF, persist locally, and become available to the intent router when enabled. A working sample lives in `examples/plugins/mini-counter`. See [extension package format](client/src/extensions/README.md) for the manifest, supported assets and limits. React/TypeScript source projects need to be bundled first.

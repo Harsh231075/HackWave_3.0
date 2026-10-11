@@ -18,6 +18,8 @@
     "test:render": "node scripts/integration-render.mjs",
     "test:continuity": "node scripts/verify-continuity.mjs",
     "test:projects": "node scripts/verify-projects.mjs",
+    "test:plugin-import": "node scripts/verify-plugin-import.mjs",
+    "test:extensions": "node scripts/verify-extensions.mjs",
     "test:kanban": "node scripts/verify-kanban.mjs",
     "test:intent:live": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-intent-live.mjs"
   },

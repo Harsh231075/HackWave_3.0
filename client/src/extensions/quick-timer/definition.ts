@@ -1,0 +1,2 @@
+import type { ExtensionDefinition } from '../contracts.ts'
+export const quickTimerDefinition: ExtensionDefinition = { id: 'quick-timer', widgetId: 'quick-timer', title: 'Quick Timer', description: 'Time a focused work session, optionally linked to a task.', aiDescription: 'A user-controlled focus timer. Select for timed focused work. Configure 1–180 minutes and an optional existing task; never start it automatically.', supportedBindings: ['workspace'] }

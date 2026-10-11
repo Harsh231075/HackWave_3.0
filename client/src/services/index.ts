@@ -40,7 +40,7 @@ export const workspaceService = {
   save: (snapshot: import('../domain/types').DomainSnapshot) => { return browserDatabase.replaceRecords(snapshot) },
 }
 export const preferencesService = createPreferencesService(browserDatabase.storage)
-export const generationService = createGenerationService()
+export const generationService = createGenerationService(undefined,()=>extensionService.getSettings().enabled,()=>pluginImportService.list().filter(p=>p.enabled).map(p=>({id:p.id,name:p.name,description:p.description})))
 export const resourceService = createResourceService([], browserDatabase)
 
 export const taskService = createTaskService(browserDatabase, () => calendarDate())
@@ -116,3 +116,24 @@ export const projectSeedService = createProjectSeedService(browserDatabase)
 
 import { createNoteService } from './noteService'
 export const noteService = createNoteService(browserDatabase)
+
+import { createExtensionService } from '../extensions/extensionService'
+import { createTimerService } from '../extensions/quick-timer/timerService'
+import { createAudioStorage } from '../extensions/voice-note/audioStorage'
+import { createVoiceNoteService } from '../extensions/voice-note/voiceNoteService'
+import { createRecordingController } from '../extensions/voice-note/recordingController'
+export const extensionService = createExtensionService(browserDatabase)
+export const timerService = createTimerService(browserDatabase, extensionService)
+export const audioStorage = createAudioStorage()
+export const voiceNoteService = createVoiceNoteService(browserDatabase, audioStorage)
+export const recordingController = createRecordingController(browserDatabase, extensionService)
+let extensionEpoch = browserDatabase.getEpoch()
+browserDatabase.subscribe(() => {
+  if (extensionEpoch === browserDatabase.getEpoch()) return
+  extensionEpoch = browserDatabase.getEpoch()
+  recordingController.reset()
+  void audioStorage.clear().catch(error => recordingController.reportError(error instanceof Error ? error.message : 'Audio cleanup failed. Retry resetting local data.'))
+})
+
+import { createPluginImportService } from '../extensions/external/importService'
+export const pluginImportService=createPluginImportService(browserDatabase)

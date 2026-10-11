@@ -338,7 +338,7 @@
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
-      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"resource-create\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\", span: \"wide\" | \"narrow\" | \"full\")",
+      "signature": "WorkspaceWidget(id: \"metrics\" | \"tasks\" | \"timeline\" | \"meetings\" | \"recommendation\" | \"outline\" | \"resources\" | \"resource-create\" | \"context\" | \"calendar\" | \"availability\" | \"chart\" | \"activity\" | \"usage\" | \"communications\" | \"issues\" | \"quick-timer\" | \"voice-note\" | \"calculator\" | \"external-plugin\", span: \"wide\" | \"narrow\" | \"full\")",
       "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
     },
     "Workspace": {
@@ -569,7 +569,11 @@
         "activity: Local edits appear here to make changes understandable. Recorded local actions include timestamps; this is not a notification service.",
         "usage: Usage measurements and releases come from browserDatabase and are filtered by client, project, dates and segment. Comparisons are calculated from selected records; missing data is not zero and release timing does not establish causation.",
         "communications: Recent communications linked to the selected meeting and project.",
-        "issues: Open issues linked to the selected meeting and project."
+        "issues: Open issues linked to the selected meeting and project.",
+        "quick-timer: Time a focused work session linked to your project.",
+        "voice-note: Capture a spoken idea as a project note.",
+        "calculator: Calculate totals and arithmetic directly in your current view.",
+        "external-plugin: An imported tool selected for your goal."
       ]
     }
   ],
@@ -4829,7 +4833,11 @@
               "activity",
               "usage",
               "communications",
-              "issues"
+              "issues",
+              "quick-timer",
+              "voice-note",
+              "calculator",
+              "external-plugin"
             ]
           },
           "span": {
