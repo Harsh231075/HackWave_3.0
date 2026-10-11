@@ -1,3 +1,4 @@
+import type { ActionResult } from '../../domain/commands.ts'
 import type { NoteSnapshot } from '../../services/noteService.ts'
 import type { BrowserDatabase } from '../../services/browserDatabase.ts'
 import { createCollection } from '../../services/local/collection.ts'
@@ -25,7 +26,7 @@ export function createVoiceNoteService(database: BrowserDatabase, audio: AudioSt
         return result
       } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : 'Unable to save audio. Retry or download your recording.' } }
     },
-    async deleteNote(noteId:string,expected:NoteSnapshot){
+    async deleteNote(noteId:string,expected:NoteSnapshot): Promise<ActionResult<void> & { warning?: string }>{
       const record=records.list().find(r=>r.noteId===noteId)
       const result=database.transaction(()=>{if(record){const removed=records.delete(record.id);if(!removed.ok)return removed}return notes.delete(noteId,expected)})
       if(result.ok&&record){try{await audio.delete(record.audioId)}catch(error){return {ok:true as const,value:undefined,warning:error instanceof Error?error.message:'Audio cleanup failed. Reset local data to retry.'}}}
