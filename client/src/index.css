@@ -150,16 +150,16 @@
 
 .dynamic-workspace { height: 100dvh; width: 100%; overflow: hidden; }
 .productivity-response { display: grid; gap: 20px; min-width: 0; }
-.productivity-response .workspace-grid, .pinned-workspace .workspace-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
-.productivity-response .workspace-cell, .pinned-workspace .workspace-cell { min-width: 0; }
-.productivity-response .span-full, .pinned-workspace .span-full { grid-column: span 12; }
-.productivity-response .span-wide, .pinned-workspace .span-wide { grid-column: span 8; }
-.productivity-response .span-narrow, .pinned-workspace .span-narrow { grid-column: span 4; }
+.workspace-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+.workspace-grid > .workspace-cell { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.workspace-grid > .workspace-cell > section { flex: 1; height: auto; }
+.workspace-grid > .span-full { grid-column: span 12; }
+.workspace-grid > .span-wide { grid-column: span 8; }
+.workspace-grid > .span-narrow { grid-column: span 4; }
 @media (max-width: 900px) {
-  .productivity-response .span-wide, .productivity-response .span-narrow, .pinned-workspace .span-narrow { grid-column: span 12; }
+  .workspace-grid { gap: 16px; }
+  .workspace-grid > .span-wide, .workspace-grid > .span-narrow { grid-column: span 12; }
 }
-.pinned-workspace .workspace-cell { display: flex; flex-direction: column; overflow-wrap: anywhere; }
-.pinned-workspace .workspace-cell > section { flex: 1; height: auto; }
 .goal-workspace { min-height: 100dvh; background: #ffffff; color: #252936; }
 .goal-welcome { max-width: 760px; min-height: 100dvh; margin: auto; padding: 24px; display: flex; flex-direction: column; justify-content: center; }
 .goal-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 22px; line-height: 1.2; font-weight: 650; letter-spacing: -.5px; }
