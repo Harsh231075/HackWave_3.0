@@ -14,7 +14,7 @@ export const legacyDataKeys = [
   'gogpt-workspace-v1', 'orlo-browser-db-v1', 'gogpt-app-layout-v1', 'orlo-continuous-workspace-v1',
   'gogpt-workspace-layout-v1', 'gogpt-workspace-v1-layout', 'gogpt-workspace-v1-pins',
   'orlo-workspace-conversation-v1', 'orlo-live-calendar-layout-v1', 'orlo-layout-v1', 'orlo-layout-v3',
-  'task-view', 'calendar-view', 'calendar-category',
+  'task-view', 'calendar-view', 'calendar-category', 'orlo-mail-cache-v1',
 ]
 const collectionsSchema = z.strictObject({
   version: z.literal(2),

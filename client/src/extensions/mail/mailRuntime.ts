@@ -3,6 +3,7 @@ import { createMailService } from './mailService.ts'
 import { loadMailIdentity, requestMailToken } from './googleIdentity.ts'
 
 export const mailService = createMailService({
+  prepare: loadMailIdentity,
   htmlToText: mailPlainText,
   clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
   authorize: async (clientId, hint) => requestMailToken(await loadMailIdentity(), clientId, hint),

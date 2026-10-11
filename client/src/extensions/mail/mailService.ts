@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { createMailCache, MAIL_CACHE_TTL, MAIL_PAGE_SIZE, type MailListPage } from './mailCache.ts'
 import { base64url, buildMailMime, decodeBase64, emptyMailDraft, gmailDraftSchema, gmailMessageSchema, GMAIL_SCOPE, normalizeMail, type ComposeDraft, type MailAttachment, type MailFolder, type MailMessage } from '../../domain/mail.ts'
 import type { TokenResponse } from './googleIdentity.ts'
 
@@ -12,8 +13,10 @@ export interface MailSnapshot { configured: boolean; status: 'disconnected' | 'c
 interface MailOptions {
   clientId: string; transport?: typeof fetch; now?: () => number
   authorize: (clientId: string, hint?: string) => Promise<TokenResponse>
+  prepare?: () => Promise<unknown>
   revoke: (token: string) => Promise<void>
   htmlToText?: (html: string) => string
+  cache?: ReturnType<typeof createMailCache>
 }
 const listSchema = z.object({ messages: z.array(z.object({ id: z.string() })).default([]), nextPageToken: z.string().optional() })
 const draftListSchema = z.object({ drafts: z.array(z.object({ id: z.string() })).default([]), nextPageToken: z.string().optional() })
@@ -24,7 +27,10 @@ export function createMailService(options: MailOptions) {
   let token = '', expires = 0, epoch = 0, timer: ReturnType<typeof setTimeout> | undefined, autosave: ReturnType<typeof setTimeout> | undefined
   let snapshot: MailSnapshot = { configured: !!options.clientId, status: 'disconnected', error: '', editor: null, revision: 0 }
   const listeners = new Set<() => void>(), requests = new Set<AbortController>()
-  const messages = new Map<string, MailMessage>()
+  const messages = new Map<string, { message: MailMessage; savedAt: number }>()
+  const cache = options.cache ?? createMailCache(undefined, now)
+  const listRequests = new Map<string, Promise<MailListPage>>()
+  let cacheRevision = 0
   let saving: Promise<void> | undefined, sending: Promise<void> | undefined, connecting: Promise<void> | undefined
   function publish(patch: Partial<MailSnapshot>) { snapshot = { ...snapshot, ...patch }; listeners.forEach(fn => fn()) }
   function editorPatch(patch: Partial<MailEditor>) { if (snapshot.editor) publish({ editor: { ...snapshot.editor, ...patch } }) }
@@ -54,7 +60,7 @@ export function createMailService(options: MailOptions) {
       throw new MailError(502, 'Gmail request failed. Check your connection.', !read)
     } finally { clearTimeout(timeout); requests.delete(controller) }
   }
-  const changed = () => { messages.clear(); publish({ revision: snapshot.revision + 1 }) }
+  const changed = () => { cacheRevision++; cache.clear(); messages.clear(); publish({ revision: snapshot.revision + 1 }) }
   function scheduleSave() {
     clearTimeout(autosave)
     if (snapshot.editor && snapshot.status === 'connected' && snapshot.editor.status === 'unsaved') autosave = setTimeout(() => { void saveDraft().catch(() => { /* saveDraft preserves the editor and records its own error. */ }) }, 1000)
@@ -88,6 +94,7 @@ export function createMailService(options: MailOptions) {
     return saving
   }
   return {
+    prepare: async () => { await options.prepare?.() },
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     getSnapshot: () => snapshot,
     hasUnsaved: () => !!snapshot.editor && (snapshot.editor.version !== snapshot.editor.savedVersion || ['saving', 'sending', 'uncertain'].includes(snapshot.editor.status)),
@@ -107,6 +114,7 @@ export function createMailService(options: MailOptions) {
         if (previous.accountId && previous.accountId !== profile.emailAddress.toLowerCase() && previous.editor) throw new MailError(409, 'Save or discard the original account’s draft before switching accounts.')
         clearTimeout(timer); cancelRequests()
         const accountId = profile.emailAddress.toLowerCase()
+        if (previous.accountId && previous.accountId !== accountId) cache.clear()
         publish({ status: 'connected', accountId, email: profile.emailAddress, error: '', selectedId: previous.accountId === accountId ? previous.selectedId : undefined, editor: previous.accountId && previous.accountId !== accountId ? null : previous.editor, revision: snapshot.revision + 1 })
         timer = setTimeout(expire, Math.max(0, expires - now() - 5000)); scheduleSave()
       })().catch(error => {
@@ -117,31 +125,58 @@ export function createMailService(options: MailOptions) {
     },
     disconnect(force = false) {
       if (!force) ensureSafeClose()
+      cacheRevision++; cache.clear()
       clearTimeout(timer); clearTimeout(autosave); cancelRequests(); token = ''; expires = 0
       publish({ status: 'disconnected', accountId: undefined, email: undefined, selectedId: undefined, error: '', editor: null, revision: snapshot.revision + 1 })
     },
     async revoke() { ensureSafeClose(); authorized(); await options.revoke(token); this.disconnect() },
     refresh: changed,
     selectMessage: (selectedId: string) => publish({ selectedId }),
-    async listMessages(folder: MailFolder, query = '', pageToken = '', signal?: AbortSignal) {
-      if (folder === 'Drafts') return this.listDrafts(query, pageToken, signal)
-      const data = listSchema.parse(await api('messages?' + new URLSearchParams({ maxResults: '25', q: folderQuery[folder] + (query ? ' (' + query + ')' : ''), ...(pageToken ? { pageToken } : {}), ...(folder === 'Trash' ? { includeSpamTrash: 'true' } : {}) }), { signal }))
-      const result: MailMessage[] = []
-      for (let index = 0; index < data.messages.length; index += 5) {
-        const batch = await Promise.all(data.messages.slice(index, index + 5).map(async item => normalizeMail(gmailMessageSchema.parse(await api('messages/' + encoded(item.id) + '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date', { signal })))))
-        result.push(...batch)
+    async listMessages(folder: MailFolder, query = '', pageToken = '', signal?: AbortSignal): Promise<MailListPage> {
+      authorized(); signal?.throwIfAborted()
+      const accountId = snapshot.accountId!, requestEpoch = epoch, revision = cacheRevision
+      const cached = cache.get(accountId, folder, query, pageToken)
+      if (cached) return cached
+      const key = JSON.stringify([accountId, folder, query, pageToken, requestEpoch, revision])
+      let pending = listRequests.get(key)
+      if (!pending) {
+        pending = (async () => {
+          let result: MailListPage
+          if (folder === 'Drafts') {
+            const data = draftListSchema.parse(await api('drafts?' + new URLSearchParams({ maxResults: String(MAIL_PAGE_SIZE), ...(query ? { q: query } : {}), ...(pageToken ? { pageToken } : {}) })))
+            const rows = await Promise.all(data.drafts.slice(0, MAIL_PAGE_SIZE).map(async item => {
+              const draft = gmailDraftSchema.parse(await api('drafts/' + encoded(item.id) + '?format=metadata'))
+              return { message: normalizeMail(draft.message), draftId: draft.id }
+            }))
+            result = { messages: rows, nextPageToken: data.nextPageToken }
+          } else {
+            const data = listSchema.parse(await api('messages?' + new URLSearchParams({ maxResults: String(MAIL_PAGE_SIZE), q: folderQuery[folder] + (query ? ' (' + query + ')' : ''), ...(pageToken ? { pageToken } : {}), ...(folder === 'Trash' ? { includeSpamTrash: 'true' } : {}) })))
+            const rows = await Promise.all(data.messages.slice(0, MAIL_PAGE_SIZE).map(async item => ({ message: normalizeMail(gmailMessageSchema.parse(await api('messages/' + encoded(item.id) + '?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date'))) })))
+            result = { messages: rows, nextPageToken: data.nextPageToken }
+          }
+          if (requestEpoch !== epoch || revision !== cacheRevision) throw new MailError(409, 'Mail changed while loading. Refresh this view.')
+          cache.set(accountId, folder, query, pageToken, result)
+          return result
+        })().finally(() => { listRequests.delete(key) })
+        listRequests.set(key, pending)
       }
-      return { messages: result.map(message => ({ message, draftId: undefined as string | undefined })), nextPageToken: data.nextPageToken }
+      // Shared list requests survive one widget unmounting; cancelled callers never receive rows.
+      const result = signal ? await new Promise<MailListPage>((resolve, reject) => {
+        const cancelled = () => reject(new MailError(499, 'Gmail request failed: this view was cancelled.'))
+        signal.addEventListener('abort', cancelled, { once: true })
+        if (signal.aborted) cancelled()
+        pending!.then(resolve, reject).finally(() => signal.removeEventListener('abort', cancelled))
+      }) : await pending
+      signal?.throwIfAborted()
+      return structuredClone(result)
     },
-    async listDrafts(query = '', pageToken = '', signal?: AbortSignal) {
-      const data = draftListSchema.parse(await api('drafts?' + new URLSearchParams({ maxResults: '25', ...(query ? { q: query } : {}), ...(pageToken ? { pageToken } : {}) }), { signal }))
-      const result: { message: MailMessage; draftId: string | undefined }[] = []
-      for (let index = 0; index < data.drafts.length; index += 5) result.push(...await Promise.all(data.drafts.slice(index, index + 5).map(async item => { const draft = gmailDraftSchema.parse(await api('drafts/' + encoded(item.id) + '?format=metadata', { signal })); return { message: normalizeMail(draft.message), draftId: draft.id } })))
-      return { messages: result, nextPageToken: data.nextPageToken }
-    },
+    async listDrafts(query = '', pageToken = '', signal?: AbortSignal) { return this.listMessages('Drafts', query, pageToken, signal) },
     async getMessage(id: string, signal?: AbortSignal) {
-      if (messages.has(id)) { authorized(); return messages.get(id)! }
-      const requestEpoch = epoch
+      authorized(); signal?.throwIfAborted()
+      const cached = messages.get(id)
+      if (cached && now() - cached.savedAt < MAIL_CACHE_TTL) return structuredClone(cached.message)
+      messages.delete(id)
+      const requestEpoch = epoch, revision = cacheRevision
       const raw = gmailMessageSchema.parse(await api('messages/' + encoded(id) + '?format=full', { signal }))
       // Gmail may externalize large text bodies as attachments, too.
       async function hydrate(part: NonNullable<typeof raw.payload>) {
@@ -153,8 +188,8 @@ export function createMailService(options: MailOptions) {
       }
       if (raw.payload) await hydrate(raw.payload)
       const message = normalizeMail(raw)
-      if (requestEpoch !== epoch) throw new MailError(409, 'Mail connection changed.')
-      messages.set(id, message); if (messages.size > 50) messages.delete(messages.keys().next().value!); return message
+      if (requestEpoch !== epoch || revision !== cacheRevision) throw new MailError(409, 'Mail changed while loading. Refresh this view.')
+      messages.set(id, { message, savedAt: now() }); if (messages.size > 50) messages.delete(messages.keys().next().value!); return structuredClone(message)
     },
     async attachmentBytes(messageId: string, attachment: MailAttachment) {
       authorized()

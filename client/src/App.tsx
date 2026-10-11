@@ -1,4 +1,4 @@
-import { MailPage, MailRuntime } from '@/extensions/mail/MailWidgets'
+import { MailRuntime } from '@/extensions/mail/MailWidgets'
 import { LocalDataGate } from '@/components/feedback/LocalDataGate'
 import { useSyncExternalStore } from 'react'
 import { browserDatabase } from '@/services'
@@ -29,7 +29,6 @@ function App() {
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
-            <Route path="/mail" element={<MailPage />} />
             <Route path="/plugins" element={<PluginsPage />} />
             <Route path="/notes" element={<NotesPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
