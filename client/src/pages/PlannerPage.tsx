@@ -75,7 +75,7 @@ export function PlannerPage() {
     setSaving(true); setSchedulingError('')
     try {
       const result = await scheduling().schedule(task,selectedDate,slot,timezone,()=>current.current.mounted && current.current.date===selectedDate && current.current.task===task)
-      notify(`Focus scheduled for "${task.title}" at ${result.start}–${result.end}.`)
+      notify(`Focus scheduled for "${task.title}" at ${result.start}–${result.end}.`,'success')
       setSchedulingTask(null); setSelectedSlot(null)
     } catch (error) { if (current.current.mounted) {setSchedulingError(error instanceof Error ? error.message : 'Unable to verify availability.'); google.refreshEvents()} }
     finally { if(current.current.mounted)setSaving(false) }

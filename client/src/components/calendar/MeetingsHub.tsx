@@ -66,7 +66,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
       workspace.notify('message' in result && result.message ? result.message : 'Unable to cancel meeting.')
       return
     }
-    workspace.notify(`Meeting "${event.title}" cancelled. Undo can restore it.`)
+    workspace.notify(`Meeting "${event.title}" cancelled. Undo can restore it.`,'success')
     setCancelingLocal(null)
   }
 

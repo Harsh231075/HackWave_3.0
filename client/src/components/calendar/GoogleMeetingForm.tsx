@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast'
 import { isServiceError } from '@/services/serviceErrors'
 import { useEffect, useState } from 'react'
 import { CalendarDays, CheckCircle2, Clock3 } from 'lucide-react'
@@ -70,9 +71,9 @@ export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initi
     setBusy(true); setError('')
     try {
       const result = await googleCalendarService.confirm(preview.id)
-      if (result.state !== 'created' || !result.event) { setUncertain(true); setError('The meeting is still being created. Check again; another event will not be added.'); return }
-      setCreated(result.event); setUncertain(false); sessionStorage.removeItem('orlo-event-preview'); calendar.refreshEvents(); onCreated(result.event)
-    } catch (failure) { setUncertain(!isServiceError(failure) || ![400, 403, 404, 409].includes(failure.status ?? 0)); setError(failure instanceof Error ? failure.message : 'Creation status is uncertain. Check again before creating another meeting.') }
+      if (result.state !== 'created' || !result.event) { setUncertain(true); setError('The meeting is still being created. Check again; another event will not be added.'); toast('Meeting creation is still pending. Check status before retrying.'); return }
+      toast.success('Meeting created in Google Calendar.');setCreated(result.event); setUncertain(false); sessionStorage.removeItem('orlo-event-preview'); calendar.refreshEvents(); onCreated(result.event)
+    } catch (failure) { setUncertain(!isServiceError(failure) || ![400, 403, 404, 409].includes(failure.status ?? 0)); const message=failure instanceof Error ? failure.message : 'Creation status is uncertain. Check again before creating another meeting.';setError(message);toast.error(message) }
     finally { setBusy(false) }
   }
   return <section aria-label="Meeting scheduling" className="space-y-5 rounded-2xl border border-border bg-card p-5 sm:p-6"><header><h3 className="text-lg font-semibold">{created ? 'Meeting created' : preview ? 'Review your meeting' : 'Arrange a meeting'}</h3><p className="mt-1 text-sm text-muted-foreground">{created ? 'Saved in your Google Calendar.' : 'Choose the details and review them before sending invitations.'}</p></header>

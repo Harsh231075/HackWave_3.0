@@ -4,7 +4,7 @@ import type { ActionResult, EventInput, TaskInput } from '@/domain/commands'
 import type { Event, Filters, Task, WorkspaceState } from '@/domain/types'
 import { browserDatabase, draftService, eventService, recommendationService, taskService, localDataService } from '@/services'
 interface WorkspaceContextValue {
-  state: WorkspaceState; notify: (message: string) => void; notice: string
+  state: WorkspaceState; notify: (message: string, tone?: 'success' | 'error' | 'info') => void; notice: string; noticeVersion: number; noticeTone: 'success' | 'error' | 'info'
   draftBuffers: Record<string, string>; editDraft: (key: string, value: string) => void
   selectedDate: string; selectDate: (date: string) => void; resetDemo: () => void
   saveTask: (input: TaskInput) => ActionResult<Task>
@@ -24,7 +24,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useSyncExternalStore(browserDatabase.subscribe,browserDatabase.getRevision,browserDatabase.getRevision)
   const state = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getState, browserDatabase.getState)
   const [notice, setNotice] = useState('')
-  const notify = (message: string) => setNotice(message && browserDatabase.getPersistenceResult().status !== 'saved' ? 'Device storage is unavailable. Changes will last until reload.' : message)
+  const [noticeVersion, setNoticeVersion] = useState(0)
+  const [noticeTone, setNoticeTone] = useState<'success' | 'error' | 'info'>('info')
+  const notify = (message: string, tone: 'success' | 'error' | 'info' = 'info') => { const temporary=!!message && browserDatabase.getPersistenceResult().status !== 'saved';setNotice(temporary ? 'Device storage is unavailable. Changes will last until reload.' : message);setNoticeTone(temporary?'info':tone);setNoticeVersion(version => version + 1) }
   const run = <T,>(operation: () => T): T => {
     const result = operation()
     if (browserDatabase.getPersistenceResult().status !== 'saved') notify('Device storage is unavailable. Changes will last until reload.')
@@ -34,8 +36,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedDate, selectDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const editDraft = (key: string, value: string) => setDraftBuffers(current => ({ ...current, [key]: value }))
   const resetDemo = () => { void localDataService.reset().then(result=>{setDraftBuffers({});selectDate(format(new Date(),'yyyy-MM-dd'));notify(result.ok?'Local data cleared.':result.message??'Reset failed. Retry.')}) }
-  return <WorkspaceContext.Provider value={{ state, notice, notify, draftBuffers, editDraft, selectedDate, selectDate, resetDemo,
-    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask:id=>run(()=>taskService.toggle(id)),
+  return <WorkspaceContext.Provider value={{ state, notice, noticeVersion, noticeTone, notify, draftBuffers, editDraft, selectedDate, selectDate, resetDemo,
+    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask:id=>{const result=run(()=>taskService.toggle(id));notify(result.ok ? result.value.status==='completed'?'Task completed.':'Task reopened.' : result.message,result.ok?'success':'error');return result},
     saveEvent: input => run(() => eventService.save(input)),deleteEvent:id=>run(()=>eventService.delete(id)),
     saveDraft: (key, value) => run(() => draftService.save(key, value)), addFocusTime: id => run(() => recommendationService.accept(id)),
     restoreRecommendation:id=>run(()=>browserDatabase.dispatch({type:'restore-dismiss',id})),

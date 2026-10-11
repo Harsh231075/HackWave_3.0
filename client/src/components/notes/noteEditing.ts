@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast'
 import { browserDatabase, noteService } from '@/services'
 import type { Note, NoteSnapshot } from '@/services/noteService'
 interface Buffer { value: NoteSnapshot; baseline: NoteSnapshot; error: string; dirty: boolean; timer?: ReturnType<typeof setTimeout>; epoch: number }
@@ -15,8 +16,8 @@ export function flushNote(id: string) {
   if (buffer.epoch !== browserDatabase.getEpoch()) { buffers.delete(id); emit(); return }
   if (!buffer.dirty || buffer.error) return
   const result = noteService.update(id, { ...buffer.value, title: buffer.value.title.trim() || 'Untitled note' }, buffer.baseline)
-  if (result.ok) buffers.delete(id)
-  else buffer.error = result.message
+  if (result.ok) { buffers.delete(id); toast.success('Note updated.', { id: 'note-save', duration: 2500 }) }
+  else { buffer.error = result.message; toast.error(result.message, { id: 'note-save' }) }
   emit()
 }
 export function editNote(note: Note, patch: Partial<NoteSnapshot>) {

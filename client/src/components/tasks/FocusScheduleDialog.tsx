@@ -17,6 +17,6 @@ export function FocusScheduleDialog({ task, origin, initialDate, onClose, isCurr
     if (!isCurrent() || !checked.ok) { setError(!checked.ok ? checked.message : 'This view changed. Reopen scheduling.'); return }
     const result = focusSchedulingService.schedule({ taskId: task.id, date, start, binding: origin.binding, expectedDuration: task.duration })
     if (!result.ok) { setError(result.message); return }
-    notify(`Focus saved: ${result.value.date} ${result.value.start}–${result.value.end}.`); onClose()
+    notify(`Focus saved: ${result.value.date} ${result.value.start}–${result.value.end}.`,'success'); onClose()
   }}>Confirm focus time</Button></DialogContent></Dialog>
 }

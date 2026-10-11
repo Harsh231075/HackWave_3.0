@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Download, Mic, Square } from 'lucide-react'
 import { browserDatabase, extensionService, recordingController, voiceNoteService } from '@/services'
@@ -25,9 +26,12 @@ export function VoiceNote() {
   async function save() {
     const draft = recordingController.getSnapshot().draft; if (!draft || saving) return
     setSaving(true); setError('')
-    const result = await voiceNoteService.save(draft.blob, draft.durationMs, draft.title, draft.text)
-    if (result.ok) recordingController.saved(draft); else setError(result.message)
-    setSaving(false)
+    try {
+      const result = await voiceNoteService.save(draft.blob, draft.durationMs, draft.title, draft.text)
+      if (result.ok) { recordingController.saved(draft); toast.success('Voice note saved.') }
+      else { setError(result.message); toast.error(result.message) }
+    } catch (failure) { const message=failure instanceof Error?failure.message:'Unable to save voice note.';setError(message);toast.error(message) }
+    finally { setSaving(false) }
   }
   return <div className="space-y-4" aria-label="Voice Note"><div className="flex flex-wrap gap-2">{state.status === 'idle' ? <Button disabled={!enabled || !!state.draft || saving} onClick={() => void recordingController.start()}><Mic size={14}/>Record</Button> : <Button variant="outline" disabled={state.status === 'stopping'} onClick={recordingController.stop}><Square size={14}/>{state.status === 'requesting' ? 'Cancel microphone request' : 'Stop recording'}</Button>}</div><p role="status" className="text-xs text-muted-foreground">{state.status === 'recording' ? 'Recording · up to 2 minutes' : state.status === 'requesting' ? 'Waiting for microphone permission…' : state.status === 'stopping' ? 'Finishing recording…' : 'Audio stays on this device. No automatic transcription.'}</p>
   {state.draft && <div className="space-y-3"><AudioPreview blob={state.draft.blob}/><Input disabled={saving} aria-label="Voice note title" placeholder="Title" maxLength={160} value={state.draft.title} onChange={event => recordingController.updateDraft({ title: event.target.value })}/><Textarea disabled={saving} aria-label="Voice note text" placeholder="Optional text or transcript" maxLength={5000} value={state.draft.text} onChange={event => recordingController.updateDraft({ text: event.target.value })}/><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save voice note'}</Button><Button variant="outline" disabled={saving} onClick={recordingController.discard}>Discard</Button><Button variant="outline" onClick={() => { const draft = recordingController.getSnapshot().draft; if (!draft) return; const url = URL.createObjectURL(draft.blob), link = document.createElement('a'); link.href = url; link.download = `voice-note.${draft.blob.type.includes('mp4') ? 'm4a' : draft.blob.type.includes('ogg') ? 'ogg' : 'webm'}`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000) }}><Download size={14}/>Download</Button></div></div>}

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, LoaderCircle, Mail } from 'lucide-react'
@@ -192,7 +193,7 @@ function SavedDraftPicker({ disabled, onSelected }: { disabled: boolean; onSelec
 }
 export function MailComposer() {
   const state = useMail(), editor = state.editor, [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
-  async function run(operation: () => Promise<unknown> | void) { setBusy(true); setError(''); try { await operation() } catch (error) { setError(messageOf(error)) } finally { setBusy(false) } }
+  async function run(operation: () => Promise<unknown> | void) { setBusy(true); setError(''); try { await operation() } catch (error) { const message=messageOf(error);setError(message);toast.error(message,{id:'mail-action'}) } finally { setBusy(false) } }
   const [showCc, setShowCc] = useState(false), [showBcc, setShowBcc] = useState(false)
   const emptyDraft = useMemo(() => emptyMailDraft(), [])
   const draft = editor?.draft ?? emptyDraft
@@ -232,11 +233,11 @@ export function MailComposer() {
       }}/></label>
       <ul>{draft.attachments.map((attachment, index) => <li key={index} className="flex items-center justify-between gap-2 text-sm"><span>{attachment.name}</span><Button variant="ghost" size="sm" disabled={locked} aria-label={`Remove ${attachment.name}`} onClick={() => edit({ attachments: draft.attachments.filter((_, i) => i !== index) })}>Remove</Button></li>)}</ul>
       {editor && <><p role="status" className="text-sm text-muted-foreground">{editor.status === 'saving' ? 'Saving…' : editor.status === 'sending' ? 'Sending…' : editor.status === 'saved' ? 'Saved in Gmail' : editor.status === 'uncertain' ? 'Check Sent before retrying' : 'Unsaved edits · kept in this tab'}</p>
-      <div className="flex flex-wrap gap-2"><Button disabled={locked || state.status !== 'connected'} onClick={() => void run(async () => { await mailService.sendDraft(); resetRecipients(); setNotice('Sent.') })}>Send</Button><Button variant="outline" disabled={locked || state.status !== 'connected'} onClick={() => void run(() => mailService.saveDraft())}>Save draft</Button>
-        {editor.error.includes('changed in Gmail') && <Button variant="outline" disabled={locked} onClick={() => void run(() => mailService.saveAsNew())}>Save as new draft</Button>}
+      <div className="flex flex-wrap gap-2"><Button disabled={locked || state.status !== 'connected'} onClick={() => void run(async () => { await mailService.sendDraft(); resetRecipients(); setNotice('Sent.');toast.success('Email sent.',{id:'mail-action'}) })}>Send</Button><Button variant="outline" disabled={locked || state.status !== 'connected'} onClick={() => void run(async () => { await mailService.saveDraft();toast.success('Draft saved in Gmail.',{id:'mail-action'}) })}>Save draft</Button>
+        {editor.error.includes('changed in Gmail') && <Button variant="outline" disabled={locked} onClick={() => void run(async () => { await mailService.saveAsNew();toast.success('New draft saved in Gmail.',{id:'mail-action'}) })}>Save as new draft</Button>}
         <Button variant="outline" disabled={busy || editor.status === 'sending' || editor.status === 'saving' || editor.status === 'uncertain'} onClick={() => void run(() => close())}>Close</Button>
         <Button variant="ghost" disabled={busy || editor.status === 'sending' || editor.status === 'saving'} onClick={() => { if (window.confirm(editor.status === 'uncertain' ? 'Have you checked Sent? Closing this editor does not undo a possible send.' : 'Discard unsaved edits? Any previously saved Gmail draft remains.')) void run(() => close(true)) }}>Discard unsaved edits</Button>
-        {editor.id && editor.status !== 'uncertain' && <Button variant="ghost" disabled={locked || state.status !== 'connected' || editor.status === 'saving'} onClick={() => { if (window.confirm('Delete this saved Gmail draft?')) void run(async () => { await mailService.deleteDraft(); resetRecipients() }) }}>Delete Gmail draft</Button>}
+        {editor.id && editor.status !== 'uncertain' && <Button variant="ghost" disabled={locked || state.status !== 'connected' || editor.status === 'saving'} onClick={() => { if (window.confirm('Delete this saved Gmail draft?')) void run(async () => { await mailService.deleteDraft(); resetRecipients();toast.success('Gmail draft deleted.',{id:'mail-action'}) }) }}>Delete Gmail draft</Button>}
       </div>
     </>}
     {!editor && <div className="flex gap-2"><Button disabled>Send</Button><Button variant="outline" disabled>Save draft</Button></div>}
