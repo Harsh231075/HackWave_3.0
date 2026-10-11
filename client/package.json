@@ -22,6 +22,7 @@
     "test:extensions": "node scripts/verify-extensions.mjs",
     "test:kanban": "node scripts/verify-kanban.mjs",
     "test:intent:live": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-intent-live.mjs",
+    "test:organizing": "node scripts/verify-organizing.mjs",
     "test:mail": "node scripts/verify-mail.mjs"
   },
   "dependencies": {
