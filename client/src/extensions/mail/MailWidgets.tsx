@@ -17,7 +17,7 @@ import { mailDocument, mailPlainText } from './safeMail'
 const inputClass = 'w-full rounded-md border bg-background px-3 py-2 text-sm'
 
 function messageOf(error: unknown) { return error instanceof Error ? error.message : 'Mail could not complete this operation.' }
-export function MailConnection() {
+export function MailConnection({ compact = false }: { compact?: boolean }) {
   const state = useMail(), [error, setError] = useState(''), [ready, setReady] = useState(false)
   useEffect(() => {
     if (!state.configured) return
@@ -27,11 +27,11 @@ export function MailConnection() {
   }, [state.configured])
   async function run(operation: () => Promise<unknown> | void) { setError(''); try { await operation() } catch (error) { setError(messageOf(error)) } }
   return <section className="space-y-2" aria-label="Gmail connection">
-    {!state.configured ? <p>Configure <code>VITE_GOOGLE_CLIENT_ID</code> to connect Gmail. <a className="underline" href="https://developers.google.com/workspace/gmail/api/quickstart/js" target="_blank" rel="noreferrer">Google setup guide</a></p> : <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background p-3">
+    {!state.configured ? <p>Configure <code>VITE_GOOGLE_CLIENT_ID</code> to connect Gmail. <a className="underline" href="https://developers.google.com/workspace/gmail/api/quickstart/js" target="_blank" rel="noreferrer">Google setup guide</a></p> : <div className={compact ? "flex flex-wrap items-center gap-2 border-t border-border pt-3" : "flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background p-3"}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Mail className="size-4" aria-hidden="true" /></div>
+        {!compact && <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Mail className="size-4" aria-hidden="true" /></div>}
         <div className="min-w-0">
-          <p className="text-sm font-medium">Gmail</p>
+          {!compact && <p className="text-sm font-medium">Gmail</p>}
           <p className="break-all text-xs text-muted-foreground" role="status">{state.email ?? 'Not connected'}{state.status === 'expired' ? ' · Access expired' : ''}</p>
         </div>
       </div>

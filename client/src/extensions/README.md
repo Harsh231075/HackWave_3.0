@@ -27,3 +27,7 @@ Installed HTML, metadata and enabled state are stored in browserDatabase. Import
 Calculator is a built-in component with operator precedence, parentheses, unary signs, decimals, percentages and keyboard input. `%` divides a value by 100 (`200 × 10% = 20`). It parses arithmetic rather than executing JavaScript.
 
 Verification: `npm test`, `npm run test:plugin-import`, and `npm run test:extensions`. Browser scripts accept `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH` for an existing Playwright/Chromium installation.
+
+## Card icons
+
+Each built-in extension owns a `metadata.json` with an `iconSvg` string. Its definition exposes that icon through the extension catalog, and the Plugins page renders it as an SVG image. Stopwatch and Whiteboard keep their coming-soon card metadata in their own folders. Imported plugins currently use the external extension’s default icon. Change an icon in its metadata file instead of adding plugin-specific icon conditions to the page.
