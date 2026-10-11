@@ -334,7 +334,7 @@
       "description": "A grid or carousel of photo-first cards: a full-bleed background image with a tag on top and a bold text panel at the bottom; an optional action makes every card clickable."
     },
     "Card": {
-      "signature": "Card(children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock | ListBlock | FollowUpBlock | SectionBlock | Tabs | Carousel | Workspace)[], sources?: {url?: string, title: string, sourceName: string}[])",
+      "signature": "Card(children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock | ListBlock | FollowUpBlock | SectionBlock | Tabs | Carousel | Workspace | WorkspaceAction)[], sources?: {url?: string, title: string, sourceName: string}[])",
       "description": "Response root. Combine explanatory content, questions, and a Workspace canvas of relevant productivity widgets."
     },
     "WorkspaceWidget": {
@@ -344,6 +344,10 @@
     "Workspace": {
       "signature": "Workspace(children: WorkspaceWidget[])",
       "description": "The productivity canvas root. Arrange only approved WorkspaceWidget children; never invent records or task counts."
+    },
+    "WorkspaceAction": {
+      "signature": "WorkspaceAction(label: string, action: {type: \"task.edit\", taskId: string} | {type: \"draft.edit\"} | {type: \"focus.schedule\", taskId: string, date?: string} | {type: \"goal.change\", goal: string})",
+      "description": "Working application button. action is task.edit {taskId}, draft.edit {}, focus.schedule {taskId,date?}, or goal.change {goal}. Scope is owned by the application. Editors require user confirmation."
     }
   },
   "componentGroups": [
@@ -546,7 +550,8 @@
       "name": "Productivity",
       "components": [
         "Workspace",
-        "WorkspaceWidget"
+        "WorkspaceWidget",
+        "WorkspaceAction"
       ],
       "notes": [
         "metrics: Counts come from the tasks and focus sessions in your workspace.",
@@ -828,6 +833,9 @@
       },
       "Workspace": {
         "$ref": "#/$defs/Workspace"
+      },
+      "WorkspaceAction": {
+        "$ref": "#/$defs/WorkspaceAction"
       }
     },
     "required": [
@@ -916,7 +924,8 @@
       "VisualCardBlock",
       "Card",
       "WorkspaceWidget",
-      "Workspace"
+      "Workspace",
+      "WorkspaceAction"
     ],
     "additionalProperties": false,
     "$defs": {
@@ -4744,6 +4753,9 @@
                 },
                 {
                   "$ref": "#/$defs/Workspace"
+                },
+                {
+                  "$ref": "#/$defs/WorkspaceAction"
                 }
               ]
             }
@@ -4782,7 +4794,7 @@
         "properties": {
           "children": {
             "minItems": 1,
-            "maxItems": 15,
+            "maxItems": 14,
             "type": "array",
             "items": {
               "$ref": "#/$defs/WorkspaceWidget"
@@ -4833,6 +4845,101 @@
         ],
         "additionalProperties": false,
         "description": "An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records."
+      },
+      "WorkspaceAction": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "task.edit"
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "type",
+                  "taskId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "draft.edit"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "focus.schedule"
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "taskId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "goal.change"
+                  },
+                  "goal": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "type",
+                  "goal"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "action"
+        ],
+        "additionalProperties": false,
+        "description": "Working application button. action is task.edit {taskId}, draft.edit {}, focus.schedule {taskId,date?}, or goal.change {goal}. Scope is owned by the application. Editors require user confirmation."
       }
     }
   }

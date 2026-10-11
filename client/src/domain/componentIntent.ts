@@ -1,4 +1,5 @@
-import { managementSchema, localManagement, destructiveGoal } from './workspaceManagement.ts'
+import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
+import { managementSchema, localManagement, destructiveGoal, recordMutationGoal } from './workspaceManagement.ts'
 import { z } from 'zod'
 import { widgetTypes } from '../lib/workspace/config.ts'
 import { shiftDate } from './calendar.ts'
@@ -6,7 +7,7 @@ import { emptyFilters, filterTasks } from './workspace.ts'
 import type { Task, Event } from './types.ts'
 
 export const viewBindingsSchema = z.object({
-  taskFilters: z.object({ query: z.string().max(160).default(''), status: z.enum(['all','open','pending','blocked','completed','overdue']).default('all'), priority: z.enum(['all','urgent','high','medium','low']).default('all'), sort: z.enum(['due','priority']).default('due'), from: z.union([z.literal(''),z.iso.date()]).default(''), to: z.union([z.literal(''),z.iso.date()]).default('') }).default({query:'',status:'all',priority:'all',sort:'due',from:'',to:''}),
+  taskFilters: taskFiltersSchema.default(emptyFilters),
   taskStatuses: z.array(z.enum(['pending','blocked','completed'])).min(1).max(3).optional(), issueStatus: z.enum(['open','closed']).optional(),
   owner: z.string().max(160).optional(), dateRange: z.object({ from: z.iso.date(), to: z.iso.date() }).optional(),
   selectedDate: z.iso.date().optional(), category: z.enum(['all','meeting','focus','class','break']).optional(),
@@ -30,13 +31,23 @@ export const componentResolutionSchema = z.discriminatedUnion('action', [compone
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
 export const componentRequestSchema = z.object({ goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(15).optional(), componentPlans:z.array(componentViewSchema).max(15).optional(),
+  instances:z.array(z.object({instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
   catalog:z.object({ owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 export type ComponentRequest = z.infer<typeof componentRequestSchema>
 export function validateComponentResolution(value: unknown, input: ComponentRequest) {
+  if (value && typeof value === 'object' && 'action' in value && value.action === 'view' && 'bindings' in value && value.bindings && typeof value.bindings === 'object' && 'taskFilters' in value.bindings && value.bindings.taskFilters && typeof value.bindings.taskFilters === 'object') {
+    value = { ...value, bindings: { ...value.bindings, taskFilters: { ...emptyFilters(), ...value.bindings.taskFilters } } }
+  }
   const result = componentResolutionSchema.safeParse(value)
   if (!result.success) return result
   if (result.data.action === 'manage') {
+    if (recordMutationGoal(input.goal)) return componentResolutionSchema.safeParse(null)
+    const allowed = new Set<string>([...widgetTypes, ...(input.instances ?? []).map(w => w.instanceId)])
+    for (const op of result.data.operations) {
+      const targets = op.type === 'clear' || op.type === 'add' ? [] : op.type === 'move' ? [op.widget, ...(op.relativeTo ? [op.relativeTo] : [])] : op.type === 'resize' ? [op.widget] : op.widgets
+      if (targets.some(target => !allowed.has(target))) return componentResolutionSchema.safeParse(null)
+    }
     if (result.data.operations.some(op=>['clear','keep','remove','replace'].includes(op.type)) && !destructiveGoal(input.goal)) return componentResolutionSchema.safeParse(null)
     return result
   }
@@ -64,6 +75,7 @@ export function selectViewEvents(events: Event[], view: ComponentView) {
 const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Project context',recommendation:'Suggestions'}
 export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {
   const management=localManagement(input.goal);if(management)return management
+  if (recordMutationGoal(input.goal)) return { action: 'clarify', question: 'Do you want to remove a component or change a record? Use “remove the tasks widget” for layout changes; edit records through their controls.', choices: ['Show my tasks', 'Show my meetings', 'Show my calendar'] }
   const text = input.goal.toLowerCase().replace(/[’']/g,'').trim()
   const clarification = (question:string): ComponentResolution => ({action:'clarify',question,choices:['Show my tasks','Show today’s overview','Show my calendar','Show my meetings']})
   if (/\b(schedule|arrange|book|create|set up)\b/.test(text) && /meeting|appointment|call/.test(text)) return {action:'workflow',kind:'meeting_scheduling'}
@@ -90,7 +102,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
   if (/communications?|messages?|emails?/.test(text)) add('communications')
   if (/issues?|risks?/.test(text)) add('issues')
   if (/overdue|late tasks|missed deadlines/.test(text)) {add('tasks');bindings.taskFilters.status='overdue'}
-  else if (/not.*complet|incomplet|unfinished|remaining|left to do|whats left|open tasks|adhur|baki|बाकी|अधूर/.test(text)) bindings.taskFilters.status='open'
+  else if (/not.*complet|incomplet|unfinished|remaining|left to do|whats left|open tasks|adhur|baki|बाकी|अधूर/.test(text)) { bindings.taskFilters.status='all'; bindings.taskStatuses=['pending','blocked'] }
   else if (/pending|लंबित/.test(text)) bindings.taskFilters.status='pending'
   else if (/blocked|blockers?|stuck|अवरुद्ध/.test(text)) {add('tasks');bindings.taskFilters.status='blocked'}
   else if (/complet|finished|done tasks|poore|पूरे/.test(text)) bindings.taskFilters.status='completed'
@@ -113,7 +125,7 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
   else if(/\bkal\b|कल/.test(text)) return clarification('By “kal”, do you mean tomorrow or yesterday? Include the date or say tomorrow/yesterday.')
   if(from){if(!z.iso.date().safeParse(from).success||!z.iso.date().safeParse(to).success||from>to)return clarification('Choose valid dates in order, for example 2026-10-11 through 2026-10-17.');bindings.dateRange={from,to};bindings.selectedDate=from;if(bindings.taskFilters.status!=='overdue'){bindings.taskFilters.from=from;bindings.taskFilters.to=to}}
   if (bindings.taskFilters.status==='overdue' && /tomorrow/.test(text)) return clarification('Do you mean work that is already overdue, or work due tomorrow? Say “already overdue tasks” or “tasks due tomorrow”.')
-  if(/upcoming deadlines?/.test(text)){bindings.taskFilters.from=input.referenceDate;bindings.taskFilters.status='open'}
+  if(/upcoming deadlines?/.test(text)){bindings.taskFilters.from=input.referenceDate;{ bindings.taskFilters.status='all'; bindings.taskStatuses=['pending','blocked'] }}
   const matchedOwners=input.catalog.owners.filter(owner=>text.includes(owner.toLowerCase()))
   if(matchedOwners.length===1)bindings.owner=matchedOwners[0]
   else if(matchedOwners.length>1)return clarification('Which owner’s tasks should I show? Specify one owner or ask for all tasks.')

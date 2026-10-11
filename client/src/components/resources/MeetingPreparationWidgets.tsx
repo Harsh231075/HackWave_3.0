@@ -32,7 +32,7 @@ export function MeetingRecordList({ kind }: { kind: 'communications' | 'issues' 
   const usage = useUsageScope()
   const meeting = useMeetingScope()
   const component = useComponentView()
-  const scope = component ? {data:{communications:component.communications,issues:component.issues,client:{name:component.clients[0]?.name??'Local workspace'}}} : usage ? { data: { ...usage.data.snapshot, client: usage.data.client } } : meeting
+  const scope = !usage && !meeting && component ? {data:{communications:component.communications,issues:component.issues,client:{name:component.clients[0]?.name??'Local workspace'}}} : usage ? { data: { ...usage.data.snapshot, client: usage.data.client } } : meeting
   const [selected, setSelected] = useState<string>()
   useEscapeDismiss(!!selected, () => setSelected(undefined))
   if (!scope) return <p className="text-sm text-muted-foreground">Choose a meeting to view these records.</p>

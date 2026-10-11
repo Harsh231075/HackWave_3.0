@@ -1,11 +1,10 @@
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { useComponentView } from '@/state/ComponentViewContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { CalendarDays, Link2, RefreshCw, Unplug } from 'lucide-react'
 import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
 import { googleCalendarService } from '@/services/googleCalendarService'
 import { calendarWindow, displayEventTime, type CalendarEvent } from '@/domain/calendar'
-import { CalendarView } from './CalendarWidgets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -37,6 +36,7 @@ export function GoogleEventDetails({ event }: { event: CalendarEvent }) {
 
 export function GoogleCalendarWidget() {
   const calendar = useGoogleCalendar()
+  const dayInput = useId()
   const component = useComponentView()
   const mode = component?.plan.bindings.calendarView ?? 'day'
   const day = parseISO(calendar.date)
@@ -57,6 +57,7 @@ export function GoogleCalendarWidget() {
       try {
         const window = {from:calendarWindow(range?.from ?? date,timezone).from,to:calendarWindow(range?.to ?? date,timezone).to}
         void googleCalendarService.events(window.from, window.to, timezone, controller.signal).then(result => {
+          if (controller.signal.aborted) return
           setEvents(result.events); setLoadedAccount(result.accountId); setLoadedWindow((range?.from??date)+':'+(range?.to??date)+':'+timezone); setError(''); setRefreshedAt(result.refreshedAt)
         }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Calendar unavailable.') }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
       } catch (failure) { setError(failure instanceof Error ? failure.message : 'Choose a valid date.'); setLoading(false) }
@@ -64,10 +65,10 @@ export function GoogleCalendarWidget() {
     void load()
     return () => controller.abort()
   }, [connection?.connected, connection?.accountId, date, timezone, revision, range?.from, range?.to])
-  if (!connection?.connected) return <div className="space-y-4"><GoogleCalendarConnection /><p className="text-xs text-muted-foreground">Local demo calendar · these events are not synced with Google.</p><CalendarView /></div>
+  if (!connection?.connected) return <div className="space-y-4"><GoogleCalendarConnection /><p className="text-xs text-muted-foreground">Connect the original Google account to view these events.</p></div>
   const visible = loadedAccount === connection.accountId && loadedWindow === (range?.from??date)+':'+(range?.to??date)+':'+timezone ? events : []
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><label className="sr-only" htmlFor="google-calendar-day">Calendar date</label><Input id="google-calendar-day" className="w-auto" type="date" value={date} onChange={e => { if (e.target.value) calendar.setDate(e.target.value) }} /><span className="text-xs text-muted-foreground">{timezone}{range && range.from!==range.to ? ` · ${range.from} through ${range.to}` : ''}</span></div>{component && <select aria-label="Google calendar view" className="rounded-lg border border-border bg-card px-3 py-2 text-sm" value={mode} onChange={e=>component.change({calendarView:e.target.value as 'day'|'week'|'month'|'agenda',dateRange:undefined})}>{['day','week','month','agenda'].map(view=><option key={view} value={view}>{view[0].toUpperCase()+view.slice(1)}</option>)}</select>}<Button type="button" variant="outline" size="sm" disabled={loading} onClick={calendar.refreshEvents}><RefreshCw size={14} /> Refresh</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><label className="sr-only" htmlFor={dayInput}>Calendar date</label><Input id={dayInput} className="w-auto" type="date" value={date} onChange={e => { if (e.target.value) calendar.setDate(e.target.value) }} /><span className="text-xs text-muted-foreground">{timezone}{range && range.from!==range.to ? ` · ${range.from} through ${range.to}` : ''}</span></div>{component && <select aria-label="Google calendar view" className="rounded-lg border border-border bg-card px-3 py-2 text-sm" value={mode} onChange={e=>component.change({calendarView:e.target.value as 'day'|'week'|'month'|'agenda',dateRange:undefined})}>{['day','week','month','agenda'].map(view=><option key={view} value={view}>{view[0].toUpperCase()+view.slice(1)}</option>)}</select>}<Button type="button" variant="outline" size="sm" disabled={loading} onClick={calendar.refreshEvents}><RefreshCw size={14} /> Refresh</Button></div>
     <p className="text-xs text-muted-foreground">Google Calendar · {connection.email}{refreshedAt && ` · Last refreshed ${new Date(refreshedAt).toLocaleTimeString()}`}</p>
     {loading && <p className="text-sm text-muted-foreground" role="status">Loading your calendar…</p>}
     {error && <div className="space-y-2"><p className="text-sm text-destructive" role="alert">{error} {visible.length > 0 ? 'The last successful snapshot is shown below.' : ''}</p><Button size="sm" variant="outline" onClick={() => calendar.connect()}>Reconnect calendar</Button></div>}

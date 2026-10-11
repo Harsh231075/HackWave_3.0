@@ -1,3 +1,4 @@
+import { compositionActionsSchema, actionReferencesValid, serializeActionButtons } from './workspaceActions.ts'
 import { z } from 'zod'
 import { intentDateSchema, resolvedIntentSchema } from './intent.ts'
 const id = z.string().trim().min(1).max(160)
@@ -24,9 +25,9 @@ export const preparationSchema = z.strictObject({ meeting: meetingSchema, client
   for (const item of [...data.communications, ...data.issues]) if (item.clientId !== data.client.id || item.projectId !== data.project.id || (item.meetingId && item.meetingId !== data.meeting.id)) ctx.addIssue({ code: 'custom', message: 'Records must belong to the selected scope.' })
   if (data.previousMeeting && (data.previousMeeting.clientId !== data.client.id || data.previousMeeting.projectId !== data.project.id || data.previousMeeting.date >= data.meeting.date)) ctx.addIssue({ code: 'custom', message: 'Previous meeting must belong to this project and precede this meeting.' })
 })
-export const meetingWidgetTypes = ['context', 'meetings', 'tasks', 'resources', 'outline', 'communications', 'issues', 'calendar'] as const
-export const meetingCompositionSchema = z.strictObject({ version: z.literal(1), requestId: id,
-  widgets: z.array(z.strictObject({ type: z.enum(meetingWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().trim().min(1).max(500), evidence: z.array(evidenceSchema).min(1).max(20) })).min(2).max(8),
+export const meetingWidgetTypes = ['context', 'meetings', 'tasks', 'resources', 'outline', 'communications', 'issues'] as const
+export const meetingCompositionSchema = z.strictObject({ version: z.literal(1), requestId: id, actions: compositionActionsSchema,
+  widgets: z.array(z.strictObject({ type: z.enum(meetingWidgetTypes), span: z.enum(['wide', 'narrow', 'full']), reason: z.string().trim().min(1).max(500), evidence: z.array(evidenceSchema).min(1).max(20) })).min(2).max(7),
 }).superRefine((plan, ctx) => {
   const types = plan.widgets.map(widget => widget.type)
   if (new Set(types).size !== types.length || !types.includes('context') || !types.includes('outline')) ctx.addIssue({ code: 'custom', message: 'Use each widget once and include context and outline.' })
@@ -51,8 +52,9 @@ export function validateMeetingComposition(value: unknown, request: ComposeReque
     if (!input.success) ctx.addIssue({ code: 'custom', message: 'Composition scope no longer matches its records.' })
     if (plan.requestId !== request.requestId) ctx.addIssue({ code: 'custom', message: 'Composition belongs to another request.' })
     for (const widget of plan.widgets) for (const evidence of widget.evidence) if (!available.has(`${evidence.kind}:${evidence.id}`)) ctx.addIssue({ code: 'custom', message: 'Unknown composition evidence.' })
+    if (!actionReferencesValid(plan.actions, input.success ? input.data.preparation.tasks : [], true)) ctx.addIssue({ code: 'custom', message: 'Action references must belong to this scope and support the requested operation.' })
   }).safeParse(value)
 }
 export function serializeMeetingComposition(plan: MeetingComposition) {
-  return `root = Card([Workspace([${plan.widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.type)}, ${JSON.stringify(widget.span)})`).join(', ')}])])`
+  return `root = Card([Workspace([${plan.widgets.map(widget => `WorkspaceWidget(${JSON.stringify(widget.type)}, ${JSON.stringify(widget.span)})`).join(', ')}])${serializeActionButtons(plan.actions)}])`
 }

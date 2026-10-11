@@ -1,3 +1,6 @@
+import { generatedActionsValid } from './actionValidation'
+import type { Task } from '@/domain/types'
+import { extractActiveWidgets } from './workspaceNodes'
 import { createParser } from '@openuidev/react-lang'
 import { productivityLibrary } from './OpenUIWorkspace'
 
@@ -15,6 +18,12 @@ export function validLayout(response: string): boolean {
   try {
     const parser = createParser(productivityLibrary.toJSONSchema(), productivityLibrary.root)
     const parsed = parser.parse(response)
-    return !!parsed.root && !parsed.meta.errors.length && !parsed.meta.incomplete && !parsed.meta.unresolved.length && !parsed.queryStatements.length && !parsed.mutationStatements.length
+    const widgets = extractActiveWidgets(response, productivityLibrary.toJSONSchema(), productivityLibrary.root)
+    const unique = new Set(widgets.map(w => w.id)).size === widgets.length && widgets.length <= 14
+    return unique && !!parsed.root && !parsed.meta.errors.length && !parsed.meta.incomplete && !parsed.meta.unresolved.length && !parsed.queryStatements.length && !parsed.mutationStatements.length
   } catch { return false }
+}
+
+export function validGeneratedLayout(response: string, tasks: Task[]) {
+  return validLayout(response) && generatedActionsValid(response, productivityLibrary.toJSONSchema(), productivityLibrary.root, tasks)
 }

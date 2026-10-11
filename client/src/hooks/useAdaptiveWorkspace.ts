@@ -6,9 +6,9 @@ import { overdueReviewService, overdueCompositionService } from '@/services'
 import { serializeOverdueComposition, validateOverdueComposition } from '@/domain/overdueReview'
 import type { OverdueLayout } from '@/services/layoutService'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { candidateCatalogService, intentService, meetingPreparationService, meetingCompositionService, generationService } from '@/services'
+import { candidateCatalogService, intentService, meetingPreparationService, meetingCompositionService, generationService, browserDatabase } from '@/services'
 import { DEMO_DATE } from '@/data/demo'
-import { repairOpenUI, validLayout } from '@/lib/workspace/layoutValidation'
+import { repairOpenUI, validLayout, validGeneratedLayout } from '@/lib/workspace/layoutValidation'
 import { serializeMeetingComposition, validateMeetingComposition, type MeetingComposition } from '@/domain/adaptiveData'
 import { intentRequestSchema, type IntentRequest, type IntentResolution, type ResolvedIntent } from '@/domain/intent'
 import type { GenerateWorkspaceInput } from '@/services/contracts'
@@ -92,7 +92,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
         const output = await generationService.generate({ ...input, goal: originalGoal }, { signal: controller.signal })
         if (!active()) return null
         const response = repairOpenUI(output.response)
-        if (!validLayout(response)) throw new Error('The generated layout could not be validated. Try again.')
+        if (!validGeneratedLayout(response, browserDatabase.getState().tasks)) throw new Error('The generated layout could not be validated. Try again.')
         previousIntent.current = intent; previousRequestId.current = payload.requestId; previousComposition.current = undefined; question.current = null; setClarification(null)
         return { kind: 'general', response }
       }

@@ -25,8 +25,8 @@ export function createGoogleCalendarService() {
     async prepare(eventId: string, goal: string, signal?: AbortSignal) {
       return z.object({ accountId: z.string(), event: calendarEventSchema, widgets: z.array(z.enum(['details', 'outline', 'calendar'])), rationale: z.string(), source: z.enum(['ai', 'local']) }).parse(await request('preparation', { eventId, goal }, signal))
     },
-    async availability(date: string, duration: number, timezone: string) {
-      return z.object({ slots: z.array(z.object({ start: z.string(), end: z.string() })), notice: z.string() }).parse(await request('availability', { date, duration, timezone }))
+    async availability(date: string, duration: number, timezone: string, signal?: AbortSignal) {
+      return z.object({ slots: z.array(z.object({ start: z.string(), end: z.string() })), notice: z.string() }).parse(await request('availability', { date, duration, timezone }, signal))
     },
     async preview(draft: EventDraft) { return z.object({ id: z.string() }).parse(await request('event-drafts', draft)) },
     async confirm(id: string) { return operationSchema.parse(await request('event-drafts/' + encodeURIComponent(id) + '/confirm', {})) },

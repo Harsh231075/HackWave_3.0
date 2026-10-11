@@ -33,11 +33,13 @@ Credentials are not returned to the browser. Tokens and server sessions are encr
 
 ## Conversation UI flow
 
-The initial dashboard stays visible. Press Cmd/Ctrl+K to open the existing prompt popup and submit the first goal. The popup then closes into a conversation canvas: your prompt appears above the interactive components, and a persistent bottom composer accepts text or speech follow-ups. The Orlo header remains at the top.
+The default dashboard remains visible. Press Cmd/Ctrl+K to describe a goal or layout change. The popup closes after submission and the active workspace shows the outcome. Use Cmd/Ctrl+K for each follow-up; expandable text history records prompts and outcomes.
 
-After entering conversation mode, Cmd/Ctrl+K focuses the bottom composer. Clarifications, calendar connection recovery, meeting selection, scheduling details, available slots, editable preview and confirmation appear inline. Workspace options still provide layout undo and reset. Reset returns to the original dashboard without deleting task or calendar records.
+Components keep independent bindings and filters. Adding a new topic retains existing views. Ordinary removal and clear preserve pins; “clear everything including pins” removes both. “Show another tasks view” creates an independent instance. When more than one view could match, choose the intended view from clarification choices.
 
-Conversation summaries and the active layout restore on reload. Save preparation notes explicitly to keep them across reloads; unsaved buffers remain available while changing layouts during the session. Every prompt is followed by its own response. Before a follow-up, the previous UI is frozen as a read-only snapshot in that turn, and the new editable response appears below it. Field values and displayed records in historical snapshots do not change with later edits; old forms cannot submit or make network requests. Calendar snapshots are shown only for their original connected account. The newest response is the active workspace. Explicit tool requests show only their requested components: “add tasks” after a calendar response renders Tasks only, not Calendar plus Tasks. The working layout and data remain available for follow-ups, but old components are not copied into new replies. Goal-based preparation can still compose multiple tools when that goal calls for them.
+Google Calendar views retain their original account binding. Switching accounts or disconnecting hides those views’ data until the original account reconnects. Preparation notes use account-qualified local draft keys. Save notes explicitly; unsaved buffers survive layout changes during the session. Event creation always requires reviewing details and confirming the server-owned preview.
+
+Workspace options provide layout undo and reset. Reset clears layout, pins, and text history while preserving task, draft, and calendar records. Migration retains original legacy storage; reloading restores the canonical document. Visual response snapshots and the separate bottom composer have been removed.
 
 ## Product checks
 
@@ -114,3 +116,9 @@ This MVP uses a single Node process with an encrypted atomic file store, not a m
 - Use `npm run build` then `npm start`; `npm run preview` does not install API routes.
 
 This setup implements read-on-open/manual refresh. Incremental background sync, calendar selection, push notifications, shared-calendar availability and multi-device draft synchronization remain follow-up work.
+
+## Deployment and verification
+
+Run one Node process with a persistent `CALENDAR_DATA_DIR`. Production requires HTTPS `APP_ORIGIN` and a 64-character hexadecimal `CALENDAR_TOKEN_KEY`; OAuth credentials are server-only. The encrypted file store is designed for one process, not concurrent replicas. Back up the encrypted store together with its configured key.
+
+Run `npm test`, `npm run test:render`, `npm run build`, and `npm run lint` from `client`. Complete an account-based smoke test after configuring OAuth: connect read access, browse real events, select a meeting and save notes, disconnect/reconnect, grant write access, preview an event, confirm once, and repeat confirmation to verify that only one event exists. Mocked tests do not establish real provider configuration.

@@ -23,14 +23,13 @@ export type Action =
   | { type: 'task'; task: Task } | { type: 'toggle'; id: string }
   | { type: 'delete-event'; id: string } | { type: 'delete-task'; id: string } | { type: 'delete-draft'; key: string }
   | { type: 'event'; event: Event } | { type: 'draft'; key: string; value: string }
-  | { type: 'dismiss'; id: string } | { type: 'pin'; id: string }
+  | { type: 'dismiss'; id: string }
   | { type: 'undo' } | { type: 'reset'; state: WorkspaceState }
 function snapshot(state: WorkspaceState): DomainSnapshot {
   return { tasks: state.tasks, events: state.events, drafts: state.drafts, dismissed: state.dismissed, activity: state.activity }
 }
 export function workspaceReducer(state: WorkspaceState, action: Action): WorkspaceState {
   if (action.type === 'filters') return { ...state, filters: { ...state.filters, ...action.patch } }
-  if (action.type === 'pin') return { ...state, pins: state.pins.includes(action.id) ? state.pins.filter(id => id !== action.id) : [...state.pins, action.id] }
   if (action.type === 'reset') return action.state
   if (action.type === 'undo') { const previous = state.history.at(-1); return previous ? { ...state, ...previous, history: state.history.slice(0, -1) } : state }
   let next: DomainSnapshot = snapshot(state)

@@ -138,3 +138,18 @@ Optional investigation notes use a separate client/project draft; save it and re
 The full continuous three-goal and accessibility evaluation remains tracked in PLAN.md.
 
 Scoped usage validation: 100 automated tests passed; production build/TypeScript and lint passed (existing warnings remain). Mocked browser checks include a continuous meeting → usage → overdue → meeting sequence with retained edits and a pin. The configured Groq usage flow passed intent/composition, reload and segment inheritance; a quota-limited request succeeded after the verification harness retried.
+
+
+Generated workspace buttons use four validated actions: edit a linked task, edit the originating agenda/notes, schedule focus through an available-slot confirmation, or immediately change the goal. Application code owns their scope and draft keys. Filters cannot hide a task from action validation; retained pins use their original meeting/project. Changed/deleted records and conflicting saves produce feedback without overwriting data. Optional actions are persisted with scoped layouts; old layouts without actions remain compatible.
+
+For deterministic browser verification, run `node scripts/verify-actions.mjs` from `client/` with an externally installed Playwright (or set `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH`). It starts/stops its own Vite server, uses fresh browser storage and mocked model responses, and requires no API key. Live-provider and comprehensive accessibility evaluation remain separate.
+
+## Unified workspace
+
+The dynamic workspace and static previews render the same typed widget instances through one registry and binding host. A widget type identifies a component; a stable instance ID identifies its independently scoped view. Natural-language add, remove, move, resize, replace, and filter requests update one workspace document. Ordinary changes retain other views and scoped pins. Ambiguous requests ask which view to change; explicit clear can leave an empty workspace.
+
+The `workspaceDocument` collection in `orlo-browser-db-v1` stores active instances, scoped pins, a revision, text conversation history, and follow-up targets. Tasks, local events, and drafts remain separate domain records. A one-time migration reads older layouts, pins, PR managed items, and calendar requests; original storage remains intact. Storage failures show feedback and retain valid edits for the current session. Layout undo preserves conversation history and does not undo external events.
+
+Google Calendar bindings explicitly identify their account and primary calendar. Disconnected or different accounts show placeholders, never demo substitutes. Local focus scheduling uses the shared validated action dialog; Google scheduling uses server-owned preview and confirmation operations. See [Google Calendar setup](GOOGLE_CALENDAR_SETUP_AND_TESTING.md).
+
+Checks: `cd client && npm test && npm run test:render && npm run build && npm run lint`. The render check covers the unified default/static canvas and independent project views; mocked API tests cover OAuth and event creation. Real Google authorization still requires configured credentials and a browser.

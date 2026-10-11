@@ -15,7 +15,7 @@
 - `getPersistenceResult()` reports whether the latest write was saved, invalid, or unavailable.
 - `storage` is the shared adapter used for legacy layout and preference keys.
 
-Workspace records retain `gogpt-workspace-v1`. Layout retains `gogpt-app-layout-v1`; preferences retain `task-view`, `calendar-view`, and `calendar-category`. Additional collections live in a versioned `orlo-browser-db-v1` record. Reads preserve malformed saved data. Failed storage writes leave valid edits usable in memory.
+Workspace records retain `gogpt-workspace-v1`. The canonical `workspaceDocument` collection owns layout, scoped pins, revision, text history, and follow-up targets; `gogpt-app-layout-v1` is retained only for legacy migration. preferences retain `task-view`, `calendar-view`, and `calendar-category`. Additional collections live in a versioned `orlo-browser-db-v1` record. Reads preserve malformed saved data. Failed storage writes leave valid edits usable in memory.
 
 ## Service catalog
 
@@ -31,7 +31,7 @@ Workspace records retain `gogpt-workspace-v1`. Layout retains `gogpt-app-layout-
 | Analytics | `getTaskSummary`, `getOverview` | Counts and scheduled minutes derived from current records |
 | Search | `search` | Matching tasks, events, and resources |
 | Resources | `list`, `getById`, `create`, `update`, `delete` | Demo resource seeds and locally stored edits |
-| Layout | `load`, `save`, `clear` | Validated generated OpenUI response |
+| Workspace document | `initialize`, `load`, `save` | Validated instance state and one-time legacy migration |
 | Preferences | `load`, `save` | List/Kanban and calendar display settings |
 | Generation | `generate` | Existing generation endpoint; shared records passed as context |
 | Profiles | `list`, `getById`, `create`, `update`, `delete`, `getProfile`, `updateProfile` | Local names, optional email, timezone |
@@ -94,7 +94,7 @@ The fixed demo clock is 2026-10-12 in Asia/Kolkata. Model calls are server-side 
 - `overdueReviewService.load(intent, referenceDate)` validates an overdue intent and retrieves only explicit, non-conflicting project→task/resource relationships. Completed, today/future and out-of-range tasks are excluded. Results are deterministic, and missing/invalid/valid-empty results remain distinct.
 - `overdueCompositionService.compose(request, { signal })` sends the `kind: "overdue"` contract to `/api/workspace/compose`. Only five registered widget types are allowed; context and one tasks component are mandatory. Evidence must exist in the current selection. The hook revalidates after generation to reject stale sources.
 - `focusSchedulingService.findSlots({ taskId, date, intent })` returns an ActionResult with actual-duration slots; `schedule({ taskId, date, start, intent, expectedDuration })` revalidates before creating an idempotent focus event through eventService. Every calendar event and unlinked meeting is busy time. Invalid saved scheduling data is unavailable.
-- `layoutService.saveOverdue(session)` writes a version-2 scoped session with intent, cutoff, validated composition and local task refinements. Version-1 general and version-2 meeting sessions remain readable. Reload recomputes current records rather than restoring stale task snapshots.
+- Legacy overdue layouts stored a version-2 scoped session with intent, cutoff, validated composition and local task refinements. Version-1 general and version-2 meeting sessions remain readable. Reload recomputes current records rather than restoring stale task snapshots.
 - `createRecordStore` supplies stable external-store snapshots for both domain edits and collection changes. Overdue filters are separate from dedicated task-page filters and can only narrow the bound selection. Pins remain session-only; incompatible pinned widgets are labeled as all-workspace records.
 
 The meeting compose request retains its existing wire shape. Overdue requests use the explicit `kind` discriminator; both are validated by the same endpoint. No backend database, authentication or external integration was introduced.
@@ -114,13 +114,39 @@ Synthetic Northstar/Westbridge values live only in `data/usageDemo.ts`, added to
 - `usageWorkspaceService.load(intent)` combines filtered observations/releases with explicit, non-conflicting project→task/resource links, communications inside the requested dates and current open project issues. Issues have no date field; they are supporting project context, not period evidence.
 - `usageCompositionService.compose(request, { signal })` sends the validated `kind: 'usage'` snapshot and only the matching investigation draft. Composition permits eight registered widget types, requires context/usage once, and validates evidence against supplied records.
 - Usage follow-ups include `scopeChanges` (clientId/projectId/dateRange/segment). Application logic preserves undeclared fields, handles segment clearing and updates project-client ownership before full intent validation.
-- `layoutService.saveUsage(session)` stores version-2 intent/composition, isolated task filters and an evidence fingerprint, not record/metric snapshots. Reload restores previous usage composition for follow-ups and recomputes data. Valid empty selections retain the usage layout.
+- Legacy usage layouts stored version-2 intent/composition, isolated task filters and an evidence fingerprint, not record/metric snapshots. Reload restores previous usage composition for follow-ups and recomputes data. Valid empty selections retain the usage layout.
 - UsageScopeProvider subscribes to domain and collection changes. Bound controls cannot silently switch to another client/project; scope changes go through the command window. The independent UsageExplorer still provides dependent selectors.
 - Equal-period averages compare the first and last floor(days/2) days; odd middle days are excluded. Missing coverage makes a period average unavailable, and zero baselines never produce a percentage. Endpoint comparisons are separately labeled.
-- Investigation drafts use `usage-investigation:<clientId>:<projectId-or-all>`; they never overwrite meeting agendas. Supported pins inherit current usage scope; original pin bindings and persistent pins remain pending.
+- Investigation drafts use `usage-investigation:<clientId>:<projectId-or-all>`; they never overwrite meeting agendas. Usage pins preserve the original client/project, dates and segment across goals and reloads, while continuing to read current records.
 
 ### Meeting task filters
 
 MeetingScopeProvider applies the saved meeting session’s taskFilters directly to retrieved meeting-linked tasks using the demo clock. Dedicated/global filters are neither read nor updated. Context, agenda, resources and evidence continue using the complete preparation snapshot.
 
 Version-2 meeting sessions now include validated taskFilters; missing filters in older sessions default to emptyFilters without rewriting storage. Explicit invalid values/dates are rejected, preserving raw data. saveMeeting accepts MeetingLayoutInput for older callers, while loadSession returns normalized MeetingLayout. Filters persist on reload and successful same-meeting follow-ups; switching meetings or returning after a different goal starts fresh. Local changes do not remount the canvas or clear draft buffers. Save failures retain the in-memory selection and display a persistence notice.
+
+
+### Persistent pinned views
+
+`pinService` owns `loadPins`, `pinWidget`, `unpinWidget`, `updatePinViewState` and `clearPins`. Mutations return either an actionable failure or the updated pins plus their persistence result. A storage failure keeps accepted operations in memory. Invalid pin collections remain untouched until explicit Clear pins; a malformed outer database is never overwritten.
+
+Pins capture validated selections, filters, layout span and provenance rather than record snapshots. Stable UUIDs survive local filter edits and reloads. Meeting agendas and investigation notes use their original entity-specific draft keys. Calendar changes inside pins remain local; List/Kanban remains shared. Deleted or reassigned meeting records produce an unavailable card rather than silently changing scope.
+
+The adaptive canvas reserves six pin slots within a fourteen-widget limit, deduplicates equivalent views, preserves required active widgets, and trims optional content in requested order. The stored response is retained so omitted widgets return after unpinning. Dedicated pages do not append pins. Reset layout preserves pins; Clear pins and demo reset remove them.
+
+Verification: run `npm test`, `npm run build` and `npm run lint` from `client`. The optional browser harness runs with `node scripts/verify-pins.mjs` when Playwright is available. Otherwise set `ORLO_PLAYWRIGHT_MODULE` to an installed Playwright module path and optionally `ORLO_CHROME_PATH` to a Chromium executable. The harness starts/stops its own Vite server, uses a fresh browser context and mocks model endpoints; it does not require an API key or modify the user's browser data.
+
+
+## Generated actions
+
+`workspaceActionService.prepare(payload, origin)` validates one of four strict action contracts and returns an app-owned editor descriptor or goal change. Origin contains binding, demo reference date, current layout revision and optional pin identity; models cannot supply it. `loadActionScope` retrieves base records independently of task view filters. Meeting/usage drafts derive their keys from ownership; overdue/manual usage have no draft action.
+
+`saveTask(prepared, input)` checks current scope and the full task captured at open before calling the existing task service. `saveDraft(prepared, value)` rejects changes to the saved draft or originating metadata, preserving the shared unsaved buffer. The React host also rejects stale revisions and pending generation; unpin/layout replacement dismisses those editors. Mutations retain existing persistence, activity and undo behavior.
+
+`focusSchedulingService.findSlots` and `schedule` now accept `{ taskId, date, binding }` as well as the legacy overdue `{ taskId, date, intent }`. `schedule` additionally requires `start` and `expectedDuration`. It re-reads current scope/status/duration and calendar/meeting conflicts. A matching existing stable-ID focus event is idempotent; a different event or newly occupied slot is rejected without overwrite.
+
+Optional composition `actions` entries contain only `{ label, action }` (maximum four). Structured output validates scoped task references before serialization; execution validates them again. The general-layout validator also rejects unsupported external/tool action plans before installation. Unsupported saved legacy controls remain readable and cannot execute application mutations through the renderer fallback.
+
+## Instance state and actions
+
+Application layout writes use `workspaceDocumentService`; legacy layout factories are compatibility fixtures, not configured application writers. `pinService` updates pins inside the canonical document after initialization. Instance IDs and bindings establish action origins; scope or revision changes invalidate open actions. `InstanceCanvas` is the shared renderer for active widgets and pins, with one binding host for workflow and Google records. Text history contains no event bodies or DOM snapshots.

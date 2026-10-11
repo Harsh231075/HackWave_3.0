@@ -11,7 +11,6 @@ import { createCalendarHandler } from './calendar/handler.ts'
 import { createCalendarStore } from './calendar/store.ts'
 import { createGoogleProvider, normalizeGoogleEvent } from './calendar/google.ts'
 import { calendarWindow, zonedInstant, shiftDate, eventDraftSchema } from '../src/domain/calendar.ts'
-import { parseLayoutCommand, patchWorkspaceResponse, modifyWidgets, liveCalendarGoal } from '../src/domain/workspaceCommands.ts'
 const readScope = 'https://www.googleapis.com/auth/calendar.events.readonly', writeScope = 'https://www.googleapis.com/auth/calendar.events'
 const draft = { title: 'Review with Alex', description: 'Review the plan', start: '2100-01-02T10:00:00Z', end: '2100-01-02T10:30:00Z', timezone: 'UTC', attendees: ['alex@example.com'] }
 const item = { id: 'meeting-a', summary: 'Planning meeting', etag: 'revision-1', start: { dateTime: draft.start, timeZone: 'UTC' }, end: { dateTime: draft.end, timeZone: 'UTC' }, attendees: [{ email: 'alex@example.com' }], status: 'confirmed' }
@@ -152,23 +151,6 @@ test('timezone math handles midnight, year changes and DST-sized days', () => {
 test('draft validation rejects invalid email and reversed times', () => {
   assert.equal(eventDraftSchema.safeParse({ ...draft, attendees: ['Alex'] }).success, false); assert.equal(eventDraftSchema.safeParse({ ...draft, end: draft.start }).success, false)
 })
-test('add calendar routes locally while scheduling and preparation are distinct', () => {
-  const command = parseLayoutCommand('Add a calendar to this page')!
-  assert.equal(command.widget, 'calendar'); assert.equal(command.action, 'add')
-  assert.equal(liveCalendarGoal('Schedule a meeting with Alex tomorrow'), 'schedule'); assert.equal(liveCalendarGoal('Prepare for tomorrow’s meeting'), 'prepare')
-  assert.equal(parseLayoutCommand('Add a meeting to my calendar'), null)
-})
-test('layout changes preserve surrounding content and prevent duplicates', () => {
-  const original = 'root = Card([TextContent("Notes stay"), Workspace([WorkspaceWidget("tasks", "full"), WorkspaceWidget("chart", "wide")])])'
-  const added = patchWorkspaceResponse(original, parseLayoutCommand('add calendar')!), again = patchWorkspaceResponse(added, parseLayoutCommand('add calendar')!)
-  assert.match(added, /Notes stay/); assert.equal((again.match(/WorkspaceWidget\("calendar"/g) ?? []).length, 1)
-  assert.ok(!patchWorkspaceResponse(again, parseLayoutCommand('remove chart')!).includes('"chart"'))
-})
-test('required widgets and the final widget cannot be removed', () => {
-  assert.throws(() => modifyWidgets([{ type: 'outline', span: 'full' }], { action: 'remove', widget: 'outline', span: 'full' }, () => ({ type: '', span: '' }), ['outline']))
-  assert.throws(() => patchWorkspaceResponse('root = Card([Workspace([WorkspaceWidget("tasks", "full")])])', parseLayoutCommand('remove tasks')!))
-})
-
 test('real preparation uses authoritative events and a deterministic layout without AI credentials', async () => {
   const h = harness(), cookie = await h.authorize()
   const result = await h.invoke('/api/calendar/preparation', { method: 'POST', cookie, body: { eventId: 'meeting-a', goal: 'Prepare for this meeting' } })

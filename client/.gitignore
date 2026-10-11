@@ -25,3 +25,8 @@ dist-ssr
 
 # Private Google OAuth sessions and encryption keys
 .calendar-data/
+
+# Server credentials are local configuration
+.env
+.env.*
+!.env.example

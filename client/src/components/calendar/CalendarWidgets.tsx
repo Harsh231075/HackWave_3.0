@@ -1,11 +1,7 @@
-import { GoogleAvailabilityPanel } from './GoogleAvailabilityPanel'
-import { useComponentView } from '@/state/ComponentViewContext'
-import { useGoogleCalendar } from '@/state/GoogleCalendarContext'
-import { GoogleCalendarWidget } from './GoogleCalendarWidgets'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { SelectedMeeting } from '@/components/resources/MeetingPreparationWidgets'
-import { availabilityService } from '@/services'
-import { useContext, useState } from 'react'
+import { availabilityService, eventService } from '@/services'
+import { useContext, useId, useState } from 'react'
 import { WidgetActions } from '@/lib/workspace/WidgetActions'
 import { WidgetPageActionsContext } from '@/lib/workspace/WidgetHeaderContext'
 import { format, parseISO } from 'date-fns'
@@ -55,27 +51,22 @@ export function MeetingList({ displayState }: { displayState?: DisplayState }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string>()
   const scope = useMeetingScope()
-  const component = useComponentView()
-  const google = useGoogleCalendar()
-  const events = state.events.filter(event=>component || event.date >= DEMO_DATE).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
+  const events = state.events.filter(event => event.date >= DEMO_DATE).filter(event => event.category === 'meeting' || event.category === 'class').sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`))
   if (scope) return <SelectedMeeting />
-  if (component && google.connection?.connected) return <GoogleCalendarWidget />
   return <><WidgetActions><span className="text-[length:0.78rem] text-(--muted-foreground)">{events.length} upcoming sessions</span><Button variant="outline" size="sm" onClick={() => setOpen(true)}><Plus size={14} /> Schedule</Button></WidgetActions><DataState state={displayState ?? (events.length ? 'ready' : 'empty')}><div className="flex flex-col [gap:0.65rem]">{events.map(event => <MeetingCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}</div></DataState><MeetingForm key={`${open}-${selectedDate}`} open={open} onClose={() => setOpen(false)} date={selectedDate} /><MeetingDetails key={selected} event={state.events.find(event => event.id === selected)} onClose={() => setSelected(undefined)} /></>
 }
 
 export { CalendarView } from './CalendarView'
 
 export function AvailabilityPanel() {
-  const google=useGoogleCalendar()
-  const component=useComponentView()
+  const dateInputId = useId()
   const { selectedDate, selectDate } = useWorkspace()
   const [slot, setSlot] = useState<string>()
   const [open, setOpen] = useState(false)
   const times = Array.from({ length: 17 }, (_, index) => `${String(9 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`)
   const endFor = (start: string) => `${String(Number(start.slice(0, 2)) + 1).padStart(2, '0')}:${start.slice(3)}`
   const busy = (start: string) => !availabilityService.isAvailable({ date: selectedDate, start, end: endFor(start) })
-  if(component&&google.connection?.connected)return <GoogleAvailabilityPanel />
-  return <div className="flex flex-col [gap:0.85rem]"><p className="text-[length:0.78rem] text-(--muted-foreground)">One-hour slots · local time</p><label className="sr-only" htmlFor="availability-date">Availability date</label><Input id="availability-date" type="date" value={selectedDate} onChange={e => { if (e.target.value) { selectDate(e.target.value); setSlot(undefined) } }} /><div className="grid grid-cols-2 [gap:0.65rem]">{times.map(time => <button key={time} className={`flex flex-col items-start [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [transition:all_0.15s] [&:not(:disabled):hover]:bg-(--surface-hover) [&:not(:disabled):hover]:border-(--ring) [&.selected]:bg-(--accent) [&.selected]:border-(--primary) [&.selected]:text-(--primary) disabled:opacity-50 disabled:bg-(--muted) disabled:cursor-not-allowed [&_span]:font-semibold [&_span]:text-[length:0.95rem] [&_span]:mt-1 [&_small]:text-[length:0.74rem] [&_small]:text-(--muted-foreground) ${slot === time ? 'selected' : ''}`} disabled={busy(time)} aria-pressed={slot === time} onClick={() => setSlot(time)}><Clock3 size={14} /><span>{time}</span><small>{busy(time) ? 'Busy' : 'Available'}</small></button>)}</div>{slot && busy(slot) && <p className="[color:#ef4444] text-[length:0.8rem] font-medium" role="alert">This slot is now occupied. Choose another time.</p>}<div className="flex items-center [gap:0.4rem] text-[length:0.8rem] text-(--muted-foreground)"><span className="[width:7px] [height:7px] rounded-full [background:#10b981] inline-block mr-2 shadow-[0_0_6px_#10b981]" /><p>Open time is calculated from the sessions in your calendar.</p></div><Button className="w-full" disabled={!slot || busy(slot)} onClick={() => setOpen(true)}>Use selected time</Button><MeetingForm key={`${open}-${slot}-${selectedDate}`} open={open} onClose={() => { setOpen(false); setSlot(undefined) }} date={selectedDate} start={slot} /></div>
+  return <div className="flex flex-col [gap:0.85rem]"><p className="text-[length:0.78rem] text-(--muted-foreground)">One-hour slots · local time</p><label className="sr-only" htmlFor={dateInputId}>Availability date</label><Input id={dateInputId} type="date" value={selectedDate} onChange={e => { if (e.target.value) { selectDate(e.target.value); setSlot(undefined) } }} /><div className="grid grid-cols-2 [gap:0.65rem]">{times.map(time => <button key={time} className={`flex flex-col items-start [padding:0.75rem_0.9rem] bg-(--background) [border:1px_solid_var(--border)] rounded-[var(--radius)] [transition:all_0.15s] [&:not(:disabled):hover]:bg-(--surface-hover) [&:not(:disabled):hover]:border-(--ring) [&.selected]:bg-(--accent) [&.selected]:border-(--primary) [&.selected]:text-(--primary) disabled:opacity-50 disabled:bg-(--muted) disabled:cursor-not-allowed [&_span]:font-semibold [&_span]:text-[length:0.95rem] [&_span]:mt-1 [&_small]:text-[length:0.74rem] [&_small]:text-(--muted-foreground) ${slot === time ? 'selected' : ''}`} disabled={busy(time)} aria-pressed={slot === time} onClick={() => setSlot(time)}><Clock3 size={14} /><span>{time}</span><small>{busy(time) ? 'Busy' : 'Available'}</small></button>)}</div>{slot && busy(slot) && <p className="[color:#ef4444] text-[length:0.8rem] font-medium" role="alert">This slot is now occupied. Choose another time.</p>}<div className="flex items-center [gap:0.4rem] text-[length:0.8rem] text-(--muted-foreground)"><span className="[width:7px] [height:7px] rounded-full [background:#10b981] inline-block mr-2 shadow-[0_0_6px_#10b981]" /><p>Open time is calculated from the sessions in your calendar.</p></div><Button className="w-full" disabled={!slot || busy(slot)} onClick={() => setOpen(true)}>Use selected time</Button><MeetingForm key={`${open}-${slot}-${selectedDate}`} open={open} onClose={() => { setOpen(false); setSlot(undefined) }} date={selectedDate} start={slot} /></div>
 }
 
 export function TimeBlockCard({ event, onSelect }: { event: Event; onSelect: () => void }) {
@@ -86,7 +77,7 @@ export function DailyTimeline() {
   const pageActions = useContext(WidgetPageActionsContext)
   const { state, selectedDate, selectDate } = useWorkspace()
   const [selected, setSelected] = useState<string>()
-  const events = state.events.filter(event=>event.date===selectedDate)
+  const events = eventService.list({ from: selectedDate, to: selectedDate })
   const planned = events.reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
   const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span></>
   return <>{pageActions ? <WidgetActions>{controls}</WidgetActions> : <div className="flex justify-between items-center mb-3 text-[length:0.84rem]">{controls}</div>}<div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {
