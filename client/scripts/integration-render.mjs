@@ -21,7 +21,7 @@ try {
   assert.doesNotMatch(dynamic, /Active workspace/)
   assert.doesNotMatch(dynamic, /Ctrl \/ Cmd \+ K to update/)
   assert.doesNotMatch(dynamic, /<summary>Active workspace|<summary>All workspace records/)
-  const scoped = renderToString(wrap(React.createElement(InstanceCanvas, { instances: [makeInstance('tasks', { kind: 'workspace', projectId: 'atlas' }, {}, 'first'), makeInstance('tasks', { kind: 'workspace', projectId: 'launch' }, {}, 'second')], update: () => {} })))
+  const scoped = renderToString(wrap(React.createElement(InstanceCanvas, { instances: [makeInstance('tasks', { kind: 'workspace' }, {}, 'first'), makeInstance('tasks', { kind: 'workspace' }, {}, 'second')], update: () => {} })))
   assert.match(scoped, /data-instance-id="first"/); assert.match(scoped, /data-instance-id="second"/)
   assert.doesNotMatch(scoped, /original records are unavailable/)
   const staticView = renderToString(wrap(React.createElement(WorkspaceRenderer, { config: { version: 1, id: 'tasks', title: 'Tasks', description: '', widgets: [{ id: 'tasks', span: 'full' }] } })))
@@ -33,5 +33,5 @@ try {
   assert.deepEqual(extractActiveWidgets(response, library, root), [{ id: 'tasks', span: 'wide' }])
   assert.equal(extractGeneratedActions(response, library, root)[0].action.taskId, 'task-3')
   assert.equal(extractGeneratedText(response, library, root), 'A scoped workspace')
-  console.log('Render smoke checks passed: default/static canvas, independent project views, generated text/actions adapter.')
+  console.log('Render smoke checks passed: default/static canvas, independent task views, generated text/actions adapter.')
 } finally { await server.close() }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {fallbackComponentIntent,validateComponentResolution,type ComponentRequest} from '../src/domain/componentIntent.ts'
-const input:ComponentRequest={goal:'',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:[],clients:[],projects:[],draftKeys:[],topics:[]}}
+const input:ComponentRequest={goal:'',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:[],draftKeys:[],topics:[]}}
 for(const goal of ['Remove the word "all" from my notes','Delete all task records','Delete all pending tasks','Remove all resources from storage'])test(`record/text intent cannot execute layout deletion: ${goal}`,()=>{
  const request={...input,goal},result=fallbackComponentIntent(request);assert.equal(result.action,'clarify')
  assert.equal(validateComponentResolution({action:'manage',operations:[{type:'clear'}],reply:'Clear'},request).success,false)

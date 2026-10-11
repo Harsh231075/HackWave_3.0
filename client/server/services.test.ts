@@ -122,16 +122,12 @@ test('focus recommendations retain their stable ID and respect blockers and conf
   assert.equal(prepareFocusTime('task', '2026-10-12', state).ok, false)
 })
 
-test('legacy tasks load without context and future saves omit the removed field', () => {
+test('the current store rejects removed task fields without changing stored data', () => {
   const { storage, data } = memory()
   const service = createWorkspaceService(storage)
   const snapshot = { ...initial(), tasks: [{ id: 'legacy', title: 'Keep task', description: '', context: 'Old project', owner: 'Maya', due: '2026-10-12', duration: 30, priority: 'medium', status: 'pending' }] }
-  data.set(workspaceStorageKey, JSON.stringify(snapshot))
-  const loaded = service.load()
-  assert.equal(loaded.status, 'found')
-  if (loaded.status !== 'found') return
-  assert.equal(loaded.value.tasks[0].id, 'legacy')
-  assert.equal('context' in loaded.value.tasks[0], false)
-  assert.equal(service.save(loaded.value).status, 'saved')
-  assert.equal('context' in JSON.parse(data.get(workspaceStorageKey)!).tasks[0], false)
+  const raw = JSON.stringify(snapshot)
+  data.set(workspaceStorageKey, raw)
+  assert.equal(service.load().status, 'invalid')
+  assert.equal(data.get(workspaceStorageKey), raw)
 })

@@ -1,11 +1,11 @@
 import {writeFile} from 'node:fs/promises'
 import {validateComponentResolution} from '../../src/domain/componentIntent.ts'
-const input={goal:'Show tasks',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:['Alex'],projects:[{id:'atlas',name:'Atlas'}],clients:[],draftKeys:[],topics:[]}}
+const input={goal:'Show tasks',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:['Alex'],draftKeys:[],topics:[]}}
 const view={action:'view',widgets:['tasks'],bindings:{taskFilters:{query:'',status:'all',priority:'all',sort:'due',from:'',to:''}},reply:'Showing tasks.',referenceDate:input.referenceDate,timezone:input.timezone}
 const cases=[
  ['unknown widget',input,{...view,widgets:['payment-admin']},false],
  ['unknown owner',input,{...view,bindings:{owner:'Invented'}},false],
- ['unknown project',input,{...view,bindings:{projectId:'invented'}},false],
+ ['unknown project',input,{...view,bindings:{}},false],
  ['unauthorized clear',input,{action:'manage',operations:[{type:'clear'}],reply:'Clear'},false],
  ['unknown removal target',{...input,goal:'Remove tasks component'},{action:'manage',operations:[{type:'remove',widgets:['fake-instance']}],reply:'Remove'},false],
  ['negated clear',{...input,goal:'Never clear the workspace'},{action:'manage',operations:[{type:'clear'}],reply:'Clear'},false],

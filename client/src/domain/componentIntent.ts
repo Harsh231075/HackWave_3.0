@@ -1,7 +1,7 @@
 import { isMailWidget, mailFolders } from './mail.ts'
+import { requestsRemovedScope } from './intent.ts'
 import { extensionIds } from '../extensions/contracts.ts'
 import { capabilityAllowed, isExtension } from '../extensions/catalog.ts'
-import { projectHasClient } from './projects.ts'
 import { continuationChangeSchema, type IntentChanges } from './intentChanges.ts'
 import { taskFiltersSchema, widgetBindingSchema, widgetViewStateSchema } from './widgetInstances.ts'
 import { managementSchema, localManagement, destructiveGoal, authorizesClear, namedWidgets, removalNeedsClarification, recordMutationGoal, resourceCreationGoal } from './workspaceManagement.ts'
@@ -11,7 +11,7 @@ import { shiftDate } from './calendar.ts'
 import { emptyFilters, filterTasks } from './workspace.ts'
 import type { Task, Event } from './types.ts'
 
-export const viewBindingsSchema = z.object({
+export const viewBindingsSchema = z.strictObject({
   mailFolder: z.enum(mailFolders).optional(),
   externalPluginId:z.string().optional(), timerDurationMinutes: z.number().int().min(1).max(180).optional(), selectedTaskId: z.string().optional(),
   taskFilters: taskFiltersSchema.default(emptyFilters),
@@ -20,7 +20,7 @@ export const viewBindingsSchema = z.object({
   selectedDate: z.iso.date().optional(), category: z.enum(['all','meeting','focus','class','break']).optional(),
   taskView: z.enum(['list','kanban']).optional(), calendarView: z.enum(['month','week','day','agenda']).optional(),
   chartType: z.enum(['trend','comparison','allocation']).optional(), resourceQuery: z.string().max(160).optional(),
-  recordQuery: z.string().max(160).optional(), projectId: z.string().optional(), clientId: z.string().optional(), draftKey: z.string().optional(),
+  recordQuery: z.string().max(160).optional(),   draftKey: z.string().optional(),
 })
 export const componentViewSchema = z.object({
   action: z.literal('view'), widgets: z.array(z.enum(widgetTypes)).min(1).max(widgetTypes.length), bindings: viewBindingsSchema,
@@ -37,9 +37,9 @@ export const componentResolutionSchema = z.discriminatedUnion('action', [compone
   z.object({ action:z.literal('workflow'), kind:z.enum(['meeting_preparation','meeting_scheduling','usage_investigation','overdue_review']),continuation:continuationChangeSchema.optional(),source:z.enum(['ai','local']).optional() }),
 ])
 export type ComponentResolution = z.infer<typeof componentResolutionSchema>
-export const componentRequestSchema = z.object({ enabledExtensions:z.array(z.enum(extensionIds)).default([]), selectedProjectId:z.string().optional(), goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
+export const componentRequestSchema = z.object({ enabledExtensions:z.array(z.enum(extensionIds)).default([]),  goal:z.string().trim().min(1).max(4000), referenceDate:z.iso.date(), timezone:z.string().refine(value => {try{new Intl.DateTimeFormat('en',{timeZone:value});return true}catch{return false}}), lastTargetIds:z.array(z.string()).max(14).optional(), previous:componentViewSchema.optional(), workspaceWidgets:z.array(z.enum(widgetTypes)).max(widgetTypes.length).optional(), componentPlans:z.array(componentViewSchema).max(widgetTypes.length).optional(),
   instances:z.array(z.object({pinned:z.boolean().optional(),instanceId:z.string(),widgetType:z.enum(widgetTypes),binding:widgetBindingSchema,viewState:widgetViewStateSchema})).max(14).optional(),
-  catalog:z.object({ externalPlugins:z.array(z.object({id:z.string(),name:z.string(),description:z.string()})).max(10).optional(), tasks:z.array(z.object({id:z.string(),title:z.string(),projectId:z.string().optional()})).default([]), owners:z.array(z.string()).max(1000), projects:z.array(z.object({id:z.string(),name:z.string(),clientId:z.string().optional(),clientIds:z.string().array().optional()})).max(1000), clients:z.array(z.object({id:z.string(),name:z.string()})).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
+  catalog:z.object({ externalPlugins:z.array(z.object({id:z.string(),name:z.string(),description:z.string()})).max(10).optional(), tasks:z.array(z.object({id:z.string(),title:z.string()})).default([]), owners:z.array(z.string()).max(1000), draftKeys:z.array(z.string()).max(1000), topics:z.array(z.string()).max(1000) }),
 })
 type ParsedComponentRequest=z.infer<typeof componentRequestSchema>
 export type ComponentRequest = Omit<ParsedComponentRequest,'enabledExtensions'|'catalog'> & {enabledExtensions?:ParsedComponentRequest['enabledExtensions'];catalog:Omit<ParsedComponentRequest['catalog'],'tasks'> & {tasks?:ParsedComponentRequest['catalog']['tasks']}}
@@ -49,15 +49,15 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   }
   const result = componentResolutionSchema.safeParse(value)
   if (!result.success) return result
+  if (requestsRemovedScope(input.goal) && result.data.action !== 'clarify') return { success: false as const, error: new z.ZodError([{ code: 'custom', message: 'Choose a meeting, date range, segment or owner instead.', path: ['action'] }]) }
   const reject=(message:string,path:string[]=[])=>({success:false as const,error:new z.ZodError([{code:'custom',message,path}])})
   if ('continuation' in result.data && result.data.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id))) return componentResolutionSchema.safeParse(null)
   const additions = result.data.action === 'view' ? result.data.widgets : result.data.action === 'manage' ? result.data.operations.flatMap(op => op.type === 'add' ? op.widgets : op.type === 'replace' ? op.with : []) : []
   if (additions.some(id => !capabilityAllowed(id,input.enabledExtensions))) return reject('Enable this extension in Plugins before adding it.')
   if (result.data.action === 'view' && result.data.widgets.some(id => isExtension(id) && !isMailWidget(id))) {
     const b=result.data.bindings
-    if (!b.projectId || !input.catalog.projects.some(p=>p.id===b.projectId)) return reject('Select a project for this extension.')
     if(result.data.widgets.includes('external-plugin') && (!b.externalPluginId || !input.catalog.externalPlugins?.some(p=>p.id===b.externalPluginId)))return reject('Choose an enabled imported plugin.')
-    if (b.selectedTaskId && !(input.catalog.tasks??[]).some(t=>t.id===b.selectedTaskId && t.projectId===b.projectId)) return reject('Select a task belonging to this project.')
+    if (b.selectedTaskId && !(input.catalog.tasks??[]).some(t=>t.id===b.selectedTaskId)) return reject('Select an available task.')
   }
   if (result.data.action === 'manage') {
     if (recordMutationGoal(input.goal)) return reject('Record mutation is not a workspace layout operation.',['operations'])
@@ -80,15 +80,10 @@ export function validateComponentResolution(value: unknown, input: ComponentRequ
   if (view.continuation?.targetInstanceIds.some(id => !input.instances?.some(instance => instance.instanceId === id && view.widgets.includes(instance.widgetType)))) return componentResolutionSchema.safeParse(null)
   const changes = view.continuation?.changes
   if (changes?.owner?.operation === 'set' && !input.catalog.owners.includes(changes.owner.value)) return componentResolutionSchema.safeParse(null)
-  if (changes?.projectId?.operation === 'set' && !input.catalog.projects.some(p => p.id === (changes.projectId as { value: string }).value)) return componentResolutionSchema.safeParse(null)
-  if (changes?.clientId?.operation === 'set' && !input.catalog.clients.some(c => c.id === (changes.clientId as { value: string }).value)) return componentResolutionSchema.safeParse(null)
   if (view.referenceDate !== input.referenceDate) return reject('The model used a different reference date.',['referenceDate'])
   if(view.timezone!==input.timezone)return reject('The model used a different timezone.',['timezone'])
-  if(b.projectId&&!input.catalog.projects.some(p=>p.id===b.projectId))return reject('The model selected a project outside the available catalog.',['bindings','projectId'])
-  if(b.clientId&&!input.catalog.clients.some(c=>c.id===b.clientId))return reject('The model selected a client outside the available catalog.',['bindings','clientId'])
   if(b.owner&&!input.catalog.owners.includes(b.owner))return reject('The model selected an owner outside the available catalog.',['bindings','owner'])
   if(b.draftKey&&b.draftKey!=='outline'&&!input.catalog.draftKeys.includes(b.draftKey))return reject('The model selected an unavailable draft.',['bindings','draftKey'])
-  if(b.projectId&&b.clientId&&!projectHasClient(input.catalog.projects.find(p=>p.id===b.projectId),b.clientId))return reject('The selected project does not belong to the selected client.',['bindings','projectId'])
   // A recognized date must survive model interpretation, including Hinglish “aaj”.
   const local = fallbackComponentIntent(input)
   const explicitStatus = /\b(?:pending|blocked|completed|overdue|unfinished|incomplete)\s+(?:tasks?|work|items?)\b|\b(?:tasks?|items?)\s+(?:that are\s+|which are\s+)?(?:pending|blocked|completed|overdue)\b/i.test(input.goal)
@@ -114,8 +109,9 @@ export function selectViewEvents(events: Event[], view: ComponentView) {
   const b = view.bindings
   return events.filter(e=>(!b.dateRange || (e.date>=b.dateRange.from && e.date<=b.dateRange.to)) && (!b.category || b.category==='all' || e.category===b.category))
 }
-const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Project context',recommendation:'Suggestions'}
+const componentTitles: Partial<Record<typeof widgetTypes[number],string>> = {tasks:'Tasks',metrics:'Summary',outline:'Notes',chart:'Productivity',context:'Context',recommendation:'Suggestions'}
 export function fallbackComponentIntent(input: ComponentRequest): ComponentResolution {
+  if (requestsRemovedScope(input.goal)) return { action: 'clarify', source: 'local', question: 'Projects and clients are no longer separate scopes. Choose a meeting, dates, segment or owner.', choices: ['Show my tasks', 'Show my meetings', 'Show usage'] }
   const result = keywordComponentIntent(input)
   const additions=result.action==='view'?result.widgets:result.action==='manage'?result.operations.flatMap(op=>op.type==='add'?op.widgets:op.type==='replace'?op.with:[]):[]
   if(additions.some(id=>!capabilityAllowed(id,input.enabledExtensions)))return {action:'clarify',source:'local',question:'Enable the requested extension in Plugins first.',choices:[]}
@@ -138,8 +134,6 @@ export function fallbackComponentIntent(input: ComponentRequest): ComponentResol
     if (/today|tomorrow|yesterday|\d{4}-\d{2}-\d{2}|this week|next week/.test(text) && bindings.dateRange) set('dateRange', bindings.dateRange)
     if (/kanban|list/.test(text) && bindings.taskView) set('taskView', bindings.taskView)
     if (bindings.owner && input.catalog.owners.some(owner => text.includes(owner.toLowerCase()))) set('owner', bindings.owner)
-    if (bindings.projectId && input.catalog.projects.some(p => text.includes(p.name.toLowerCase()))) set('projectId', bindings.projectId)
-    if (bindings.clientId && !changes.projectId && input.catalog.clients.some(c => text.includes(c.name.toLowerCase()))) set('clientId', bindings.clientId)
   }
   if (!Object.keys(changes).length) return { action: 'clarify', source: 'local', question: 'I could not resolve this refinement. Specify the view and the change you want.', choices: [] }
   const parsed = continuationChangeSchema.safeParse({ relationship: 'refinement', targetInstanceIds: [], changes })
@@ -165,10 +159,8 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   const imported=matches[0]??(genericPlugin?plugins[0]:undefined)
   const extension = imported?'external-plugin':/calculator|calculate|arithmetic/.test(text)?'calculator':/voice note|audio note|recording/.test(text) ? 'voice-note' : /timer|pomodoro|(?:focus|work).*\d+\s*(?:min|minute)/.test(text) ? 'quick-timer' : undefined
   if(extension){
-    const project=input.catalog.projects.find(p=>text.includes(p.name.toLowerCase()))??input.catalog.projects.find(p=>p.id===(input.selectedProjectId??input.previous?.bindings.projectId))??(input.catalog.projects.length===1?input.catalog.projects[0]:undefined)
-    if(!project)return {action:'clarify',question:'Choose a project for this extension.',choices:input.catalog.projects.slice(0,6).map(p=>`Show ${extension} for ${p.name}`)}
     const minutes=text.match(/(\d+)\s*(?:min|minute)/)?.[1]
-    return componentViewSchema.parse({action:'view',widgets:[extension],bindings:{projectId:project.id,...(imported?{externalPluginId:imported.id}:{}),...(minutes?{timerDurationMinutes:Number(minutes)}:{}),selectedTaskId:input.catalog.tasks?.find(task=>task.projectId===project.id&&text.includes(task.title.toLowerCase()))?.id},reply:'Ready when you are.',referenceDate:input.referenceDate,timezone:input.timezone})
+    return componentViewSchema.parse({action:'view',widgets:[extension],bindings:{...(imported?{externalPluginId:imported.id}:{}),...(minutes?{timerDurationMinutes:Number(minutes)}:{}),selectedTaskId:input.catalog.tasks?.find(task=>text.includes(task.title.toLowerCase()))?.id},reply:'Ready when you are.',referenceDate:input.referenceDate,timezone:input.timezone})
   }
   const clarification = (question:string): ComponentResolution => ({action:'clarify',question,choices:['Show my tasks','Show today’s overview','Show my calendar','Show my meetings']})
   if (/\b(schedule|arrange|book|create|set up)\b/.test(text) && /meeting|appointment|call/.test(text)) return {action:'workflow',kind:'meeting_scheduling'}
@@ -222,8 +214,6 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   const matchedOwners=input.catalog.owners.filter(owner=>text.includes(owner.toLowerCase()))
   if(matchedOwners.length===1)bindings.owner=matchedOwners[0]
   else if(matchedOwners.length>1)return clarification('Which owner’s tasks should I show? Specify one owner or ask for all tasks.')
-  const project=input.catalog.projects.filter(p=>text.includes(p.name.toLowerCase())); if(project.length>1)return clarification('Which project do you mean? Include one project name.');if(project.length===1){bindings.projectId=project[0].id;bindings.clientId=project[0].clientId}
-  const client=input.catalog.clients.filter(c=>text.includes(c.name.toLowerCase()));if(client.length===1)bindings.clientId=client[0].id
   if(/focus|deep work/.test(text))bindings.category='focus';else if(widgets.length===1&&widgets[0]==='meetings')bindings.category='meeting'
   const topic=input.catalog.topics.find(topic=>text.includes(topic.toLowerCase()));if(topic)bindings.resourceQuery=topic
   if(input.previous && (/^(only|just|sirf)\b/.test(text)||(!widgets.length&&/tomorrow|today|same|those|them|aaj/.test(text)))) {
@@ -236,7 +226,7 @@ function keywordComponentIntent(input: ComponentRequest): ComponentResolution {
   if(widgets.includes('issues'))bindings.issueStatus=/closed issues|resolved issues/.test(text)?'closed':/open issues|unresolved/.test(text)?'open':undefined
   if(widgets.includes('activity')&&from)return clarification('Activity records do not have saved timestamps. Ask for the current activity log instead.')
   const unknownOwner=text.match(/(?:tasks?|work)\s+for\s+([a-z]+)/)?.[1]??text.match(/([a-z]+)\s+ke\s+(?:tasks|kaam)/)?.[1]
-  if(unknownOwner&&!['today','tomorrow','this','next','me','mere','all'].includes(unknownOwner)&&!matchedOwners.length&&!project.length&&!client.length)return clarification('That owner or project is not in the available records. Specify a known owner/project, or ask for all tasks.')
+  if(unknownOwner&&!['today','tomorrow','this','next','me','mere','all'].includes(unknownOwner)&&!matchedOwners.length)return clarification('That owner is not in the available records. Specify a known owner, or ask for all tasks.')
   if(!widgets.length)return clarification('What would you like to see? I can show tasks, overview, calendar, meetings, timeline, availability, notes, resources, metrics, productivity, activity, usage, communications or issues.')
   return componentViewSchema.parse({action:'view',widgets,bindings,reply:`Showing ${widgets.map(widget=>(componentTitles[widget]??widget[0].toUpperCase()+widget.slice(1))).join(', ')}${from?` for ${from}${to!==from?' through '+to:''}`:''}${bindings.taskFilters.status!=='all'?' · '+bindings.taskFilters.status+' tasks':''}.`,referenceDate:input.referenceDate,timezone:input.timezone,source:'local'})
 }

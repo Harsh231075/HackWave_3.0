@@ -7,7 +7,7 @@ import { fallbackComponentIntent, componentViewSchema, validateComponentResoluti
 import { widgetTypes } from '../src/lib/workspace/config.ts'
 import { componentIntentEndpoint } from './components.ts'
 import type { Task, Event } from '../src/domain/types.ts'
-const input: ComponentRequest={goal:'Show tasks',referenceDate:'2026-10-12',timezone:'Asia/Kolkata',catalog:{owners:['Alex','Maya'],projects:[{id:'northstar',name:'Northstar',clientId:'acme'}],clients:[{id:'acme',name:'Acme'}],draftKeys:['outline'],topics:['Statistics']}}
+const input: ComponentRequest={goal:'Show tasks',referenceDate:'2026-10-12',timezone:'Asia/Kolkata',catalog:{owners:['Alex','Maya'],draftKeys:['outline'],topics:['Statistics']}}
 function view(goal:string,previous?:ComponentView){const result=fallbackComponentIntent({...input,goal,previous});assert.equal(result.action,'view',goal);return result as ComponentView}
 const cases: Array<[string,string]>=[['What’s left to do?','tasks'],['Show my calendar','calendar'],['My appointments today','meetings'],['Daily timeline','timeline'],['Find free slots tomorrow','availability'],['Suggest my next step','recommendation'],['Show my draft notes','outline'],['Open Statistics resources','resources'],['Create a new resource','resource-create'],['Project background for Northstar','context'],['Statistics summary','metrics'],['How productive was I?','chart'],['Recent changes','activity'],['Show session usage','usage'],['Show messages','communications'],['Show open issues','issues']]
 for(const [prompt,widget] of cases)test(`natural wording selects ${widget}: ${prompt}`,()=>assert.ok(view(prompt).widgets.includes(widget as typeof widgetTypes[number])))
@@ -131,4 +131,11 @@ test('compact model context omits repeated saved clocks and default filters',asy
  const model=componentModelInput({...input,previous,componentPlans:[previous]})
  assert.equal(model.referenceDate,input.referenceDate);assert.equal(model.previous?.bindings.taskFilters&&Object.keys(model.previous.bindings.taskFilters).length,0)
  assert.equal('referenceDate' in model.previous!,false)
+})
+test('removed project/client scope is clarified and cannot be silently stripped from bindings',()=>{
+ const input={goal:'Show tasks for project Alpha',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:[],draftKeys:[],topics:[]}}
+ assert.equal(fallbackComponentIntent(input).action,'clarify')
+ const output={action:'view',widgets:['tasks'],bindings:{},reply:'Tasks',referenceDate:input.referenceDate,timezone:input.timezone}
+ assert.equal(validateComponentResolution(output,input).success,false)
+ assert.equal(validateComponentResolution({...output,bindings:{projectId:'old'}},{...input,goal:'Show tasks'}).success,false)
 })

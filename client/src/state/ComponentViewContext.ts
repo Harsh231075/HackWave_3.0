@@ -8,6 +8,5 @@ type Issue = z.infer<typeof issueSchema>
 export const ComponentViewContext = createContext<{
   plan: ComponentView; change: (bindings: Partial<ViewBindings>)=>void
   resources: Resource[]; communications: Communication[]; issues: Issue[]
-  projects: Array<{id:string;name:string;description:string}>; clients:Array<{id:string;name:string;description:string}>
 } | null>(null)
 export const useComponentView = () => useContext(ComponentViewContext)

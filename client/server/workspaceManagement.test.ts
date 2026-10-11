@@ -8,7 +8,7 @@ import type { WidgetInstance } from '../src/domain/widgetInstances.ts'
 const updateViews = (items: WidgetInstance[], plan: ReturnType<typeof view>, goal: string) => applyComponentView({ ...emptyWorkspace(), active: items }, plan, goal).active
 const instanceCollectionSchema = { safeParse: (items: WidgetInstance[]) => workspaceDocumentSchema.safeParse({ ...emptyWorkspace(), active: items }), parse: (items: WidgetInstance[]) => workspaceDocumentSchema.parse({ ...emptyWorkspace(), active: items }).active }
 import {fallbackComponentIntent,validateComponentResolution,type ComponentRequest} from '../src/domain/componentIntent.ts'
-const request:ComponentRequest={goal:'Show today’s overview',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:['Alex'],projects:[],clients:[],draftKeys:[],topics:[]}}
+const request:ComponentRequest={goal:'Show today’s overview',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:['Alex'],draftKeys:[],topics:[]}}
 function view(goal:string){const result=fallbackComponentIntent({...request,goal});assert.equal(result.action,'view');if(result.action!=='view')throw new Error(goal);return result}
 const create=(id:WidgetInstance['widgetType']):WidgetInstance=>makeInstance(id)
 const manage=(items:WidgetInstance[],goal:string)=>{const command=localManagement(goal);assert.ok(command,goal);return applyInstanceOperations({ ...emptyWorkspace(), active: items },command.operations,create).active}

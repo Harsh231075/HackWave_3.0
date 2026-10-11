@@ -100,7 +100,7 @@ try {
   await page.getByRole('button', { name: 'Connect Gmail', exact: true }).first().waitFor()
   await page.getByRole('button', { name: 'Connect Gmail', exact: true }).first().click()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).waitFor()
-  await page.evaluate(async()=>{const {mailService}=await import('/src/extensions/mail/mailRuntime.ts'),{projectDataService}=await import('/src/services/index.ts');mailService.startDraft();mailService.editDraft({body:'Reset private draft'});projectDataService.reset()})
+  await page.evaluate(async()=>{const {mailService}=await import('/src/extensions/mail/mailRuntime.ts'),{localDataService}=await import('/src/services/index.ts');mailService.startDraft();mailService.editDraft({body:'Reset private draft'});await localDataService.reset()})
   await page.waitForFunction(async()=>{const {mailService}=await import('/src/extensions/mail/mailRuntime.ts');return mailService.getSnapshot().status==='disconnected'&&mailService.getSnapshot().editor===null})
   await page.setViewportSize({ width: 390, height: 844 })
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))

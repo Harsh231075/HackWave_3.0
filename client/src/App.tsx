@@ -1,4 +1,5 @@
 import { MailPage, MailRuntime } from '@/extensions/mail/MailWidgets'
+import { LocalDataGate } from '@/components/feedback/LocalDataGate'
 import { useSyncExternalStore } from 'react'
 import { browserDatabase } from '@/services'
 import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
@@ -21,6 +22,7 @@ function App() {
   return (
     <BrowserRouter>
       <MailRuntime/>
+      <LocalDataGate>
       <WorkspaceProvider key={epoch}><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
@@ -41,7 +43,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DisplayPreferencesProvider></GoogleCalendarProvider></WorkspaceProvider>
-    </BrowserRouter>
+    </LocalDataGate></BrowserRouter>
   )
 }
 

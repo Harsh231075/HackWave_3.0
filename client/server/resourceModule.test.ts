@@ -9,8 +9,8 @@ import { fallbackComponentIntent, validateComponentResolution, type ComponentReq
 import { applyComponentView } from '../src/domain/instanceViews.ts'
 import { emptyWorkspace } from '../src/domain/workspaceDocument.ts'
 import { makeInstance } from '../src/domain/widgetInstances.ts'
-const request:ComponentRequest={goal:'Create a new resource',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:[],projects:[],clients:[],draftKeys:[],topics:[]}}
-const input={title:'Review reference',kind:'note',context:'Review',body:'Notes',description:'Supporting reference',tags:['design'],links:[{kind:'project' as const,id:'atlas'},{kind:'task' as const,id:'task-1'}]}
+const request:ComponentRequest={goal:'Create a new resource',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',catalog:{owners:[],draftKeys:[],topics:[]}}
+const input={title:'Review reference',kind:'note',context:'Review',body:'Notes',description:'Supporting reference',tags:['design'],links:[{kind:'meeting' as const,id:'northstar-meeting'},{kind:'task' as const,id:'task-1'}]}
 function setup(){const values=new Map<string,string>();const database=createBrowserDatabase(createBrowserStorage(()=>({getItem:key=>values.get(key)??null,setItem:(key,value)=>{values.set(key,value)},removeItem:key=>{values.delete(key)}})),{tasks:INITIAL_TASKS,events:INITIAL_EVENTS,drafts:{},dismissed:[],activity:[]},{...ADAPTIVE_DEMO,resources:RESOURCES});return {database,module:createResourceModuleService(database,RESOURCES),values}}
 test('resource prompt renders creation forms while retaining existing canvas and independent instance IDs',()=>{
  const resolved=fallbackComponentIntent(request);assert.equal(resolved.action,'view');if(resolved.action!=='view')return
@@ -27,7 +27,7 @@ test('resource drafts allow incomplete input and stay separate across service re
  assert.equal((fresh.loadDraft('a') as {input:typeof input}).input.title,'');assert.equal((fresh.loadDraft('b') as {input:typeof input}).input.title,'Other')
  assert.equal(module.resources.list().length,RESOURCES.length)
 })
-test('manual resource creation saves metadata and existing project relationships in one shared store',()=>{
+test('manual resource creation saves metadata and direct record relationships in one shared store',()=>{
  const {database,module}=setup(),saved=module.save(input);assert.equal(saved.ok,true);if(!saved.ok)return
  assert.equal(module.resources.getById(saved.value.id)?.title,input.title)
  assert.equal(module.properties(saved.value.id).links.length,2)

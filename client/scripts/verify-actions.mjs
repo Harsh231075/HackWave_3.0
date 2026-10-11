@@ -12,18 +12,18 @@ const errors = []; page.on('pageerror', e => errors.push(e.message))
 let calls = 0, lastGoal = '', invalid = false
 await page.route('**/api/intent', async route => {
  const input = route.request().postDataJSON(); calls++; lastGoal = input.goal
- const intent = input.goal.includes('overdue') ? { goalType: 'overdue_review', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '0001-01-01', to: '2026-10-11' } } : { goalType: 'meeting_preparation', meetingId: 'northstar-meeting', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-13', to: '2026-10-13' } }
+ const intent = input.goal.includes('overdue') ? { goalType: 'overdue_review', dateRange: { from: '0001-01-01', to: '2026-10-11' } } : { goalType: 'meeting_preparation', meetingId: 'northstar-meeting', dateRange: { from: '2026-10-13', to: '2026-10-13' } }
  if (input.goal.includes('ambiguous') && !input.clarificationAnswer) {
    const choices = input.candidates.meetings.filter(m => ['northstar-meeting','westbridge-meeting'].includes(m.id)).map(m => ({ id: m.id, label: m.label }))
-   await route.fulfill({ json: { version: 1, requestId: input.requestId, originalGoal: input.goal, status: 'needs_clarification', question: 'Which meeting?', field: 'meetingId', choices, partialIntent: { goalType: 'meeting_preparation', dateRange: intent.dateRange } } }); return
+   await route.fulfill({ json: { version: 2, requestId: input.requestId, originalGoal: input.goal, status: 'needs_clarification', question: 'Which meeting?', field: 'meetingId', choices, partialIntent: { goalType: 'meeting_preparation', dateRange: intent.dateRange } } }); return
  }
- await route.fulfill({ json: { version: 1, requestId: input.requestId, originalGoal: input.goal, status: 'resolved', intent } })
+ await route.fulfill({ json: { version: 2, requestId: input.requestId, originalGoal: input.goal, status: 'resolved', intent } })
 })
 await page.route('**/api/workspace/compose', async route => {
  const input = route.request().postDataJSON(), data = input.preparation ?? input.review, task = data.tasks.find(t => t.status === 'pending') ?? data.tasks[0]
  const types = input.preparation ? ['context','outline','tasks'] : ['context','tasks','recommendation']
- const actions = [{ label: 'Edit linked task', action: { type: 'task.edit', taskId: task.id } }, ...(task.status === 'pending' ? [{ label: 'Schedule linked task', action: { type: 'focus.schedule', taskId: task.id } }] : []), ...(input.preparation ? [{ label: 'Edit meeting agenda', action: { type: 'draft.edit' } }] : []), { label: 'Change goal now', action: { type: 'goal.change', goal: input.preparation ? 'Review overdue Atlas work' : 'Prepare ambiguous meeting' } }]
- await route.fulfill({ json: { version: 1, requestId: input.requestId, widgets: types.map(type => ({ type, span: 'full', reason: 'Linked records.', evidence: [{ kind: input.preparation ? 'meeting' : 'project', id: input.preparation ? input.intent.meetingId : 'atlas' }] })), actions: invalid ? [{ label: 'Bad action', action: { type: 'task.edit', taskId: 'missing' } }] : actions } })
+ const actions = [{ label: 'Edit linked task', action: { type: 'task.edit', taskId: task.id } }, ...(task.status === 'pending' ? [{ label: 'Schedule linked task', action: { type: 'focus.schedule', taskId: task.id } }] : []), ...(input.preparation ? [{ label: 'Edit meeting agenda', action: { type: 'draft.edit' } }] : []), { label: 'Change goal now', action: { type: 'goal.change', goal: input.preparation ? 'Review overdue work' : 'Prepare ambiguous meeting' } }]
+ await route.fulfill({ json: { version: 2, requestId: input.requestId, widgets: types.map(type => ({ type, span: 'full', reason: 'Linked records.', evidence: [{ kind: input.preparation ? 'meeting' : 'task', id: input.preparation ? input.intent.meetingId : task.id }] })), actions: invalid ? [{ label: 'Bad action', action: { type: 'task.edit', taskId: 'missing' } }] : actions } })
 })
 const active = () => page.locator('.productivity-response')
 async function goal(text) {
@@ -31,7 +31,14 @@ async function goal(text) {
 }
 async function close() { await page.keyboard.press('Escape'); await page.getByRole('dialog').waitFor({state:'hidden'}) }
 try {
- await page.goto(base); await goal('Prepare Northstar meeting')
+ await page.goto(base)
+
+  const { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } = await server.ssrLoadModule('/server/fixtures/demo.ts')
+  const { ADAPTIVE_DEMO } = await server.ssrLoadModule('/server/fixtures/adaptiveDemo.ts')
+  const { USAGE_DEMO } = await server.ssrLoadModule('/server/fixtures/usageDemo.ts')
+  await page.waitForSelector('[data-instance-id]')
+  await page.evaluate(async data => { const s = await import('/src/services/index.ts'); s.browserDatabase.replaceAll(data.records, { notes: [], files: [], ...data.collections }) }, { records: { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: {}, dismissed: [], activity: [] }, collections: { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES } })
+; await goal('Prepare Northstar meeting')
  await active().getByRole('textbox',{name:'Search tasks'}).fill('hide all tasks')
  await page.getByRole('button',{name:'Edit linked task',exact:true}).click()
  const originalTitle = await page.getByRole('textbox',{name:'Task title'}).inputValue()
@@ -55,8 +62,8 @@ try {
  await page.getByRole('button',{name:'Schedule linked task',exact:true}).click(); await page.getByLabel('Focus date').fill('2026-10-14')
  const select=page.getByLabel('Available focus time'), start=await select.locator('option').nth(1).getAttribute('value'); await select.selectOption(start); await page.getByRole('button',{name:'Confirm focus time'}).click(); await page.getByRole('dialog').waitFor({state:'hidden'})
  await page.reload(); assert.equal(await active().getByRole('textbox',{name:'Meeting agenda'}).inputValue(),'Unsaved action agenda')
- const events=await page.evaluate(()=>JSON.parse(localStorage.getItem('gogpt-workspace-v1')).events); assert.ok(events.some(e=>e.title==='Focus: Action edited task'&&e.date==='2026-10-14'&&e.start===start))
- const before=calls; await page.getByRole('button',{name:'Change goal now',exact:true}).click(); await active().locator('.widget-recommendation').waitFor(); assert.equal(lastGoal,'Review overdue Atlas work'); assert.equal(calls,before+1)
+ const events=await page.evaluate(()=>JSON.parse(localStorage.getItem('orlo-data-v2')).events); assert.ok(events.some(e=>e.title==='Focus: Action edited task'&&e.date==='2026-10-14'&&e.start===start))
+ const before=calls; await page.getByRole('button',{name:'Change goal now',exact:true}).click(); await active().locator('.widget-recommendation').waitFor(); assert.equal(lastGoal,'Review overdue work'); assert.equal(calls,before+1)
  await active().locator('.widget-recommendation').getByRole('button',{name:/^Pin /}).click()
  await page.getByRole('button',{name:'Change goal now',exact:true}).click(); await page.getByRole('dialog').getByText('Which meeting?',{exact:true}).waitFor(); await page.getByRole('button',{name:'Cancel',exact:true}).click()
  await goal('Prepare Northstar meeting'); await page.getByRole('region',{name:'Pinned views'}).getByRole('button',{name:'Edit task',exact:true}).click(); await page.getByRole('dialog').getByRole('textbox',{name:'Task title'}).waitFor(); await close()

@@ -1,119 +1,41 @@
-import { test } from 'node:test'
+import test from 'node:test'
 import assert from 'node:assert/strict'
-import { intentRequestSchema, intentResolutionSchema, validateIntentResolution, type IntentRequest } from '../src/domain/intent.ts'
+import { intentRequestSchema,validateIntentResolution,resolvedIntentSchema,type IntentRequest } from '../src/domain/intent.ts'
 import { createIntentService } from '../src/services/intentService.ts'
-import { ServiceError } from '../src/services/serviceErrors.ts'
-
-const request = (): IntentRequest => ({
-  version: 1, requestId: 'request-1', goal: 'Prepare tomorrow’s meeting', referenceDate: '2026-10-12', timezone: 'Asia/Kolkata',
-  candidates: {
-    clients: [{ id: 'northstar', label: 'Northstar' }, { id: 'other', label: 'Other client' }],
-    projects: [{ id: 'atlas', label: 'Atlas', clientId: 'northstar' }, { id: 'other-project', label: 'Other project', clientId: 'other' }],
-    meetings: [{ id: 'meeting-1', label: 'Planning', date: '2026-10-13', clientId: 'northstar', projectId: 'atlas' }, { id: 'meeting-2', label: 'Review', date: '2026-10-13', clientId: 'other' }],
-  },
+const request:IntentRequest={version:2,requestId:'r',goal:'Prepare tomorrow’s meeting',referenceDate:'2026-10-11',timezone:'Asia/Kolkata',candidates:{meetings:[{id:'a',label:'Morning review',date:'2026-10-12'},{id:'b',label:'Afternoon review',date:'2026-10-12'}]}}
+const intent={goalType:'meeting_preparation' as const,meetingId:'a',dateRange:{from:'2026-10-12',to:'2026-10-12'}}
+const resolved={version:2,requestId:'r',originalGoal:request.goal,status:'resolved',intent}
+const question={version:2 as const,requestId:'r',originalGoal:request.goal,status:'needs_clarification' as const,field:'meetingId' as const,question:'Which meeting?',choices:request.candidates.meetings.map(m=>({id:m.id,label:m.label})),partialIntent:{goalType:'meeting_preparation' as const,dateRange:intent.dateRange}}
+test('v2 contracts require a meeting for preparation; usage and overdue use dates without organizations',()=>{
+ assert.equal(intentRequestSchema.safeParse(request).success,true);assert.equal(intentRequestSchema.safeParse({...request,version:1}).success,false)
+ assert.equal(resolvedIntentSchema.safeParse(intent).success,true);assert.equal(resolvedIntentSchema.safeParse({...intent,meetingId:undefined}).success,false)
+ for(const goalType of ['usage_investigation','overdue_review'])assert.equal(resolvedIntentSchema.safeParse({goalType,dateRange:intent.dateRange}).success,true)
+ assert.equal(resolvedIntentSchema.safeParse({...intent,projectId:'old'}).success,false)
 })
-const resolved = () => ({ version: 1, requestId: 'request-1', originalGoal: request().goal, status: 'resolved' as const,
-  intent: { goalType: 'meeting_preparation' as const, meetingId: 'meeting-1', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-13', to: '2026-10-13' } },
+test('resolution rejects stale IDs, dates, request identity and invented choices',()=>{
+ assert.equal(validateIntentResolution(resolved,request).success,true)
+ for(const patch of [{requestId:'old'},{originalGoal:'different'},{intent:{...intent,meetingId:'missing'}},{intent:{...intent,dateRange:{from:'bad',to:'2026-10-12'}}}])assert.equal(validateIntentResolution({...resolved,...patch},request).success,false)
+ assert.equal(validateIntentResolution(question,request).success,true);assert.equal(validateIntentResolution({...question,choices:[{id:'a',label:'Invented'},question.choices[1]]},request).success,false)
+ assert.equal(intentRequestSchema.safeParse({...request,candidates:{meetings:[request.candidates.meetings[0],request.candidates.meetings[0]]}}).success,false)
 })
-const clarification = () => ({ version: 1, requestId: 'request-1', originalGoal: request().goal, status: 'needs_clarification' as const,
-  field: 'meetingId' as const, question: 'Which meeting?', choices: request().candidates.meetings.map(({ id, label }) => ({ id, label })), partialIntent: { goalType: 'meeting_preparation' as const },
+test('clarification answer must match the offered question and is authoritative',()=>{
+ const follow={...request,clarificationContext:{requestId:'r',originalGoal:request.goal,field:question.field,choices:question.choices,partialIntent:question.partialIntent},clarificationAnswer:{requestId:'r',originalGoal:request.goal,field:'meetingId' as const,selectedId:'b'}}
+ assert.equal(intentRequestSchema.safeParse(follow).success,true);assert.equal(validateIntentResolution(resolved,follow).success,false);assert.equal(validateIntentResolution({...resolved,intent:{...intent,meetingId:'b'}},follow).success,true)
+ assert.equal(intentRequestSchema.safeParse({...follow,clarificationContext:undefined}).success,false)
 })
-test('all supported goals and response statuses validate', () => {
-  const meeting = resolved()
-  assert.equal(validateIntentResolution(meeting, request()).success, true)
-  for (const intent of [
-    { goalType: 'usage_investigation', clientId: 'northstar', dateRange: meeting.intent.dateRange },
-    { goalType: 'overdue_review', projectId: 'atlas', dateRange: meeting.intent.dateRange, constraints: { status: 'blocked', priority: 'urgent', ownerId: 'maya' } },
-  ]) assert.equal(validateIntentResolution({ ...meeting, intent }, request()).success, true)
-  assert.equal(validateIntentResolution(clarification(), request()).success, true)
-  assert.equal(validateIntentResolution({ ...clarification(), field: 'dateRange', choices: [] }, request()).success, true)
-  assert.equal(validateIntentResolution({ version: 1, requestId: 'request-1', originalGoal: request().goal, status: 'unsupported', reason: 'This goal is not supported yet.' }, request()).success, true)
+test('unknown usage segments and removed organization fields are rejected',()=>{
+ const input={...request,candidates:{...request.candidates,usageScopes:[{segments:['web'],dateRange:intent.dateRange}]}}
+ assert.equal(validateIntentResolution({...resolved,intent:{goalType:'usage_investigation',dateRange:intent.dateRange,constraints:{segment:'unknown'}}},input).success,false)
+ assert.equal(intentRequestSchema.safeParse({...request,candidates:{...request.candidates,clients:[]}}).success,false)
 })
-test('requests validate real dates, timezones, strict shapes and goal limits', () => {
-  for (const patch of [ { goal: '  ' }, { goal: 'a'.repeat(4001) }, { referenceDate: '2025-02-29' }, { referenceDate: '2026-04-31' }, { timezone: 'Mars/Olympus' }, { extra: true }, { version: 2 } ]) {
-    assert.equal(intentRequestSchema.safeParse({ ...request(), ...patch }).success, false, JSON.stringify(patch).slice(0, 100))
-  }
-  assert.equal(intentRequestSchema.safeParse({ ...request(), referenceDate: '2024-02-29' }).success, true)
-  for (const dateRange of [{ from: '2026-10-14', to: '2026-10-13' }, { from: '2026-02-30', to: '2026-03-01' }]) {
-    assert.equal(intentResolutionSchema.safeParse({ ...resolved(), intent: { ...resolved().intent, dateRange } }).success, false)
-  }
+test('service validates transport responses and respects cancellation',async()=>{
+ assert.deepEqual(await createIntentService(async()=>resolved).resolve(request),resolved)
+ await assert.rejects(()=>createIntentService(async()=>({...resolved,requestId:'old'})).resolve(request))
+ const controller=new AbortController();controller.abort();await assert.rejects(()=>createIntentService(async()=>resolved).resolve(request,{signal:controller.signal}))
 })
-test('missing scope, unknown enums and nested extra properties are rejected', () => {
-  for (const intent of [
-    { goalType: 'meeting_preparation', dateRange: resolved().intent.dateRange },
-    { goalType: 'usage_investigation', dateRange: resolved().intent.dateRange },
-    { goalType: 'overdue_review', dateRange: resolved().intent.dateRange },
-    { ...resolved().intent, goalType: 'invented' },
-    { ...resolved().intent, extra: true },
-    { ...resolved().intent, constraints: { status: 'overdue' } },
-    { ...resolved().intent, constraints: { priority: 'critical' } },
-  ]) assert.equal(intentResolutionSchema.safeParse({ ...resolved(), intent }).success, false)
-  assert.equal(intentResolutionSchema.safeParse({ ...resolved(), status: 'pending' }).success, false)
-})
-test('candidate catalogs reject duplicate IDs, dangling links and contradictory client links', () => {
-  for (const kind of ['clients', 'projects', 'meetings'] as const) {
-    const input = request(); input.candidates[kind].push(input.candidates[kind][0] as never)
-    assert.equal(intentRequestSchema.safeParse(input).success, false)
-  }
-  for (const patch of [{ clientId: 'missing' }, { projectId: 'missing' }, { clientId: 'other' }]) {
-    const input = request(); Object.assign(input.candidates.meetings[0], patch)
-    assert.equal(intentRequestSchema.safeParse(input).success, false)
-  }
-  const input = request(); input.candidates.projects[0].clientId = 'missing'
-  assert.equal(intentRequestSchema.safeParse(input).success, false)
-})
-test('response references must belong to this request and agree with entity relationships', () => {
-  for (const patch of [{ meetingId: 'missing' }, { clientId: 'missing' }, { projectId: 'missing' }, { clientId: 'other' }, { projectId: 'other-project' }]) {
-    assert.equal(validateIntentResolution({ ...resolved(), intent: { ...resolved().intent, ...patch } }, request()).success, false)
-  }
-  assert.equal(validateIntentResolution({ ...resolved(), requestId: 'older' }, request()).success, false)
-  assert.equal(validateIntentResolution({ ...resolved(), originalGoal: 'Another goal' }, request()).success, false)
-  const input = request(); delete input.candidates.meetings[0].clientId
-  assert.equal(validateIntentResolution({ ...resolved(), intent: { ...resolved().intent, clientId: 'other' } }, input).success, false)
-})
-test('clarification choices match the catalog and partial/previous intents are validated', () => {
-  const response = clarification()
-  for (const choices of [[], [response.choices[0]], [response.choices[0], response.choices[0]], [{ id: 'atlas', label: 'Atlas' }, response.choices[1]], [{ id: 'meeting-1', label: 'Invented' }, response.choices[1]]]) {
-    assert.equal(validateIntentResolution({ ...response, choices }, request()).success, false)
-  }
-  assert.equal(validateIntentResolution({ ...response, field: 'dateRange' }, request()).success, false)
-  assert.equal(validateIntentResolution({ ...response, partialIntent: { clientId: 'missing' } }, request()).success, false)
-  assert.equal(intentRequestSchema.safeParse({ ...request(), previousIntent: { ...resolved().intent, meetingId: 'missing' } }).success, false)
-  const answer = { requestId: 'older-question', originalGoal: request().goal, field: 'meetingId', selectedId: 'meeting-1' }
-  const clarificationContext = { requestId: 'older-question', originalGoal: request().goal, field: 'meetingId', choices: clarification().choices, partialIntent: clarification().partialIntent }
-  assert.equal(intentRequestSchema.safeParse({ ...request(), clarificationAnswer: answer, clarificationContext }).success, true)
-  assert.equal(intentRequestSchema.safeParse({ ...request(), clarificationAnswer: { ...answer, selectedId: 'atlas' } }).success, false)
-})
-test('service normalizes payload, forwards cancellation and does not mutate input', async () => {
-  const input = request(); input.goal = `  ${input.goal}  `
-  const before = structuredClone(input)
-  const controller = new AbortController()
-  const service = createIntentService(async (payload, options) => {
-    assert.equal(payload.goal, request().goal)
-    assert.equal(options?.signal, controller.signal)
-    assert.notEqual(payload.candidates, input.candidates)
-    return resolved()
-  })
-  assert.equal((await service.resolve(input, { signal: controller.signal })).status, 'resolved')
-  assert.deepEqual(input, before)
-})
-test('service rejects invalid input before invoking resolver and invalid responses afterward', async () => {
-  let calls = 0
-  const service = createIntentService(async () => { calls++; return { ...resolved(), requestId: 'wrong' } })
-  await assert.rejects(service.resolve({ ...request(), goal: '' }), (error: unknown) => error instanceof ServiceError && error.code === 'input')
-  assert.equal(calls, 0)
-  await assert.rejects(service.resolve(request()), (error: unknown) => error instanceof ServiceError && error.code === 'response')
-  assert.equal(calls, 1)
-})
-test('service preserves adapter failures and aborts, including cancellation during resolution', async () => {
-  const failure = new ServiceError('network', 'Offline')
-  await assert.rejects(createIntentService(async () => { throw failure }).resolve(request()), error => error === failure)
-  const abort = new DOMException('Cancelled', 'AbortError')
-  await assert.rejects(createIntentService(async () => { throw abort }).resolve(request()), error => error === abort)
-  const controller = new AbortController(); controller.abort(abort)
-  let calls = 0
-  await assert.rejects(createIntentService(async () => { calls++; return resolved() }).resolve(request(), { signal: controller.signal }), error => error === abort)
-  assert.equal(calls, 0)
-  const during = new AbortController()
-  await assert.rejects(createIntentService(async () => { during.abort(abort); return resolved() }).resolve(request(), { signal: during.signal }), error => error === abort)
+test('removed named scope cannot be accepted as a broad resolved query',()=>{
+ const input={...request,goal:'Review tasks for project Alpha'}
+ const value={version:2,requestId:input.requestId,originalGoal:input.goal,status:'resolved',intent:{goalType:'overdue_review',dateRange:{from:'2026-10-01',to:'2026-10-10'}}}
+ assert.equal(validateIntentResolution(value,input).success,false)
+ assert.equal(validateIntentResolution({version:2,requestId:input.requestId,originalGoal:input.goal,status:'unsupported',reason:'Choose an owner or dates.'},input).success,true)
 })

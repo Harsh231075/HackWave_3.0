@@ -16,7 +16,7 @@ import { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES, DEMO_DATE } from './fixtures/
 import { applicationActionEvent, generatedActionsValid } from '../src/lib/workspace/actionValidation.ts'
 import { createLibrary, defineComponent } from '@openuidev/lang-core'
 import { z } from 'zod'
-const meeting: ActionOrigin = { binding: { kind: 'meeting', meetingId: 'northstar-meeting', clientId: 'northstar', projectId: 'atlas' }, referenceDate: DEMO_DATE, revision: 1 }
+const meeting: ActionOrigin = { binding: { kind: 'meeting', meetingId: 'northstar-meeting',  }, referenceDate: DEMO_DATE, revision: 1 }
 function setup() {
   const values = new Map<string, string>()
   const storage = createBrowserStorage(() => ({ getItem: k => values.get(k) ?? null, setItem: (k,v) => { values.set(k,v) }, removeItem: k => { values.delete(k) } }))
@@ -57,7 +57,7 @@ test('valid task action saves through shared mutations, undo and persistence', (
   assert.ok(prepared.ok && prepared.value.type === 'task.edit')
   assert.ok(service.saveTask(prepared.value, { ...task, title: 'Reviewed task' }).ok)
   assert.equal(database.getState().tasks.find(t => t.id === task.id)?.title, 'Reviewed task')
-  assert.equal(storage.readJson('gogpt-workspace-v1').status, 'found')
+  assert.equal(storage.readJson('orlo-data-v2').status, 'found')
   database.dispatch({ type: 'undo' })
   assert.equal(database.getState().tasks.find(t => t.id === task.id)?.title, task.title)
 })
@@ -71,7 +71,7 @@ test('draft keys derive from original binding, reject conflicts and unsupported 
   database.dispatch({ type: 'draft', key: prepared.value.key, value: 'External edit' })
   assert.equal(service.saveDraft(prepared.value, 'Overwrite').ok, false)
   assert.equal(database.getState().drafts[prepared.value.key], 'External edit')
-  const overdue = { ...meeting, binding: { kind: 'overdue' as const, intent: { goalType: 'overdue_review' as const, projectId: 'atlas', clientId: 'northstar', dateRange: { from: '0001-01-01', to: '2026-10-11' } }, referenceDate: DEMO_DATE } }
+  const overdue = { ...meeting, binding: { kind: 'overdue' as const, intent: { goalType: 'overdue_review' as const,   dateRange: { from: '0001-01-01', to: '2026-10-11' } }, referenceDate: DEMO_DATE } }
   assert.equal(service.prepare({ type: 'draft.edit' }, overdue).ok, false)
 })
 test('original pin binding survives another goal and unpin invalidates open actions', () => {
@@ -133,9 +133,9 @@ test('optional actions preserve old serialization and reject invalid scoped comp
   const { createOverdueReviewService } = await import('../src/services/overdueReviewService.ts')
   const { database } = setup()
   const preparation = createAdaptiveDataService(database).loadPreparation('northstar-meeting'); assert.ok(preparation.status === 'found')
-  const meetingIntent = { goalType: 'meeting_preparation' as const, meetingId: 'northstar-meeting', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-13', to: '2026-10-13' } }
-  const input = { version: 1 as const, requestId: 'r', intent: meetingIntent, preparation: preparation.value, agenda: '' }
-  const plan = { version: 1 as const, requestId: 'r', widgets: (['context','outline'] as const).map(type => ({ type, span: 'full' as const, reason: 'Meeting records', evidence: [{ kind: 'meeting' as const, id: 'northstar-meeting' }] })) }
+  const meetingIntent = { goalType: 'meeting_preparation' as const, meetingId: 'northstar-meeting',   dateRange: { from: '2026-10-13', to: '2026-10-13' } }
+  const input = { version: 2 as const, requestId: 'r', intent: meetingIntent, preparation: preparation.value, agenda: '' }
+  const plan = { version: 2 as const, requestId: 'r', widgets: (['context','outline'] as const).map(type => ({ type, span: 'full' as const, reason: 'Meeting records', evidence: [{ kind: 'meeting' as const, id: 'northstar-meeting' }] })) }
   const legacy = 'root = Card([Workspace([WorkspaceWidget("context", "full"), WorkspaceWidget("outline", "full")])])'
   assert.equal(serializeMeetingComposition(plan), legacy)
   assert.equal(serializeMeetingComposition({ ...plan, actions: [] }), legacy)
@@ -144,25 +144,25 @@ test('optional actions preserve old serialization and reject invalid scoped comp
   assert.match(serializeMeetingComposition(withActions), /WorkspaceAction\("Agenda"/)
   assert.equal(validateMeetingComposition({ ...plan, actions: [{ label: 'Other', action: { type: 'task.edit', taskId: 'task-6' } }] }, input).success, false)
   assert.equal(validateMeetingComposition({ ...plan, actions: Array(5).fill(withActions.actions[0]) }, input).success, false)
-  const usageIntent = { goalType: 'usage_investigation' as const, clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' } }
+  const usageIntent = { goalType: 'usage_investigation' as const,   dateRange: { from: '2026-10-05', to: '2026-10-11' } }
   const usage = createUsageWorkspaceService(database).load(usageIntent); assert.ok(usage.status === 'found')
-  const usagePlan = { ...plan, widgets: (['context','usage'] as const).map(type => ({ type, span: 'full' as const, reason: 'Usage records', evidence: [{ kind: 'client' as const, id: 'northstar' }] })) }
+  const usagePlan = { ...plan, widgets: (['context','usage'] as const).map(type => ({ type, span: 'full' as const, reason: 'Usage records', evidence: [{ kind: 'observation' as const, id: 'usage-2026-10-05-mobile' }] })) }
   assert.equal(serializeUsageComposition(usagePlan), 'root = Card([Workspace([WorkspaceWidget("context", "full"), WorkspaceWidget("usage", "full")])])')
-  assert.ok(validateUsageComposition({ ...usagePlan, actions: withActions.actions }, { version: 1, kind: 'usage', requestId: 'r', intent: usageIntent, snapshot: usage.value.snapshot, draft: '' }).success)
-  const intent = { goalType: 'overdue_review' as const, clientId: 'northstar', projectId: 'atlas', dateRange: { from: '0001-01-01', to: '2026-10-11' } }
+  assert.ok(validateUsageComposition({ ...usagePlan, actions: withActions.actions }, { version: 2, kind: 'usage', requestId: 'r', intent: usageIntent, snapshot: usage.value.snapshot, draft: '' }).success)
+  const intent = { goalType: 'overdue_review' as const,   dateRange: { from: '0001-01-01', to: '2026-10-11' } }
   const review = createOverdueReviewService(database).load(intent, DEMO_DATE); assert.ok(review.status === 'found')
-  const overduePlan = { ...plan, widgets: (['context','tasks'] as const).map(type => ({ type, span: 'full' as const, reason: 'Review records', evidence: [{ kind: 'project' as const, id: 'atlas' }] })) }
+  const overduePlan = { ...plan, widgets: (['context','tasks'] as const).map(type => ({ type, span: 'full' as const, reason: 'Review records', evidence: [{ kind: 'task' as const, id: 'task-3' }] })) }
   assert.equal(serializeOverdueComposition(overduePlan), 'root = Card([Workspace([WorkspaceWidget("context", "full"), WorkspaceWidget("tasks", "full")])])')
-  assert.equal(validateOverdueComposition({ ...overduePlan, actions: withActions.actions }, { version: 1, kind: 'overdue', requestId: 'r', intent, review: review.value }).success, false)
+  assert.equal(validateOverdueComposition({ ...overduePlan, actions: withActions.actions }, { version: 2, kind: 'overdue', requestId: 'r', intent, review: review.value }).success, false)
 })
 test('usage actions use linked client/project work; manual usage cannot choose arbitrary drafts', () => {
   const { service, database } = setup()
-  const origin: ActionOrigin = { ...meeting, binding: { kind: 'usage', intent: { goalType: 'usage_investigation', clientId: 'northstar', projectId: 'atlas', dateRange: { from: '2026-10-05', to: '2026-10-11' } } } }
+  const origin: ActionOrigin = { ...meeting, binding: { kind: 'usage', intent: { goalType: 'usage_investigation',   dateRange: { from: '2026-10-05', to: '2026-10-11' } } } }
   const task = loadActionScope(database, origin.binding)!.tasks[0]
   assert.ok(service.prepare({ type: 'task.edit', taskId: task.id }, origin).ok)
   const draft = service.prepare({ type: 'draft.edit' }, origin)
-  assert.ok(draft.ok && draft.value.type === 'draft.edit'); assert.equal(draft.value.key, 'project-investigation:atlas')
-  const manual: ActionOrigin = { ...meeting, binding: { kind: 'usage-query', query: { clientId: 'northstar', projectId: 'atlas' } } }
+  assert.ok(draft.ok && draft.value.type === 'draft.edit'); assert.equal(draft.value.key, 'usage-investigation:'+JSON.stringify(['2026-10-05','2026-10-11','all']))
+  const manual: ActionOrigin = { ...meeting, binding: { kind: 'usage-query', query: {  } } }
   assert.equal(service.prepare({ type: 'draft.edit' }, manual).ok, false)
   assert.ok(service.prepare({ type: 'task.edit', taskId: task.id }, manual).ok)
   assert.ok(service.prepare({ type: 'goal.change', goal: 'Prepare a meeting' }, manual).ok)

@@ -37,7 +37,7 @@ const definitions: Record<WidgetType, Omit<WidgetDefinition, 'supportedBindings'
   outline: { title: 'Notes', reason: 'Project notes keep your preparation and next steps together.', icon: FileText, component: EditableOutline },
   'resource-create': {title: 'Create resource', reason: 'An inline editor lets you define and save a resource without opening another dialog.', icon: BookOpen, component: ResourceCreation},
   resources: { title: 'Resources', reason: 'These linked demo materials support the selected context. Open a source to inspect its actual contents.', icon: BookOpen, component: ResourceLibrary },
-  context: { title: 'Context', reason: 'Context, courses or projects, and linked resources orient the preparation workspace.', icon: Target, component: ContextSummary },
+  context: { title: 'Context', reason: 'Context and current goals, and linked resources orient the preparation workspace.', icon: Target, component: ContextSummary },
   calendar: { title: 'Calendar', reason: 'Month, week, day, and agenda views share event records and deadlines. Includes quick creation, event editing, deletion with undo, category filters, and an optional availability panel. Use this single calendar widget instead of adding duplicate meetings or availability widgets for a calendar goal.', icon: CalendarDays, component: CalendarView },
   availability: { title: 'Availability', reason: 'Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.', icon: Clock3, component: AvailabilityPanel },
   chart: { title: 'Progress', reason: 'Completion activity comes from recorded task transitions; allocation uses local calendar events.', icon: BarChart3, component: ProductivityChart },

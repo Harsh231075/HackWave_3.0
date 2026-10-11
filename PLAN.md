@@ -1,5 +1,7 @@
 # Plan: Orlo intent-to-interface workspace
 
+> Current architecture: shared local records, with no project/client containers. Earlier project ownership and v1/v2 migration milestones below are historical and superseded by the latest checklist. “Workspace” names refer to the adaptive canvas, not an organization feature.
+
 ## Goal
 
 Complete the PS 4 adaptive workspace: start from a generic dashboard, understand a user's goal, select relevant records and tools, and arrange working components around that goal. The next milestone is a verified three-task demonstration with clarification, follow-up adaptation, preserved edits, and evidence-backed explanations.
@@ -406,9 +408,9 @@ Run the new checks from `client/`:
 
 Adaptive composition refines one validated business scope at a time. If selected views belong to different scopes, Orlo asks which scope to change. This does not introduce bulk cross-client generation. Demo workflows use the demo clock; ordinary/live-calendar requests use the current request clock.
 
-## Implemented: project-only local records and removal of old runtime data
+## Historical milestone: project-only local records (superseded)
 
-The organization/membership workspace feature is not part of this product. “Workspace” in internal canvas names refers to the adaptive interface, not an organization container. Projects own local business records. No backend or authentication was added.
+The organization/membership workspace feature is not part of this product. “Workspace” in internal canvas names refers to the adaptive interface, not an organization container. This historical iteration made projects own local records; the latest implementation below removes that model. No backend or authentication was added.
 
 - [x] Initialize an empty Default project with a persisted generated ID; allow renaming but protect deletion.
 - [x] Add shared project selection and create/update/guarded-delete controls.
@@ -428,7 +430,7 @@ The historical three-goal browser recordings used the earlier fixtures. They do 
 
 Validation for the project-only change: **316/316 unit tests passed**; production build and `git diff --check` passed; project lifecycle and Kanban browser checks passed. Lint passed with existing warnings; the build still reports the pre-existing large bundle warning.
 
-## Project notes — Keep-style UI
+## Historical milestone: project notes (now shared notes)
 
 - [x] `/notes` shows project-scoped cards, main header search and New note button, a creation form, and editor dialog.
 - [x] Shared notes components work in generated project layouts; goal-specific agendas/investigations retain their canonical body and scope.
@@ -467,3 +469,34 @@ Validation for the project-only change: **316/316 unit tests passed**; productio
 - [x] Document supported packages and add an importable Mini Counter sample folder.
 - [x] Verify arithmetic/import services, header folder picker, isolated script execution, persistence, dashboard availability, disable/remove/reset and Timer/Voice Note regressions. All 342 tests, build/typecheck, lint and both browser suites pass; existing lint/bundle warnings remain.
 - [ ] Runtime compilation of source projects, npm dependency installation, plugin access to application data, cloud distribution and plugin internal-state persistence are outside this iteration.
+
+
+## Latest implementation: shared records, remove projects and clients
+
+The approved scope is an empty shared local application. No replacement workspace, board, organization or tenant entity is introduced. The future backend must supply user-scoped records and authorization separately.
+
+### Completed
+
+- [x] Remove sidebar project selection, project management controls, project/client services, selected-project context and ownership helpers.
+- [x] Remove project/client fields from tasks, events, resources, notes, meeting/communication/issue records, usage observations/releases, intent candidates, continuation changes, widget bindings and composition evidence.
+- [x] Keep Tasks, Meetings, Notes, Resources and Planner on shared collections with reusable controls and their right-side page actions. Keep task Context removed and retain free-text owners/participants.
+- [x] Preserve direct meeting→task/resource, earlier-meeting, task→resource and observation/release→supporting-record relationships; validate IDs during relationship writes.
+- [x] Meeting preparation resolves an actual meeting; usage uses date/segment; overdue uses outstanding tasks with cutoff/owner/status/priority. Dedicated task filters remain isolated from bound meeting task filters.
+- [x] Preserve follow-up scope, explicit set/clear changes, restored clarification and stable pins; required-date clearing asks for dates. Reject removed organization fields rather than stripping them into broad bindings.
+- [x] Store canonical note bodies once. General notes retain stable IDs; meeting and investigation notes retain meeting/date/segment references. Fix repeated agenda saves without weakening conflicting-text checks.
+- [x] Remove extension project requirements. Quick Timer retains an optional task; Voice Note saves canonical notes/audio. Disabled-widget placeholders, audio playback, imported plugins and Calculator remain supported.
+- [x] Introduce `orlo-data-v2`, collection envelope v2, intent/composition v2 and canvas/layout v3. Reject old active formats.
+- [x] Start empty, with no automatic seed or migration of retired project/client data.
+- [x] Gate startup/reset on awaited local-audio cleanup, preserve unrelated storage/OAuth/remote events, initialize the canvas before rendering, provide retry/reset on cleanup failure, and deduplicate concurrent reset requests.
+- [x] Explicit Settings seed refuses nonempty records, creates UUIDs/relative dates and preserves layout/pins/extension preferences. Include 12 tasks, 12 events, five meetings, eight notes, six resources, four communications, four issues, 56 observations and two releases. No fake audio or completion history.
+- [x] Replace obsolete project lifecycle tests with shared-record lifecycle checks; update extension, plugin, Kanban and adaptive harnesses to current fields/storage/contracts.
+- [x] Update README and service documentation to the current architecture and demo sequence.
+
+### Validation and remaining acceptance
+
+Service/domain/API tests, TypeScript/build, render smoke checks, shared-record browser lifecycle, Kanban mouse/touch/keyboard checks, extension audio/timer checks and plugin import/Calculator checks are recorded in the implementation result. Browser model responses are mocked; they do not establish live-provider interpretation accuracy.
+
+- [ ] Complete the live-provider three-goal demonstration against explicitly seeded or user-created shared data, including a follow-up and retained edits.
+- [ ] Complete the comprehensive keyboard/screen-reader/responsive accessibility audit.
+- [ ] Verify real microphone and mobile/Safari recording permissions/playback.
+- [ ] Add backend authenticated user ownership and cloud storage only when backend work starts; no multi-user capability is claimed by local storage.

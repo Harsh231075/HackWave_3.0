@@ -44,38 +44,38 @@ if (typeof window !== 'undefined') {
     if ([...composerDrafts.values()].some(draft => draft.epoch === browserDatabase.getEpoch() && draft.error)) { event.preventDefault(); event.returnValue = '' }
   })
 }
-function getComposerDraft(projectId: string) {
-  const existing = composerDrafts.get(projectId)
+function getComposerDraft() {
+  const existing = composerDrafts.get('new-note')
   if (existing?.epoch === browserDatabase.getEpoch()) return existing
   const draft = { title: '', body: '', id: '', epoch: browserDatabase.getEpoch(), error: '', baseline: { title: '', body: '' } }
-  composerDrafts.set(projectId, draft)
+  composerDrafts.set('new-note', draft)
   return draft
 }
-export function NoteComposer({ projectId, onClose }: { projectId: string; onClose: () => void }) {
-  const [title, setTitle] = useState(() => getComposerDraft(projectId).title), [body, setBody] = useState(() => getComposerDraft(projectId).body), [error, setError] = useState(() => getComposerDraft(projectId).error)
+export function NoteComposer({ onClose }: {  onClose: () => void }) {
+  const [title, setTitle] = useState(() => getComposerDraft().title), [body, setBody] = useState(() => getComposerDraft().body), [error, setError] = useState(() => getComposerDraft().error)
   const save = useRef(() => {})
-  useEffect(() => { const draft = getComposerDraft(projectId); save.current = () => {
+  useEffect(() => { const draft = getComposerDraft(); save.current = () => {
     if (draft.epoch !== browserDatabase.getEpoch() || (!draft.title.trim() && !draft.body.trim())) return
     if (draft.id && (draft.title.trim() || 'Untitled note') === draft.baseline.title && draft.body === draft.baseline.body) return
     const existing = draft.id ? noteService.getById(draft.id) : null
-    const result = existing ? noteService.update(existing.id, { title: draft.title.trim() || 'Untitled note', body: draft.body }, draft.baseline) : draft.id ? { ok: false as const, message: 'This note was removed.' } : noteService.create(projectId, draft)
+    const result = existing ? noteService.update(existing.id, { title: draft.title.trim() || 'Untitled note', body: draft.body }, draft.baseline) : draft.id ? { ok: false as const, message: 'This note was removed.' } : noteService.create(draft)
     if (result.ok) { draft.id = result.value.id; draft.baseline = { title: result.value.title, body: result.value.body }; draft.error = ''; setError('') } else { draft.error = result.message; setError(result.message) }
-  } }, [projectId])
+  } }, [])
   useEffect(() => { const timer = setTimeout(() => save.current(), 600); return () => clearTimeout(timer) }, [title, body])
-  useEffect(() => { const draft = getComposerDraft(projectId); const flush = () => save.current(); const unload = (event: BeforeUnloadEvent) => { flush(); if (draft.error) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', unload); return () => { flush(); if (!draft.error && draft.epoch === browserDatabase.getEpoch()) Object.assign(draft, { title: '', body: '', id: '', error: '', baseline: { title: '', body: '' } }); window.removeEventListener('beforeunload', unload) } }, [projectId])
-  const clear = () => { Object.assign(getComposerDraft(projectId), { title: '', body: '', id: '', epoch: browserDatabase.getEpoch(), error: '', baseline: { title: '', body: '' } }); setTitle(''); setBody(''); setError('') }
-  const close = () => { save.current(); if (!getComposerDraft(projectId).error) { clear(); onClose() } }
-  return <div className="space-y-4"><Input aria-label="New note title" placeholder="Title" maxLength={160} className="border-0 shadow-none" value={title} onChange={event => { setTitle(event.target.value); getComposerDraft(projectId).title = event.target.value }}/><Textarea aria-label="New note body" placeholder="Take a note…" rows={7} maxLength={5000} className="min-h-0 resize-none border-0 shadow-none" value={body} onChange={event => { setBody(event.target.value); getComposerDraft(projectId).body = event.target.value }}/><div className="flex justify-end"><Button variant="ghost" onClick={close}>Close</Button></div>{error && <div role="alert" className="space-y-2"><p className="text-sm text-destructive">{error}</p><div className="flex gap-2"><Button variant="outline" onClick={clear}>Use saved version</Button><Button onClick={() => { const draft = getComposerDraft(projectId); const saved = noteService.getById(draft.id); if (saved) { draft.baseline = { title: saved.title, body: saved.body }; save.current() } else if (!draft.id) save.current() }}>Keep mine / Retry</Button></div></div>}</div>
+  useEffect(() => { const draft = getComposerDraft(); const flush = () => save.current(); const unload = (event: BeforeUnloadEvent) => { flush(); if (draft.error) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', unload); return () => { flush(); if (!draft.error && draft.epoch === browserDatabase.getEpoch()) Object.assign(draft, { title: '', body: '', id: '', error: '', baseline: { title: '', body: '' } }); window.removeEventListener('beforeunload', unload) } }, [])
+  const clear = () => { Object.assign(getComposerDraft(), { title: '', body: '', id: '', epoch: browserDatabase.getEpoch(), error: '', baseline: { title: '', body: '' } }); setTitle(''); setBody(''); setError('') }
+  const close = () => { save.current(); if (!getComposerDraft().error) { clear(); onClose() } }
+  return <div className="space-y-4"><Input aria-label="New note title" placeholder="Title" maxLength={160} className="border-0 shadow-none" value={title} onChange={event => { setTitle(event.target.value); getComposerDraft().title = event.target.value }}/><Textarea aria-label="New note body" placeholder="Take a note…" rows={7} maxLength={5000} className="min-h-0 resize-none border-0 shadow-none" value={body} onChange={event => { setBody(event.target.value); getComposerDraft().body = event.target.value }}/><div className="flex justify-end"><Button variant="ghost" onClick={close}>Close</Button></div>{error && <div role="alert" className="space-y-2"><p className="text-sm text-destructive">{error}</p><div className="flex gap-2"><Button variant="outline" onClick={clear}>Use saved version</Button><Button onClick={() => { const draft = getComposerDraft(); const saved = noteService.getById(draft.id); if (saved) { draft.baseline = { title: saved.title, body: saved.body }; save.current() } else if (!draft.id) save.current() }}>Keep mine / Retry</Button></div></div>}</div>
 }
-export function NewNoteButton({ projectId }: { projectId: string }) {
+export function NewNoteButton() {
   const [open, setOpen] = useState(false)
-  return <><Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus size={16}/>New note</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>New note</DialogTitle></DialogHeader>{open && <NoteComposer key={projectId} projectId={projectId} onClose={() => setOpen(false)}/>}</DialogContent></Dialog></>
+  return <><Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus size={16}/>New note</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>New note</DialogTitle></DialogHeader>{open && <NoteComposer  onClose={() => setOpen(false)}/>}</DialogContent></Dialog></>
 }
-export function NotesPanel({ projectId, query = '', focusedDraftKey, showCreateButton = true }: { projectId: string; query?: string; focusedDraftKey?: string; showCreateButton?: boolean }) {
+export function NotesPanel({ query = '', focusedDraftKey, showCreateButton = true }: {  query?: string; focusedDraftKey?: string; showCreateButton?: boolean }) {
   useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getRevision, browserDatabase.getRevision)
   const [selectedId, setSelectedId] = useState(''), [error, setError] = useState('')
-  const notes = noteService.list(projectId, query), selected = noteService.getById(selectedId)
-  const focused = focusedDraftKey ? noteService.list(projectId).find(note => note.draftKey === focusedDraftKey) : undefined
+  const notes = noteService.list(query), selected = noteService.getById(selectedId)
+  const focused = focusedDraftKey ? noteService.list().find(note => note.draftKey === focusedDraftKey) : undefined
   if (focusedDraftKey) return focused ? <NoteEditor key={focused.id} note={focused}/> : <p className="text-sm text-muted-foreground">This note is unavailable.</p>
-  return <div>{showCreateButton && <WidgetActions><NewNoteButton key={projectId} projectId={projectId}/></WidgetActions>}{error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}{notes.length ? <NotesGrid notes={notes} onOpen={setSelectedId} onError={setError}/> : <p className="py-8 text-center text-sm text-muted-foreground">{query ? 'No matching notes' : 'No notes yet'}</p>}{selected?.projectId === projectId && <NoteEditorDialog note={selected} onClose={() => setSelectedId('')}/>}</div>
+  return <div>{showCreateButton && <WidgetActions><NewNoteButton /></WidgetActions>}{error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}{notes.length ? <NotesGrid notes={notes} onOpen={setSelectedId} onError={setError}/> : <p className="py-8 text-center text-sm text-muted-foreground">{query ? 'No matching notes' : 'No notes yet'}</p>}{selected && <NoteEditorDialog note={selected} onClose={() => setSelectedId('')}/>}</div>
 }

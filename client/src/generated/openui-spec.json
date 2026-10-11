@@ -562,7 +562,7 @@
         "outline: Project notes keep your preparation and next steps together.",
         "resources: These linked demo materials support the selected context. Open a source to inspect its actual contents.",
         "resource-create: An inline editor lets you define and save a resource without opening another dialog.",
-        "context: Context, courses or projects, and linked resources orient the preparation workspace.",
+        "context: Context and current goals, and linked resources orient the preparation workspace.",
         "calendar: Month, week, day, and agenda views share event records and deadlines. Includes quick creation, event editing, deletion with undo, category filters, and an optional availability panel. Use this single calendar widget instead of adding duplicate meetings or availability widgets for a calendar goal.",
         "availability: Busy slots are calculated from your sessions. A selected slot pre-fills the scheduling form.",
         "chart: Completion activity comes from recorded task transitions; allocation uses local calendar events.",

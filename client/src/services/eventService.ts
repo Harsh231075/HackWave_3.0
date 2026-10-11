@@ -1,26 +1,22 @@
 import { createCollection } from './local/collection.ts'
 import { meetingSchema } from '../domain/adaptiveData.ts'
-import { projectNoteSchema } from '../domain/projects.ts'
-import { projectSettings, validProject } from './projectOwnership.ts'
+import { noteSchema } from '../domain/notes.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import { prepareEvent, type EventInput, type ActionResult } from '../domain/commands.ts'
 import type { Event } from '../domain/types.ts'
 export interface EventFilters { from?: string; to?: string; category?: Event['category'] }
 export function createEventService(database: BrowserDatabase, createId: () => string = () => crypto.randomUUID()) {
   const meetings = createCollection(database, 'meetings', meetingSchema)
-  const notes = createCollection(database, 'notes', projectNoteSchema)
+  const notes = createCollection(database, 'notes', noteSchema)
   const commit = (record: Event): ActionResult<Event> => database.transaction(() => {
-    if (projectSettings(database) && record.category === 'meeting') {
+    if (record.category === 'meeting') {
       const prior = meetings.list().find(meeting => meeting.eventId === record.id)
-      const memberships = database.readCollection('projectClients')
-      if (record.clientId && (memberships.status !== 'found' || !Array.isArray(memberships.value) || !memberships.value.some(link => link.projectId === record.projectId && link.clientId === record.clientId && (link.active || prior?.clientId === record.clientId)))) return { ok: false, message: 'Choose a client attached to this project.' }
-      if (prior && prior.projectId !== record.projectId) return { ok: false, message: 'This meeting belongs to its original project.' }
       const id = prior?.id ?? record.id
-      const saved = meetings.save({ id, eventId: record.id, projectId: record.projectId!, clientId: record.clientId, title: record.title, date: record.date, start: record.start, end: record.end, participants: record.participants, agenda: '' })
+      const saved = meetings.save({ id, eventId: record.id,   title: record.title, date: record.date, start: record.start, end: record.end, participants: record.participants, agenda: '' })
       if (!saved.ok) return saved
       const draftKey = `meeting-agenda:${id}`
       if (!notes.list().some(note => note.draftKey === draftKey)) {
-        const note = notes.create({ projectId: record.projectId!, meetingId: id, title: record.title, kind: 'agenda', draftKey, pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+        const note = notes.create({  meetingId: id, title: record.title, kind: 'agenda', draftKey, pinned: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
         if (!note.ok) return note
       }
       if (database.getState().drafts[draftKey] !== record.agenda) { const note = notes.list().find(note => note.draftKey === draftKey)!; const updated = notes.update(note.id, { createdAt: note.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }); if (!updated.ok) return updated; database.dispatch({ type: 'draft', key: draftKey, value: record.agenda }) }
@@ -28,9 +24,8 @@ export function createEventService(database: BrowserDatabase, createId: () => st
     } else database.dispatch({ type: 'event', event: record })
     return { ok: true, value: structuredClone(record) }
   })
-  const getById = (id: string) => (() => { const event = database.getState().events.find(event => event.id === id); if (!event) return null; const meeting = projectSettings(database) ? meetings.list().find(meeting => meeting.eventId === id) : null; return structuredClone({ ...event, ...(meeting ? { agenda: database.getState().drafts[`meeting-agenda:${meeting.id}`] ?? '' } : {}) }) })()
+  const getById = (id: string) => (() => { const event = database.getState().events.find(event => event.id === id); if (!event) return null; const meeting = meetings.list().find(meeting => meeting.eventId === id); return structuredClone({ ...event, ...(meeting ? { agenda: database.getState().drafts[`meeting-agenda:${meeting.id}`] ?? '' } : {}) }) })()
   const save = (input: EventInput): ActionResult<Event> => {
-    if (!validProject(database, input.projectId)) return { ok: false, message: 'Choose an available project.' }
     const result = prepareEvent(input, database.getState(), createId)
     if (!result.ok) return result
     return commit(result.value.record)
@@ -39,7 +34,6 @@ export function createEventService(database: BrowserDatabase, createId: () => st
     getById, save,
     createWithId(id: string, input: Omit<Event, 'id'>): ActionResult<Event> {
       if (getById(id)) return { ok: false, message: 'This event already exists.' }
-      if (!validProject(database, input.projectId)) return { ok: false, message: 'Choose an available project.' }
     const result = prepareEvent(input, database.getState(), () => id)
       if (!result.ok) return result
       return commit(result.value.record)

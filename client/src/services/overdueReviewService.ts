@@ -1,4 +1,3 @@
-import { projectHasClient } from '../domain/projects.ts'
 import { createAdaptiveDataService } from './adaptiveDataService.ts'
 import type { BrowserDatabase } from './browserDatabase.ts'
 import type { LoadResult } from './contracts.ts'
@@ -12,15 +11,10 @@ export function createOverdueReviewService(database: BrowserDatabase) {
     if (!resolvedIntentSchema.safeParse(intent).success || intent.goalType !== 'overdue_review' || !intentDateSchema.safeParse(referenceDate).success) return { status: 'invalid' }
     const data = adaptive.snapshot()
     if (!data || !adaptiveTaskSchema.array().safeParse(data.tasks).success || new Set(data.tasks.map(t => t.id)).size !== data.tasks.length) return { status: 'invalid' }
-    const project = data.projects.find(p => p.id === intent.projectId)
-    if (!project) return { status: 'missing' }
-    const client = data.clients.find(c => c.id === (intent.clientId ?? project.clientId)) ?? null
-    if (intent.clientId && !projectHasClient(project, intent.clientId)) return { status: 'invalid' }
-    const links = data.relationships.filter(l => l.sourceKind === 'project' && l.sourceId === project.id && l.type === 'related')
-    const selected = (kind: string, id: string) => links.some(l => l.targetKind === kind && l.targetId === id) && !data.relationships.some(l => l.sourceKind === 'project' && l.sourceId !== project.id && l.targetKind === kind && l.targetId === id)
-    const tasks = data.tasks.filter(t => (t.projectId ? t.projectId === project.id : selected('task', t.id)) && t.status !== 'completed' && t.due < referenceDate && t.due >= intent.dateRange.from && t.due <= intent.dateRange.to && (!intent.constraints?.status || t.status === intent.constraints.status) && (!intent.constraints?.priority || t.priority === intent.constraints.priority)).sort((a,b) => a.due.localeCompare(b.due) || priorityOrder[a.priority] - priorityOrder[b.priority] || a.id.localeCompare(b.id))
-    const resources = data.resources.filter(r => r.projectId ? r.projectId === project.id : selected('resource', r.id))
-    const value = overdueReviewSchema.parse({ project, client, referenceDate, dateRange: intent.dateRange, tasks, resources, relationships: links.filter(l => tasks.some(t => t.id === l.targetId) || resources.some(r => r.id === l.targetId)), reasons: { tasks: `Outstanding tasks explicitly linked to ${project.name}, due before ${referenceDate}.`, resources: `Sources explicitly linked to ${project.name}.` } })
+    const tasks = data.tasks.filter(t => t.status !== 'completed' && t.due < referenceDate && t.due >= intent.dateRange.from && t.due <= intent.dateRange.to && (!intent.constraints?.ownerId || t.owner === intent.constraints.ownerId) && (!intent.constraints?.status || t.status === intent.constraints.status) && (!intent.constraints?.priority || t.priority === intent.constraints.priority)).sort((a,b) => a.due.localeCompare(b.due) || priorityOrder[a.priority] - priorityOrder[b.priority] || a.id.localeCompare(b.id))
+    const links=data.relationships.filter(l=>l.sourceKind==='task'&&tasks.some(t=>t.id===l.sourceId)&&l.targetKind==='resource'&&l.type==='related')
+    const resources=data.resources.filter(r=>links.some(l=>l.targetId===r.id))
+    const value=overdueReviewSchema.parse({referenceDate,dateRange:intent.dateRange,tasks,resources,relationships:links,reasons:{tasks:`Outstanding tasks due before ${referenceDate}, matching the selected dates and filters.`,resources:'Sources linked directly to these overdue tasks.'}})
     return { status: 'found', value }
   } }
 }

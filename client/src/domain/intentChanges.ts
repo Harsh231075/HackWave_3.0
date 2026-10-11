@@ -8,7 +8,7 @@ const id = z.string().trim().min(1).max(200)
 const date = z.iso.date()
 const range = z.strictObject({ from: date, to: date }).refine(value => value.from <= value.to, 'Dates must be ordered.')
 export const intentChangesSchema = z.strictObject({
-  clientId: change(id).optional(), projectId: change(id).optional(), meetingId: change(id).optional(),
+  meetingId: change(id).optional(),
   dateRange: change(range).optional(), selectedDate: change(date).optional(),
   status: change(z.enum(['all', 'pending', 'blocked', 'completed', 'overdue'])).optional(),
   priority: change(z.enum(['all', 'urgent', 'high', 'medium', 'low'])).optional(),
@@ -36,7 +36,7 @@ A refinement changes an existing goal/view; "only blocked items", "just blocked 
 Use only supplied instance IDs. If multiple compatible views exist and no prior target or wording distinguishes them, leave targets empty so the application can ask.
 Changes use {operation:"set",value:...} or {operation:"clear"}. Omitted fields retain the baseline. Declare only what the user asks to change; never restate retained defaults.
 Example "Only blocked items": changes: {"status":{"operation":"set","value":"blocked"}}. Changes are flat; taskFilters is not a change field. Clearing taskStatuses also clears the status refinement.
-Fields: clientId,projectId,meetingId,dateRange,selectedDate,status,priority,owner,segment,query,sort,from,to,taskStatuses,taskView,calendarView,category,chartType,resourceQuery,recordQuery,issueStatus.
-"All priorities" clears priority, "all owners" clears owner, "all segments" clears segment, "all statuses" clears status and taskStatuses. Clear presentation refinements, never required ownership.
-A project switch sets projectId; application derives its client. A meeting switch sets meetingId; application derives its project/client/date. Never edit a pin's ownership. Pinned saved views are excluded from implicit targeting; only target them when the user explicitly names a pin. Adaptive workflows refine one validated scope at a time; ask which scope when requested targets have different bindings.
+Fields: meetingId,dateRange,selectedDate,status,priority,owner,segment,query,sort,from,to,taskStatuses,taskView,calendarView,category,chartType,resourceQuery,recordQuery,issueStatus.
+"All priorities" clears priority, "all owners" clears owner, "all segments" clears segment, "all statuses" clears status and taskStatuses. Clear presentation refinements, never a required meeting ID.
+A meeting switch sets meetingId; application derives its date. Never edit a pin's binding. Pinned saved views are excluded from implicit targeting; only target them when the user explicitly names a pin. Adaptive workflows refine one validated scope at a time; ask which scope when requested targets have different bindings.
 `
