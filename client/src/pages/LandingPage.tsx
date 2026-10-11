@@ -1,40 +1,75 @@
-import { Link } from 'react-router-dom'
-import { Brand } from '@/components/shell/AppShell'
-import { ArrowRight, ArrowUpRight, CalendarDays, Check, Command, ListTodo, PanelLeft, Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, useReducedMotion } from 'motion/react'
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, Command, FileText, LayoutGrid, ListChecks, ListTodo, Menu, MessageSquare, Play, Sparkles, Users, X } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { OrloLogo } from '@/components/shell/OrloLogo'
+import { CalendarPreview, MeetingPreview, ResourcePreview, TaskPreview, WorkspacePreview, type PreviewHandle } from '@/components/landing/LandingPreview'
 
-const previewTasks = [
-  { title: 'Outline the next project', detail: 'Today', done: true },
-  { title: 'Make time for focused work', detail: 'Today', done: false },
-  { title: 'Prepare for the team catch-up', detail: 'Tomorrow', done: false },
+const landscape = '/images/orlo-landing-landscape.png'
+const capabilities = [
+  { name: 'Tasks', icon: ListChecks, text: 'Turn priorities into actionable work.' },
+  { name: 'Meetings', icon: Users, text: 'Bring the right conversations into view.' },
+  { name: 'Calendar', icon: CalendarDays, text: 'See your day and make space for what matters.' },
+  { name: 'Notes', icon: FileText, text: 'Capture and refine your thinking.' },
+  { name: 'Resources', icon: BookOpen, text: 'Keep the information you need close by.' },
 ]
-
-const features = [
-  { title: 'Plan your day.', text: 'Bring tasks and time into one clear view.' },
-  { title: 'Keep everything together.', text: 'Your priorities, plans, and next steps, in one place.' },
-  { title: 'Change your workspace.', text: 'Describe what you need. Orlo shapes the layout.' },
+const steps = [
+  { title: 'Your prompt', icon: MessageSquare, text: 'Tell Orlo what you need, in plain language.' },
+  { title: 'AI interpretation', icon: Sparkles, text: 'Find the relevant tools and available context.' },
+  { title: 'Validated plan', icon: ListChecks, text: 'Check components, filters and workspace changes.' },
+  { title: 'Your workspace', icon: LayoutGrid, text: 'Bring interactive tools together, ready for you.' },
 ]
-
-function WorkspacePreview() {
-  return <section className="landing-preview" aria-label="Example Orlo workspace">
-    <div className="landing-preview-bar"><span className="landing-preview-brand"><PanelLeft size={18} aria-hidden="true" /> Your workspace</span><span className="landing-preview-shortcut"><Command size={14} aria-hidden="true" /> Ctrl K</span></div>
-    <div className="landing-preview-content">
-      <div className="landing-preview-tasks"><div className="landing-preview-heading"><h2><ListTodo size={17} aria-hidden="true" /> Tasks</h2><span className="landing-preview-add"><Plus size={13} aria-hidden="true" /> New task</span></div>
-        {previewTasks.map(task => <div className={`landing-preview-task${task.done ? ' is-done' : ''}`} key={task.title}><span className="landing-preview-check" aria-hidden="true">{task.done && <Check size={12} />}</span><span>{task.title}<small>{task.detail}</small></span></div>)}
-      </div>
-      <div className="landing-preview-calendar"><div className="landing-preview-heading"><h2><CalendarDays size={17} aria-hidden="true" /> Calendar</h2><span>Monday, Oct 12</span></div><div className="landing-preview-event"><time>09:00</time><div><strong>Focus time</strong><span>A little space for your next idea.</span></div></div><div className="landing-preview-event"><time>13:30</time><div><strong>Team catch-up</strong><span>30 minutes to get on the same page.</span></div></div></div>
-      <div className="landing-preview-command"><span className="landing-preview-command-icon"><Command size={17} aria-hidden="true" /></span><span>Build a workspace for my week</span><span className="landing-preview-command-key">↵</span></div>
-    </div>
-  </section>
+const featureCards = [
+  { title: 'Manage your tasks', text: 'Prioritize work, update details and keep your next steps in focus.', preview: TaskPreview },
+  { title: 'Prepare for meetings', text: 'Bring meetings, notes and resources together before the conversation.', preview: MeetingPreview },
+  { title: 'Keep resources close', text: 'Save references, create resources and connect them to your work.', preview: ResourcePreview },
+  { title: 'Plan your day', text: 'See commitments and make room for focused work around them.', preview: CalendarPreview },
+]
+const linkClass = 'rounded-full bg-[#f3f1ed] px-6 py-3 text-sm font-medium text-[#18191f] shadow-[0_1px_1px_rgba(255,255,255,.6),0_8px_20px_rgba(0,0,0,.2)] transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#bea7ef]'
+function Wordmark() { return <span className="flex items-center gap-2.5 text-xl font-medium tracking-tight"><OrloLogo size={27} />Orlo</span> }
+function SectionHeading({ label, title, children }: { label: string; title: string; children?: ReactNode }) {
+  return <div className="mx-auto mb-10 max-w-3xl text-center md:mb-14"><p className="mb-4 text-[10px] font-medium uppercase tracking-[0.24em] text-[#a895cf]">{label}</p><h2 className="text-[clamp(1.9rem,3.5vw,3.25rem)] font-medium leading-[1.12] tracking-[-0.045em] text-[#f4f2ee]">{title}</h2>{children && <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[#999aa6]">{children}</p>}</div>
+}
+function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const reducedMotion = useReducedMotion()
+  return <motion.div initial={reducedMotion ? false : { opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.1 }} transition={{ duration: reducedMotion ? 0 : 0.55 }} className={className}>{children}</motion.div>
+}
+function ContextPreview({ step }: { step: number }) {
+  return <div aria-hidden="true" className="mt-5 grid min-h-[140px] grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#f9f8fc] p-3 text-[#51515e]"><div className="rounded-lg border border-[#e7e3ef] bg-white p-2"><p className="mb-3 flex items-center gap-1.5 text-[9px]"><ListTodo size={10} />Tasks</p>{['Prepare review', 'Send brief'].map(title => <div key={title} className="mb-2 flex items-start gap-1.5 text-[8px]"><span className="mt-0.5 size-2 shrink-0 rounded-full border border-[#b1a9c3]" />{title}</div>)}<div className="mt-3 flex items-center gap-1 text-[7px] text-[#80a38b]"><Check size={9} />Your edits stay</div></div><div className="space-y-2">{step > 0 && <div className="rounded-lg border border-[#e7e3ef] bg-white p-2"><p className="mb-2 flex items-center gap-1.5 text-[9px]"><CalendarDays size={10} />Meetings</p><div className="rounded border-l-2 border-[#a48bcf] bg-[#f4effc] p-1.5 text-[8px]">Design review</div></div>}{step < 2 && <div className="rounded-lg border border-[#e7e3ef] bg-white p-2"><p className="flex items-center gap-1 text-[9px]"><Sparkles size={10} />Suggestions</p><div className="mt-2 h-1 w-3/4 rounded bg-[#eee8f7]" /></div>}</div></div>
 }
 
 export function LandingPage() {
-  return <div className="landing-page">
-    <nav className="landing-nav" aria-label="Main navigation"><Link to="/landing" aria-label="Orlo home"><Brand logoSize={28} /></Link><Link to="/" className="landing-nav-link">Open workspace <ArrowUpRight size={16} aria-hidden="true" /></Link></nav>
-    <main>
-      <section className="landing-hero"><h1>Make space for<br />what matters.</h1><p>Plan tasks, organize your calendar, and shape your workspace with a few words.</p><Link to="/" className="landing-cta">Open workspace <ArrowRight size={17} aria-hidden="true" /></Link></section>
-      <WorkspacePreview />
-      <section className="landing-features" aria-label="What you can do with Orlo">{features.map(feature => <div key={feature.title}><h2>{feature.title}</h2><p>{feature.text}</p></div>)}</section>
+  const [mobileMenu, setMobileMenu] = useState(false)
+  const demo = useRef<PreviewHandle>(null)
+  const reducedMotion = useReducedMotion()
+  const navigate = useNavigate()
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); navigate('/', { state: { openCommand: true } }) }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [navigate])
+  function watchDemo() { demo.current?.play(); document.getElementById('demo')?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' }) }
+  return <div className="min-h-screen overflow-x-clip bg-[#0b0d12] text-[#f3f1ee] selection:bg-[#9b7be0]/40">
+    <a href="#landing-main" className="sr-only z-50 rounded-lg bg-white px-4 py-2 text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+      <header className="relative mx-auto flex max-w-[1320px] items-center justify-between gap-4 px-5 py-6 md:px-8"><Link to="/landing" aria-label="Orlo home" className="rounded outline-none focus-visible:ring-2 focus-visible:ring-[#bea7ef]"><Wordmark /></Link><nav aria-label="Landing navigation" className="hidden items-center gap-8 text-xs text-[#b2b0bb] md:flex"><a className="transition hover:text-white" href="#features">Features</a><a className="transition hover:text-white" href="#how-it-works">How it works</a><a className="transition hover:text-white" href="#demo">Demo</a></nav><div className="flex items-center gap-3"><Link to="/" className={`${linkClass} flex items-center gap-2 px-4 py-2.5 text-xs`}>Open workspace <ArrowRight size={14} /></Link><button type="button" aria-label={mobileMenu ? 'Close navigation' : 'Open navigation'} aria-expanded={mobileMenu} aria-controls="landing-mobile-nav" onClick={() => setMobileMenu(value => !value)} className="rounded-lg p-2 text-[#c5c0d2] focus-visible:outline-2 focus-visible:outline-[#bea7ef] md:hidden">{mobileMenu ? <X size={20} /> : <Menu size={20} />}</button></div>{mobileMenu && <nav id="landing-mobile-nav" aria-label="Mobile landing navigation" className="absolute inset-x-5 top-full z-30 space-y-1 rounded-xl border border-white/10 bg-[#17161e] p-3 shadow-xl md:hidden">{[['Features', '#features'], ['How it works', '#how-it-works'], ['Demo', '#demo']].map(([label, href]) => <a key={href} href={href} onClick={() => setMobileMenu(false)} className="block rounded-lg px-4 py-3 text-sm text-[#cbc5d8] hover:bg-white/5">{label}</a>)}</nav>}</header>
+    <main id="landing-main">
+    <div className="relative isolate">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[min(1250px,100%)]" aria-hidden="true"><img src={landscape} alt="" fetchPriority="high" className="h-full w-full object-cover object-center opacity-65" /><div className="absolute inset-0 bg-linear-to-b from-[#0b0d12]/95 via-[#0b0d12]/35 to-[#0b0d12]" /><div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_10%,#0b0d12_85%)] opacity-30" /></div>
+
+      <div>
+        <section className="mx-auto flex max-w-5xl flex-col items-center px-5 pb-14 pt-14 text-center md:pb-20 md:pt-24" aria-labelledby="hero-title"><Reveal><span className="inline-flex rounded-full border border-[#af97d5]/35 bg-[#16141e]/65 px-4 py-1.5 text-[10px] tracking-wide text-[#b7a9ce]">AI-powered adaptive workspace</span><h1 id="hero-title" className="mt-7 text-[clamp(3.4rem,7.6vw,7.2rem)] font-medium leading-[0.98] tracking-[-0.065em]">Your intent.<br />Your workspace.</h1><p className="mx-auto mt-7 max-w-lg text-sm leading-7 text-[#b9b5c1] md:text-base">Tell Orlo what you need.<br className="sm:hidden" /> Bring the right tools into view.</p><div className="mt-7 flex flex-wrap items-center justify-center gap-5"><Link to="/" className={`${linkClass} flex items-center gap-4`}>Open workspace <ArrowRight size={16} /></Link><button type="button" onClick={watchDemo} className="flex items-center gap-2.5 rounded-full px-2 py-3 text-xs text-[#dad5df] transition hover:text-white focus-visible:outline-2 focus-visible:outline-[#bea7ef]"><span className="flex size-7 items-center justify-center rounded-full border border-white/20"><Play size={10} fill="currentColor" /></span>Watch the demo</button></div><div className="mt-6 flex items-center justify-center gap-1.5 text-[10px] text-[#a8a2b2]"><kbd className="rounded border border-white/20 bg-white/5 px-1.5 py-1">Ctrl</kbd><span>+</span><kbd className="rounded border border-white/20 bg-white/5 px-1.5 py-1">K</kbd><span className="ml-1">to open Orlo</span></div></Reveal></section>
+        <section id="demo" aria-label="Try an example workspace" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 md:px-8"><Reveal><WorkspacePreview ref={demo} /></Reveal><p className="mt-5 text-center text-[11px] text-[#898592]">An interactive preview with demo data. Your workspace stays untouched.</p></section>
+        <section aria-label="Tools in your workspace" className="mx-auto grid max-w-[1200px] grid-cols-2 gap-8 px-7 py-14 sm:grid-cols-3 md:grid-cols-5 md:gap-0 md:py-20">{capabilities.map(({ name, icon: Icon, text }, index) => <div key={name} className={`text-center ${index > 0 ? 'md:border-l md:border-white/8' : ''}`}><Icon size={28} strokeWidth={1.4} className="mx-auto mb-4 text-[#b99ae9]" /><h2 className="text-sm font-medium">{name}</h2><p className="mx-auto mt-2 max-w-36 text-xs leading-5 text-[#9b96a8]">{text}</p></div>)}</section>
+      </div>
+    </div>
+    <section id="how-it-works" className="relative scroll-mt-8 border-y border-white/7 px-5 py-16 md:px-8 md:py-24" aria-label="How Orlo works"><div className="mx-auto max-w-[1150px]"><SectionHeading label="How it works" title="From intent to interface.">Express a goal. Orlo selects the tools and shapes a workspace you can use.</SectionHeading><div className="relative grid gap-5 md:grid-cols-4"><div aria-hidden="true" className="absolute inset-x-16 top-1/2 hidden h-px bg-linear-to-r from-transparent via-[#9476bf]/50 to-transparent md:block" />{steps.map(({ title, icon: Icon, text }, index) => <Reveal key={title} className="relative"><div className="relative h-full rounded-2xl border border-[#41414b]/60 bg-linear-to-b from-[#1b1c23] to-[#12141a] p-5 text-center"><span className="absolute left-4 top-4 flex size-6 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[10px] text-[#b5adc2]">{index + 1}</span><Icon size={27} strokeWidth={1.4} className="mx-auto mb-4 mt-6 text-[#c3a0ee]" /><h3 className="text-sm font-medium">{title}</h3><p className="mx-auto mt-3 max-w-40 text-xs leading-5 text-[#a19caa]">{text}</p>{index < 3 && <span aria-hidden="true" className="absolute -right-4 top-1/2 z-10 hidden text-[#b69add] md:block"><ArrowRight size={15} /></span>}</div></Reveal>)}</div></div></section>
+    <section id="features" className="mx-auto max-w-[1200px] scroll-mt-8 px-5 py-16 md:px-8 md:py-24" aria-label="Product features"><SectionHeading label="Features" title="Everything you need, in the right place." /><div className="grid gap-4 md:grid-cols-2">{featureCards.map(({ title, text, preview: Preview }) => <Reveal key={title}><article className="grid h-full min-h-[235px] grid-cols-[1fr_1.05fr] items-center gap-5 overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-[#191b22] to-[#11131a] p-5 md:gap-7 md:p-6"><div><h3 className="text-base font-medium tracking-tight">{title}</h3><p className="mt-3 text-xs leading-5 text-[#a09aa9]">{text}</p></div><div className="pointer-events-none select-none" aria-hidden="true"><Preview /></div></article></Reveal>)}</div></section>
+    <section className="mx-auto max-w-[1200px] px-5 pb-20 pt-4 md:px-8 md:pb-28" aria-label="Context continuation"><SectionHeading label="Your workspace adapts" title="Keep your context. Shape your workspace.">Add what you need. Remove what you don’t. Other components and your edits stay in place.</SectionHeading><div className="grid gap-6 md:grid-cols-3">{[{ title: 'Show tasks', text: 'Bring your work into view.' }, { title: 'Add meetings', text: 'Meetings join the existing workspace.' }, { title: 'Remove suggestions', text: 'Tasks and meetings stay in place.' }].map((step, index) => <Reveal key={step.title} className="relative"><div className="rounded-2xl border border-white/10 bg-[#15171e] p-4"><div className="flex items-start gap-2.5"><span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-[#6d587f]/50 bg-[#25212e] text-[10px] text-[#c4afd9]">{index + 1}</span><div><h3 className="text-sm font-medium">{step.title}</h3><p className="mt-1 text-[10px] leading-4 text-[#9c96a7]">{step.text}</p></div></div><ContextPreview step={index} /></div>{index < 2 && <ChevronRight aria-hidden="true" size={15} className="absolute -right-5 top-1/2 hidden text-[#aa8bce] md:block" />}</Reveal>)}</div></section>
+    <section className="relative isolate overflow-hidden border-t border-white/7 px-5 py-20 text-center md:py-28" aria-labelledby="closing-title"><div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10"><img src={landscape} alt="" loading="lazy" className="h-full w-full object-cover object-[center_70%] opacity-25" /><div className="absolute inset-0 bg-linear-to-b from-[#0b0d12] via-[#0b0d12]/60 to-[#0b0d12]" /></div><p className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[#a895cf]">Get started</p><h2 id="closing-title" className="text-[clamp(2rem,4vw,3.6rem)] font-medium leading-tight tracking-[-0.045em]">What do you want to accomplish?</h2><p className="mt-4 text-sm text-[#aaa4b4]">Tell Orlo what you need. Bring the right tools into view.</p><Link to="/" className={`${linkClass} mt-7 inline-flex items-center gap-4`}>Open workspace <ArrowRight size={16} /></Link><p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-[#9993a6]"><Command size={11} />Ctrl / Cmd + K to open Orlo</p></section>
     </main>
-    <footer className="landing-footer"><Brand logoSize={20} /><p>A workspace shaped by your goal.</p></footer>
+    <footer className="border-t border-white/7 px-5 py-7 md:px-8"><div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-6"><Link to="/landing" aria-label="Orlo home"><Wordmark /></Link><nav aria-label="Footer navigation" className="flex gap-6 text-xs text-[#9e98ab]"><a href="#features">Features</a><a href="#how-it-works">How it works</a><a href="#demo">Demo</a></nav></div></footer>
   </div>
 }

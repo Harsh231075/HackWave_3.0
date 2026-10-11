@@ -13,3 +13,11 @@ for(const status of ['pending','blocked','completed','overdue'])test(`AI cannot 
  const wrong={...result,bindings:{...result.bindings,taskFilters:{...result.bindings.taskFilters,status:status==='completed'?'pending':'completed'}}}
  assert.equal(validateComponentResolution(wrong,request).success,false);assert.equal(validateComponentResolution(result,request).success,true)
 })
+for(const goal of ['remove all component from this page','Remove all components from this page','Clear all widgets on this page','Delete all cards in the current workspace','Please remove all panels from my canvas','Remove current existing all component from this page','Remove all components from this page and show resources'])test(`page-scoped clear is explicitly authorized: ${goal}`,()=>{
+ const request={...input,goal},candidate={action:'manage',operations:[{type:'clear'},...(goal.includes('show resources')?[{type:'add',widgets:['resources']}]:[])],reply:'Workspace updated.'}
+ assert.equal(validateComponentResolution(candidate,request).success,true)
+ const fallback=fallbackComponentIntent(request);assert.equal(fallback.action,'manage');if(fallback.action==='manage')assert.equal(fallback.operations[0].type,'clear')
+})
+for(const goal of ['Do not remove all component from this page','How do I remove all components from this page?','If I remove all component from this page, what happens?','Remove all task records from this page','Remove all resources from storage','Remove all components from the database'])test(`page wording never bypasses removal safety: ${goal}`,()=>{
+ assert.equal(validateComponentResolution({action:'manage',operations:[{type:'clear'}],reply:'Clear'}, {...input,goal}).success,false)
+})
