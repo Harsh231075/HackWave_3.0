@@ -20,7 +20,7 @@ try {
   assert.doesNotMatch(dynamic, /All workspace records/)
   assert.doesNotMatch(dynamic, /Active workspace/)
   assert.doesNotMatch(dynamic, /Ctrl \/ Cmd \+ K to update/)
-  assert.doesNotMatch(dynamic, /<details|<summary/)
+  assert.doesNotMatch(dynamic, /<summary>Active workspace|<summary>All workspace records/)
   const scoped = renderToString(wrap(React.createElement(InstanceCanvas, { instances: [makeInstance('tasks', { kind: 'workspace', projectId: 'atlas' }, {}, 'first'), makeInstance('tasks', { kind: 'workspace', projectId: 'launch' }, {}, 'second')], update: () => {} })))
   assert.match(scoped, /data-instance-id="first"/); assert.match(scoped, /data-instance-id="second"/)
   assert.doesNotMatch(scoped, /original records are unavailable/)

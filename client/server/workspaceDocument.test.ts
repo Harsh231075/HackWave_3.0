@@ -130,7 +130,7 @@ test('invalid canonical data is preserved and blocked storage retains in-memory 
   assert.equal(service.initialize().persistence.status, 'invalid')
   assert.deepEqual(database.readCollection('workspaceDocument'), { status: 'found', value: { version: 999 } })
   const blocked = setup(true)
-  assert.equal(blocked.service.initialize().persistence.status, 'unavailable')
+  assert.equal(blocked.service.initialize().persistence.status, 'saved') // Initialization reads only; write failure is reported on the first save.
   const document = { ...emptyWorkspace(), active: [makeInstance('tasks')] }
   assert.equal(blocked.service.save(document).status, 'unavailable')
   const restored = blocked.service.load(); assert.ok(restored.status === 'found'); assert.equal(restored.value.active[0].instanceId, document.active[0].instanceId)

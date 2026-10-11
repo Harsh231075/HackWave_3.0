@@ -17,9 +17,11 @@ The overall PS 4 milestone is **not complete**. Completed slices are meeting pre
 - [x] Complete stable widget identities, original pin-binding preservation and deterministic capacity handling (6 pins, 14 registered widgets).
 - [x] Implement validated generated-action dispatch and pre-install action checks for general generation: four allowlisted contracts, scoped record checks and unsupported external/tool action rejection.
 - [x] Isolate meeting task filters from dedicated/global, usage and overdue filters; persist the active meeting selection.
-- [ ] Enforce broader follow-up intent scope inheritance, including paraphrases.
+- [x] Implement explicit set/clear refinements, deterministic scope inheritance, target clarification and original pin-binding protection.
+- [ ] Complete the live paraphrase evaluation without provider quota/timeouts; implementation and mocked continuity checks are separate from interpretation accuracy.
 - [x] Persist/restore scoped pins with independent view state and live records.
-- [ ] Persist/restore broader compatible component state and valid pending clarification.
+- [x] Restore saved view state, successful continuation and validated entity/date/target clarification across navigation and reload.
+- [ ] Verify broader state/accessibility requirements in the complete live three-goal demonstration.
 - [ ] Complete retrieval/catalog bounds, stronger stale-content handling and restoration of composition continuity.
 - [ ] Commit a reproducible browser/evaluation harness and finish the three-task negative-case, keyboard/focus and accessibility evaluation.
 
@@ -39,8 +41,8 @@ The following foundations exist in the codebase; this inventory does not certify
 | Shared domain and mutations | `domain/`, `state/WorkspaceProvider.tsx` | Shared edits, scheduling, drafts and undo implemented |
 | Linked local records and retrieval | `data/adaptiveDemo.ts`, `services/adaptiveDataService.ts`, `services/overdueReviewService.ts` | Meeting/usage/overdue retrieval implemented; usage includes comparable periods and linked project work |
 | Scoped widgets | `state/MeetingScope.tsx`, `state/OverdueScope.tsx`, existing widgets | Meeting/usage/overdue widgets bind to resolved scope; usage task filters are isolated |
-| Saved adaptive layouts | `services/layoutService.ts` | Legacy + version-2 sessions restore; scoped pins persist separately in browserDatabase; pending clarification and broader component state remain |
-| Validation | `server/*.test.ts`, browser and live-provider runs | 143 tests passed; scoped usage and continuous three-goal mocked checks passed; full live/accessibility evaluation remains |
+| Saved adaptive layouts | `services/workspaceDocumentService.ts`, legacy `services/layoutService.ts` | Version-2 workspace documents restore instances, pins, continuation and valid clarification; version-1 reads migrate in memory without initialization writes |
+| Validation | `server/*.test.ts`, browser and live-provider runs | 274 tests passed; reproducible continuity browser checks passed; full live/accessibility evaluation remains |
 
 
 Current route contract: `/` hosts the adaptive workspace; `/landing` hosts the landing page; dedicated task, calendar, meeting, planner, and priority views remain available through the existing router. `/insights` redirects to `/`. Do not restore `/app`, query-based navigation, role packs, or a chat interface.
@@ -86,7 +88,8 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 - [x] Define meeting preparation, usage investigation, and overdue review as intent goal types; unsupported goals preserve the current canvas. Usage intents now use scoped retrieval and validated composition.
 - [x] Specify demo reference date and IANA timezone, validate real date ranges, and resolve relative meeting dates through the intent endpoint.
 - [x] Add explicit `followUpOf` metadata and enforce the bounded overdue follow-ups “Only blocked tasks” and “Show all overdue tasks” in `domain/intentContinuity.ts`.
-- [ ] Enforce general partial follow-up inheritance across all goal types and paraphrases; do not rely solely on model instructions for unchanged scope.
+- [x] Apply runtime-validated refinement patches across component views and meeting/usage/overdue intent; unchanged scope is inherited by application code.
+- [ ] Finish live paraphrase interpretation coverage; provider rate limits prevented a complete passing run.
 - [x] Add focused regression cases for existing routes/services, task/calendar mutations, persistence, and transport behavior.
 - [x] Define usage snapshot/composition/evidence and structured follow-up scopeChanges contracts.
 - [x] Define stable app-owned widget-instance/binding contracts and strict generated-action contracts in `domain/widgetInstances.ts` and `domain/workspaceActions.ts`.
@@ -195,7 +198,7 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 - [x] Persist validated scoped pin bindings, local task/calendar selections, order, stable IDs and original provenance; Reset layout preserves pins.
 - [ ] Persist other compatible generated component state.
 - [x] Read valid response-only version-1 layouts and version-2 meeting/general layouts without inventing bindings.
-- [ ] Persist/restore pending clarification only when its version and candidates remain valid.
+- [x] Persist versioned target/component/entity/date clarification, validate current candidates and target signatures, and offer Refresh question for stale questions.
 - [x] Restore previous usage composition alongside intent/request ID for usage follow-ups after reload.
 - [ ] Restore previous meeting/overdue compositions in their workflow requests; these paths currently restore intent/request ID only.
 - [x] Fall back to the default dashboard with a dismissible notice for invalid layouts or unavailable scoped records; preserve the original raw value during load.
@@ -226,10 +229,10 @@ Acceptance paragraphs remain the target for each phase; completed checkboxes abo
 | 2 | “Prepare tomorrow's meeting” | Focused clarification if multiple meetings match; dashboard retained | ✅ Meeting clarification verified |
 | 3 | Select Northstar | Client/meeting overview, relevant communications/issues, linked tasks/resources, editable agenda | ✅ Scoped meeting flow verified |
 | 4 | Edit and save agenda; pin a relevant widget | Saved draft and explicit pin state | ✅ Agenda save, stable cross-goal pin bindings and pin-local editing verified |
-| 5 | “Investigate Northstar's product usage drop” | Real seeded usage periods/segments, supporting evidence, investigation actions; pin retained | ☑ Scoped usage workflow implemented; original pin-binding evaluation remains |
+| 5 | “Investigate Northstar's product usage drop” | Real seeded usage periods/segments, supporting evidence, investigation actions; pin retained | ✅ Scoped usage implemented; original pin binding verified in the continuity harness |
 | 6 | Inspect evidence | Source record is visible; causal hypotheses are identified as hypotheses | ☑ Usage source inspection verified with mocked composition; model reasons require live evaluation |
 | 7 | “Review overdue Atlas project work” | Outstanding overdue Atlas tasks, blockers/owners, scoped counts, recovery actions | ✅ Scoped overdue flow verified |
-| 8 | “Only blocked items” | Atlas/date scope retained; selection narrows; task appears once | ☐ “Only blocked tasks” verified; “only blocked items” is not covered by the deterministic helper |
+| 8 | “Only blocked items” | Atlas/date scope retained; selection narrows; task appears once | ✅ “Only blocked items” and subsequent priority refinement verified with retained scope across navigation/reload |
 | 9 | Perform a task action; return to meeting preparation | Mutation visible elsewhere; saved Northstar agenda restored | ☐ Individual actions/agenda restoration verified; continuous three-goal run remains |
 | 10 | Refresh; attempt invalid output or cancel a request | Session restored; failed/cancelled generation preserves valid UI | ✅ Meeting/overdue reload and failure/cancellation flows verified |
 
@@ -280,15 +283,17 @@ Relative effort: contracts/data **M**, intent/clarification **L**, retrieval/bin
 - [x] Meeting preparation supports agenda/task edits; overdue review supports task edits and confirmed available-slot scheduling.
 - [x] Add scoped editable/savable investigation notes and shared linked-task editing to usage investigation.
 - [x] Bounded overdue follow-ups preserve entity/date scope, and meeting agendas survive goal changes.
-- [ ] Preserve original pin bindings and enforce general follow-up inheritance across all three goals.
+- [x] Preserve original pin bindings and enforce typed scope inheritance across all three goals.
+- [ ] Verify the full live three-goal continuity sequence.
 - [x] Reload restores compatible meeting/overdue layouts and saved records; failed generation preserves valid UI.
-- [ ] Restore pins, pending clarification and broader compatible component state.
+- [x] Restore pins, current component view settings, continuation and valid pending clarification.
+- [ ] Complete comprehensive accessibility and additional state-restoration evaluation.
 - [x] Dedicated task/calendar controls and shared local mutations remain supported by existing regression checks.
 - [x] Automated checks and implemented meeting/overdue browser/live flows pass, as recorded below.
 - [ ] Complete the full three-task desktop/mobile/keyboard demonstration and accessibility audit.
 - [x] Documentation states local-only data, synthetic sources, supported goals and remaining limitations.
 
-**Next implementation step:** strengthen general follow-up scope inheritance and persistence of valid pending clarification, then complete the live three-task/accessibility evaluation. Scoped pins and generated-action dispatch are implemented; broader continuity, retrieval bounds and component-state restoration remain unchecked.
+**Next implementation step:** complete the live three-goal/paraphrase and accessibility evaluation, then address remaining retrieval bounds and stale-content checks. Typed continuity, valid clarification restoration, original pin-binding protection and initialization cleanup are implemented and verified with deterministic/browser tests.
 
 ## Validation evidence for the current implementation
 
@@ -377,3 +382,26 @@ Action browser verification covers editing a linked task hidden by local filters
 
 
 Latest action milestone validation: **143 automated tests passed**, including 11 action-specific tests; TypeScript/specification generation and production build passed; lint passed with 11 existing warnings (including the speech-input dependency warnings), no new warnings. Both action and pin browser harnesses passed with no page errors. `git diff --check` passed. The existing production bundle-size warning remains. No live-provider action evaluation was run.
+
+## Implemented milestone: intent follow-ups and restored continuity
+
+- [x] Shared typed continuation changes: new goal/refinement, validated instance IDs, explicit set/clear operations; omitted fields retain their baseline.
+- [x] Component patches preserve unrelated filters and presentation; compatible actions remain available. Explicit multi-target presentation changes update only selected views.
+- [x] Meeting, usage and overdue refinements preserve entity/date scope; project and meeting switches derive ownership. Unsupported adaptive fields fail before installation.
+- [x] Pins are excluded from implicit targeting. Explicit local filter changes retain their binding; scope changes create an active view instead of repurposing the pin. Capacity failures preserve the document.
+- [x] Version-2 workspace documents save successful continuation and pending clarification. Version-1 data migrates in memory; malformed storage is preserved.
+- [x] Shared in-memory workspace store retains the document and layout undo across routes. Initialization no longer writes unchanged storage or notifies subscribers during render.
+- [x] Ctrl K restores valid unanswered questions without automatic generation. Removed/changed targets or stale candidates require Refresh question. Escape/cancel clears pending clarification while retaining valid content.
+- [x] New goals avoid inheriting unrelated adaptive intent; interrupted requests never restart automatically. Reset and target changes reject late results.
+- [x] Recorded automated/browser validation: **274 tests passed**, TypeScript/build and render smoke checks passed. Existing bundle-size and lint warnings remain.
+- [x] Reproducible mocked browser evaluation covers overdue → blocked → navigation/reload → priority, usage segment/date refinements, target/entity clarification restoration, stale-question refresh, pin continuity, invalid evidence, Reset races and mobile/keyboard dialogs; no page errors or render-time update warnings.
+- [ ] Finish a complete passing live-provider paraphrase run. Initial evaluation exposed grouped status patches and incomplete status clearing; safe normalization and regression tests now cover both. Later live calls confirmed individual interpretations but the provider returned **HTTP 429 rate_limit_exceeded** and timeouts, preventing a complete six-case passing run.
+- [ ] Full live three-goal demonstration and comprehensive accessibility audit remain separate acceptance requirements.
+
+Run the new checks from `client/`:
+
+- `npm run test:continuity` uses optional Playwright, following the existing pin/action harness convention. Set `ORLO_PLAYWRIGHT_MODULE` and `ORLO_CHROME_PATH` when Playwright/browser binaries are installed outside the project.
+- `npm run test:intent:live` uses the configured server-side model credentials and reports AI interpretation separately from local fallback. It is opt-in and never part of the default test suite. To retry one case, set `ORLO_LIVE_CASES` to its exact goal; separate multiple goals with `|`.
+- Standard checks: `npm test`, `npm run build`, `npm run lint`, `npm run test:render`, and repository-root `git diff --check`.
+
+Adaptive composition refines one validated business scope at a time. If selected views belong to different scopes, Orlo asks which scope to change. This does not introduce bulk cross-client generation. Demo workflows use the demo clock; ordinary/live-calendar requests use the current request clock.

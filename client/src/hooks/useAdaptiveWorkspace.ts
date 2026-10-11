@@ -1,3 +1,7 @@
+import type { SuccessfulContinuation } from '@/domain/workspaceContinuation'
+import type { ContinuationChange } from '@/domain/intentChanges'
+import { usageCompositionSchema } from '@/domain/usageComposition'
+import { meetingCompositionSchema } from '@/domain/adaptiveData'
 import { usageWorkspaceService, usageCompositionService, usageDataService, usageInvestigationService } from '@/services'
 import { serializeUsageComposition, validateUsageComposition, usageSnapshotFingerprint, usageDraftKey, type UsageComposition } from '@/domain/usageComposition'
 import type { UsageLayout } from '@/services/layoutService'
@@ -31,7 +35,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
   const cancel = useCallback(() => { request.current?.abort(); request.current = null; setPending(false); question.current = null; setClarification(null) }, [])
   const reset = () => { cancel(); previousIntent.current = undefined; previousRequestId.current = undefined; previousComposition.current = undefined; previousUsageComposition.current = undefined; setError('') }
   useEffect(() => () => request.current?.abort(), [])
-  async function run(input: GenerateWorkspaceInput, answer?: IntentRequest['clarificationAnswer']): Promise<AdaptiveResult | null> {
+  async function run(input: GenerateWorkspaceInput, answer?: IntentRequest['clarificationAnswer'], change?: ContinuationChange): Promise<AdaptiveResult | null> {
     request.current?.abort()
     const controller = new AbortController(); request.current = controller
     const active = () => request.current === controller && !controller.signal.aborted
@@ -50,9 +54,9 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
       if (!answer) { question.current = null; setClarification(null) }
       const originalGoal = offered?.originalGoal ?? input.goal.trim()
       const payload: IntentRequest = {
-        version: 1, requestId: crypto.randomUUID(), goal: originalGoal, referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', candidates: catalog.value,
-        ...(previousRequestId.current && previousIntent.current ? { followUpOf: previousRequestId.current } : {}),
-        ...(previousIntent.current ? { previousIntent: previousIntent.current } : {}),
+        version: 1, requestId: crypto.randomUUID(), ...(change ? { continuation: change } : {}), goal: originalGoal, referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', candidates: catalog.value,
+        ...(change?.relationship !== 'new_goal' && previousRequestId.current && previousIntent.current ? { followUpOf: previousRequestId.current } : {}),
+        ...(change?.relationship !== 'new_goal' && previousIntent.current ? { previousIntent: previousIntent.current } : {}),
         ...(answer && offered ? { clarificationAnswer: answer, clarificationContext: { requestId: offered.requestId, originalGoal: offered.originalGoal, field: offered.field, choices: offered.choices, partialIntent: offered.partialIntent } } : {}),
       }
       if (payload.previousIntent && !intentRequestSchema.safeParse({ ...payload, clarificationAnswer: undefined, clarificationContext: undefined }).success) { delete payload.previousIntent; delete payload.followUpOf }
@@ -65,7 +69,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
         const data = usageWorkspaceService.load(intent)
         if (data.status !== 'found') throw new Error('Usage records are unavailable or the selected range is invalid. Submit your goal again.')
         const compositionInput = { version: 1 as const, kind: 'usage' as const, requestId: payload.requestId, intent, snapshot: data.value.snapshot, draft: input.context.drafts[usageDraftKey(intent)] ?? '',
-          ...(previousIntent.current?.goalType === 'usage_investigation' && previousIntent.current?.clientId === intent.clientId && previousIntent.current?.projectId === intent.projectId && previousUsageComposition.current ? { previousComposition: previousUsageComposition.current } : {}) }
+          ...(change?.relationship !== 'new_goal' && previousIntent.current?.goalType === 'usage_investigation' && previousIntent.current?.clientId === intent.clientId && previousIntent.current?.projectId === intent.projectId && previousUsageComposition.current ? { previousComposition: previousUsageComposition.current } : {}) }
         const composition = await usageCompositionService.compose(compositionInput, { signal: controller.signal })
         if (!active()) return null
         const current = usageWorkspaceService.load(intent)
@@ -101,7 +105,7 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
       const key = `meeting-agenda:${intent.meetingId}`
       const compositionInput = { version: 1 as const, requestId: payload.requestId, intent, preparation: preparation.value,
         agenda: input.context.drafts[key] ?? preparation.value.meeting.agenda,
-        ...(previousIntent.current?.meetingId === intent.meetingId && previousComposition.current ? { previousComposition: previousComposition.current } : {}),
+        ...(change?.relationship !== 'new_goal' && previousIntent.current?.meetingId === intent.meetingId && previousComposition.current ? { previousComposition: previousComposition.current } : {}),
       }
       const composition = await meetingCompositionService.compose(compositionInput, { signal: controller.signal })
       if (!active()) return null
@@ -118,5 +122,19 @@ export function useAdaptiveWorkspace(initialIntent?: ResolvedIntent, initialRequ
       return null
     } finally { if (request.current === controller) { request.current = null; setPending(false) } }
   }
-  return { pending, error, setError, clarification, run, cancel, reset, getOutcome: () => ({ error: lastError.current, clarification: question.current }) }
+  function restore(context?: SuccessfulContinuation, pendingQuestion?: Clarification) {
+    previousIntent.current = context?.intent
+    previousRequestId.current = context?.requestId
+    const usage = usageCompositionSchema.safeParse(context?.composition)
+    previousUsageComposition.current = usage.success ? usage.data : undefined
+    const meeting = meetingCompositionSchema.safeParse(context?.composition)
+    previousComposition.current = meeting.success ? meeting.data : undefined
+    question.current = pendingQuestion ?? null
+    setClarification(pendingQuestion ?? null)
+  }
+  function getContinuation(goal: string, targets: string[]): SuccessfulContinuation | undefined {
+    if (!previousIntent.current || !previousRequestId.current) return undefined
+    return { requestId: previousRequestId.current, goal, targetInstanceIds: targets, provider: 'demo', referenceDate: DEMO_DATE, timezone: 'Asia/Kolkata', intent: previousIntent.current, composition: previousIntent.current.goalType === 'usage_investigation' ? previousUsageComposition.current : previousIntent.current.goalType === 'meeting_preparation' ? previousComposition.current : undefined }
+  }
+  return { restore, getContinuation, pending, error, setError, clarification, run, cancel, reset, getOutcome: () => ({ error: lastError.current, clarification: question.current }) }
 }

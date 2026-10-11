@@ -15,7 +15,9 @@
     "start": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local server/index.ts",
     "test:chat": "node --experimental-strip-types --test server/chat.test.ts",
     "test": "node --experimental-strip-types --test server/*.test.ts",
-    "test:render": "node scripts/integration-render.mjs"
+    "test:render": "node scripts/integration-render.mjs",
+    "test:continuity": "node scripts/verify-continuity.mjs",
+    "test:intent:live": "node --experimental-strip-types --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-intent-live.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

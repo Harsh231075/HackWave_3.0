@@ -1,3 +1,4 @@
+import { continuationChangeSchema } from './intentChanges.ts'
 import { z } from 'zod'
 
 const identifier = z.string().trim().min(1)
@@ -61,7 +62,7 @@ export const clarificationContextSchema = z.strictObject({
 const requestShape = z.strictObject({
   version: z.literal(1), requestId: identifier, goal,
   referenceDate: intentDateSchema, timezone, candidates: intentCandidatesSchema,
-  followUpOf: identifier.optional(), previousIntent: resolvedIntentSchema.optional(), clarificationAnswer: clarificationAnswerSchema.optional(), clarificationContext: clarificationContextSchema.optional(),
+  continuation: continuationChangeSchema.optional(), followUpOf: identifier.optional(), previousIntent: resolvedIntentSchema.optional(), clarificationAnswer: clarificationAnswerSchema.optional(), clarificationContext: clarificationContextSchema.optional(),
 })
 export type IntentCandidates = z.infer<typeof intentCandidatesSchema>
 export type ResolvedIntent = z.infer<typeof resolvedIntentSchema>
@@ -110,7 +111,7 @@ export const intentRequestSchema = requestShape.superRefine((request, ctx) => {
 export type IntentRequest = z.infer<typeof intentRequestSchema>
 const responseFields = { version: z.literal(1), requestId: identifier, originalGoal: goal }
 const choiceSchema = z.strictObject({ id: identifier, label: identifier })
-const clarificationSchema = z.strictObject({
+export const clarificationSchema = z.strictObject({
   ...responseFields, status: z.literal('needs_clarification'), question: identifier,
   field: z.enum(['meetingId', 'clientId', 'projectId', 'dateRange']),
   choices: z.array(choiceSchema), partialIntent: partialIntentSchema,
@@ -119,7 +120,7 @@ const clarificationSchema = z.strictObject({
   if (new Set(response.choices.map(item => item.id)).size !== response.choices.length) ctx.addIssue({ code: 'custom', path: ['choices'], message: 'Choices must be distinct.' })
 })
 export const intentResolutionSchema = z.discriminatedUnion('status', [
-  z.strictObject({ ...responseFields, status: z.literal('resolved'), intent: resolvedIntentSchema, scopeChanges: z.enum(['clientId', 'projectId', 'dateRange', 'segment']).array().max(4).optional() }),
+  z.strictObject({ ...responseFields, status: z.literal('resolved'), intent: resolvedIntentSchema, continuation: continuationChangeSchema.optional(), scopeChanges: z.enum(['clientId', 'projectId', 'dateRange', 'segment']).array().max(4).optional() }),
   clarificationSchema,
   z.strictObject({ ...responseFields, status: z.literal('unsupported'), reason: identifier }),
 ])
@@ -131,7 +132,7 @@ export function validateIntentResolution(response: unknown, request: IntentReque
     if (result.requestId !== request.requestId) ctx.addIssue({ code: 'custom', path: ['requestId'], message: 'Response belongs to another request.' })
     if (result.originalGoal !== request.goal) ctx.addIssue({ code: 'custom', path: ['originalGoal'], message: 'Response goal differs from the request.' })
     if (result.status === 'unsupported') return
-    if (result.status === 'resolved' && result.intent.goalType === 'usage_investigation' && request.previousIntent?.goalType === 'usage_investigation' && request.followUpOf && !request.clarificationAnswer && !result.scopeChanges) ctx.addIssue({ code: 'custom', message: 'Usage follow-ups require explicit scope changes.' })
+    if (result.status === 'resolved' && result.intent.goalType === 'usage_investigation' && request.previousIntent?.goalType === 'usage_investigation' && request.followUpOf && !request.clarificationAnswer && !result.scopeChanges && !result.continuation) ctx.addIssue({ code: 'custom', message: 'Usage follow-ups require explicit scope changes.' })
     if (result.status === 'resolved' && request.clarificationAnswer) {
       const answer = request.clarificationAnswer
       if (answer.field === 'dateRange' ? JSON.stringify(result.intent.dateRange) !== JSON.stringify(answer.dateRange) : result.intent[answer.field] !== answer.selectedId) ctx.addIssue({ code: 'custom', message: 'Resolution must respect the clarification answer.' })
