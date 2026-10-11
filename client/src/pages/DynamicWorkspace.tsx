@@ -57,6 +57,7 @@ export function DynamicWorkspace() {
   const calendar = useGoogleCalendar()
   const workflow = useAdaptiveWorkspace()
   const location = useLocation()
+  const [previewOrganizing, setPreviewOrganizing] = useState(() => import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'organizing')
   const initialGoal = typeof location.state?.goal === 'string' ? location.state.goal.slice(0, 4000) : ''
   const [goal, setGoal] = useState(initialGoal)
   const [commandOpen, setCommandOpen] = useState(!!initialGoal || location.state?.openCommand === true)
@@ -240,6 +241,7 @@ export function DynamicWorkspace() {
   function clearPins() { stop(); save(clearWorkspacePins(current.current)) }
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && previewOrganizing) { event.preventDefault(); setPreviewOrganizing(false); return }
       if (event.key === 'Escape' && pending && !commandOpen) { event.preventDefault(); stop(); return }
       if (event.key === 'Escape' && commandOpen && !window.document.querySelector('[role="listbox"][data-open]')) { event.preventDefault(); stop(); close(false); return }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); close(!commandOpen) }
@@ -248,14 +250,14 @@ export function DynamicWorkspace() {
   })
   const latest = document.turns.at(-1)
   const hasComponents = document.active.length > 0 || document.pins.length > 0
-  const organizing = pending && !commandOpen && !question && !workflow.clarification && !staleQuestion
+  const organizing = previewOrganizing || pending && !commandOpen && !question && !workflow.clarification && !staleQuestion
   return <WorkspaceActionHost revision={document.revision} pending={pending} onGoalChange={async goal => { await build(undefined, goal) }}>
     <div className="dynamic-canvas-page">
       <PageHeaderActions><button className="command-trigger" onClick={() => close(true)} aria-label="Change workspace goal"><Command size={14} /><kbd>Ctrl K</kbd></button><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Workspace options" />}><MoreHorizontal size={18} /></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-44"><DropdownMenuItem onClick={() => { speech.cancel(); setCommandOpen(false); setSettings(false); setHistoryOpen(true) }}><History size={16} aria-hidden="true" /> History</DropdownMenuItem><DropdownMenuItem disabled={!workspace.canUndo || pending} onClick={workspace.undo}><Undo2 size={16} aria-hidden="true" /> Undo layout</DropdownMenuItem><DropdownMenuItem onClick={resetLayout}><RotateCcw size={16} aria-hidden="true" /> Reset layout</DropdownMenuItem><DropdownMenuItem onClick={clearPins}><PinOff size={16} aria-hidden="true" /> Clear pins</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={openSettings}><CalendarDays size={16} aria-hidden="true" /> Google Calender</DropdownMenuItem></DropdownMenuContent></DropdownMenu></PageHeaderActions>
       <main className={`generated-canvas${latest ? ' workspace-has-status' : ''}`} aria-label="Context-aware workspace" inert={organizing}>
         {workspace.notice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground"><span>{workspace.notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setNotice('')}><X size={14} /></Button></div>}
         {latest && <div className="mb-4 flex items-start gap-3" aria-label="Workspace status"><OrloLogo size={22} /><p role={organizing ? undefined : latest.status === 'error' ? 'alert' : 'status'} className={`min-w-0 flex-1 text-sm leading-6 ${latest.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{latest.reply}</p>{!pending&&latest.source&&<span className="shrink-0 text-xs leading-6 text-muted-foreground" aria-label="Intent routing source">{latest.source==='ai'?'AI':'Keyword'}</span>}{pending && <Button size="sm" variant="ghost" onClick={stop}>Stop</Button>}</div>}
-        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace" aria-busy={organizing}><AnimatePresence initial={false}>{organizing && <WorkspaceOrganizingLoader key="organizing" onStop={stop} />}</AnimatePresence><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} remove={id=>save({...current.current,active:current.current.active.filter(w=>w.instanceId!==id),pins:current.current.pins.filter(w=>w.instanceId!==id),targets:current.current.targets.filter(target=>target!==id)})} />
+        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace" aria-busy={organizing}><AnimatePresence initial={false}>{organizing && <WorkspaceOrganizingLoader key="organizing" onStop={previewOrganizing ? () => setPreviewOrganizing(false) : stop} />}</AnimatePresence><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} remove={id=>save({...current.current,active:current.current.active.filter(w=>w.instanceId!==id),pins:current.current.pins.filter(w=>w.instanceId!==id),targets:current.current.targets.filter(target=>target!==id)})} />
           {!hasComponents && !pending && <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"><p>Your workspace is empty.</p><Button className="mt-4" variant="outline" onClick={() => close(true)}>Press Ctrl / Cmd + K to add components</Button></div>}
         </section>
 

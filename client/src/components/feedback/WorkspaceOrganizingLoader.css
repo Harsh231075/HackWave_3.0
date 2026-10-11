@@ -1,0 +1,33 @@
+.organizing-card {
+  container-type: size;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px -16px rgb(37 41 54 / 24%);
+}
+.organizing-card-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: inherit;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--primary) 7%, transparent);
+  opacity: 0;
+  animation: organizing-glow 10s ease-in-out infinite;
+}
+@keyframes organizing-glow {
+  0%, 13.75%, 30%, 40%, 53.125%, 62.5%, 78.125%, 90.625%, 100% { opacity: 0; }
+  7%, 35%, 58%, 85% { opacity: 1; }
+}
+.organizing-extra-row, .organizing-tall-row, .organizing-week-extra { display: none; }
+@container (min-height: 140px) {
+  .organizing-extra-row { display: flex; }
+  .organizing-week-extra { display: block; }
+}
+@container (min-height: 175px) {
+  .organizing-tall-row { display: flex; }
+}
+@container (max-width: 300px) {
+  .organizing-secondary, .organizing-badge { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .organizing-card-glow { animation: none; opacity: 0; }
+}
