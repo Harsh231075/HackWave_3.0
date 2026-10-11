@@ -5,6 +5,7 @@ import { createRecordStore } from '@/services/preparationStore'
 import { loadPinnedRecords } from '@/services/pinnedRecords'
 import { loadActionScope } from '@/services/actionScope'
 import { registry } from './registry'
+import type { WidgetType } from './config'
 import { WidgetFrame } from './WorkspaceRenderer'
 import { WorkspaceViewProvider, useWorkspace } from '@/state/WorkspaceProvider'
 import { MeetingScopeProvider, UnscopedWidget } from '@/state/MeetingScope'
@@ -64,7 +65,7 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   }}><DisplayPreferencesContext.Provider value={{ preferences: { taskView: view.taskView ?? preferences.taskView, calendarView: view.calendarView ?? preferences.calendarView, calendarCategory: view.calendarCategory ?? preferences.calendarCategory }, update: patch => update(patch) }}><ComponentViewProvider plan={plan} onChange={change}>{scoped}</ComponentViewProvider></DisplayPreferencesContext.Provider></WorkspaceViewProvider></UnscopedWidget>
 }
 
-function InstanceCard({ instance, update }: { instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+function InstanceCard({ instance, update, pageActions = false }: { pageActions?: boolean; instance: WidgetInstance | PinnedWidget; update: (instance: WidgetInstance | PinnedWidget) => void }) {
   const calendar = useGoogleCalendar()
   const store = useMemo(() => createRecordStore(browserDatabase, () => loadPinnedRecords(browserDatabase, instance)), [instance])
   const records = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
@@ -76,10 +77,10 @@ function InstanceCard({ instance, update }: { instance: WidgetInstance | PinnedW
   return <div className={`workspace-cell span-${instance.span}`} data-workspace-component={instance.widgetType} data-instance-id={instance.instanceId}>
     <p className="mb-2 text-xs text-muted-foreground" hidden={!label && !('pinId' in instance)}>{'pinId' in instance ? label ? 'Pinned · ' : 'Pinned' : ''}{label}</p>
     <InstanceHost instance={instance} update={patch => update({ ...instance, viewState: { ...instance.viewState, ...patch } })}>
-      <WidgetFrame id={instance.widgetType} instance={instance} recordsChanged={records.status === 'found' && !!instance.fingerprint && records.value.fingerprint !== instance.fingerprint}>{content}{instance.actions && (instance.binding.kind !== 'google-calendar' || calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId) && <GeneratedActionButtons buttons={instance.actions} />}</WidgetFrame>
+      <WidgetFrame id={instance.widgetType} pageActions={pageActions} instance={instance} recordsChanged={records.status === 'found' && !!instance.fingerprint && records.value.fingerprint !== instance.fingerprint}>{content}{instance.actions && (instance.binding.kind !== 'google-calendar' || calendar.connection?.connected && calendar.connection.accountId === instance.binding.accountId) && <GeneratedActionButtons buttons={instance.actions} />}</WidgetFrame>
     </InstanceHost>
   </div>
 }
-export function InstanceCanvas({ instances, update }: { instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
-  return <div className="workspace-grid">{instances.map(instance => <InstanceCard key={instance.instanceId} instance={instance} update={update} />)}</div>
+export function InstanceCanvas({ instances, update, pageActionWidget }: { pageActionWidget?: WidgetType; instances: Array<WidgetInstance | PinnedWidget>; update: (instance: WidgetInstance | PinnedWidget) => void }) {
+  return <div className="workspace-grid">{instances.map(instance => <InstanceCard key={instance.instanceId} instance={instance} update={update} pageActions={instance.widgetType === pageActionWidget} />)}</div>
 }

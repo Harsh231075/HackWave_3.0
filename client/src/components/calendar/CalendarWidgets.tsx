@@ -3,9 +3,8 @@ import { useComponentView } from '@/state/ComponentViewContext'
 import { useMeetingScope } from '@/hooks/useMeetingScope'
 import { SelectedMeeting } from '@/components/resources/MeetingPreparationWidgets'
 import { availabilityService } from '@/services'
-import { useContext, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { WidgetActions } from '@/lib/workspace/WidgetActions'
-import { WidgetPageActionsContext } from '@/lib/workspace/WidgetHeaderContext'
 import { format, parseISO } from 'date-fns'
 import { ArrowUpRight, CalendarDays, Clock3, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -81,7 +80,6 @@ export function TimeBlockCard({ event, onSelect }: { event: Event; onSelect: () 
 }
 
 export function DailyTimeline() {
-  const pageActions = useContext(WidgetPageActionsContext)
   const { state, selectedDate, selectDate } = useWorkspace()
   const [selected, setSelected] = useState<string>()
   const [creating,setCreating]=useState(false)
@@ -90,7 +88,7 @@ export function DailyTimeline() {
   const events = state.events.filter(event=>event.date===selectedDate).sort((a,b)=>a.start.localeCompare(b.start))
   const planned = events.reduce((sum, event) => sum + minutes(event.end) - minutes(event.start), 0)
   const controls = <><label><span className="sr-only">Timeline date</span><input type="date" value={selectedDate} onChange={e => { if (e.target.value) selectDate(e.target.value) }} /></label><span className="text-[length:0.78rem] text-(--muted-foreground)">{(planned / 60).toFixed(1)}h planned</span><Button variant="outline" size="sm" disabled={!canCreate} title={canCreate?undefined:'Create new local blocks in an unscoped Timeline or Calendar view.'} onClick={()=>setCreating(true)}><Plus size={14}/> Add block</Button></>
-  return <>{pageActions ? <WidgetActions>{controls}</WidgetActions> : <div className="flex justify-between items-center mb-3 text-[length:0.84rem]">{controls}</div>}<div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {
+  return <><WidgetActions>{controls}</WidgetActions><div className="flex flex-col [border-left:2px_solid_var(--border)] ml-12">{[8, 9, 10, 11, 12, 13, 14, 15, 16, 17].map(hour => {
     const starting = events.filter(event => Number(event.start.slice(0, 2)) === hour)
     const occupied = events.some(event => minutes(event.start) < (hour + 1) * 60 && minutes(event.end) > hour * 60)
     return <div className="flex relative [min-height:52px] [border-bottom:1px_dashed_var(--border)]" key={hour}><span className="absolute [left:-3.5rem] [top:-0.6rem] text-[length:0.76rem] [font-family:var(--font-mono)] text-(--muted-foreground)">{String(hour).padStart(2, '0')}:00</span><div className="flex-1 [padding:0.35rem_0_0.35rem_1rem] flex flex-col [gap:0.35rem]">{selectedDate === DEMO_DATE && hour === 9 && <div className="absolute [left:-2px] right-0 top-3 h-0.5 [background:#ef4444] text-[length:0.72rem] font-semibold [color:#ef4444] flex items-center pl-2"><span />{DEMO_TIME} · demo now</div>}{starting.map(event => <TimeBlockCard key={event.id} event={event} onSelect={() => setSelected(event.id)} />)}{!starting.length && !occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) italic [padding-top:0.35rem]">Open time</span>}{!starting.length && occupied && <span className="text-[length:0.76rem] text-(--muted-foreground) opacity-70">Session continues</span>}</div></div>
