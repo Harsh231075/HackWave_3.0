@@ -25,7 +25,7 @@ export function destructiveGoal(goal:string){
 }
 // Modifiers describe existing canvas components; they never authorize deleting records.
 export function normalizeWorkspaceRemoval(goal:string){
- return goal.replace(/\b(remove|clear|delete|reset)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(all|everything)\b/gi,'$1 $2').replace(/\b(all|everything)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(components|cards|widgets|views)\b/gi,'$1 $2')
+ return goal.replace(/\b(remove|clear|delete|reset)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(all|everything)\b/gi,'$1 $2').replace(/\b(all|everything)\s+(?:(?:the|my|current|existing|currently|rendered)\s+)+(components?|cards?|widgets?|views?|panels?)\b/gi,'$1 $2').replace(/\b(remove|clear|delete|reset)\s+(all|everything)\s+(?:components?|cards?|widgets?|views?|panels?)\b(?:\s+(?:from|on|in)\s+(?:(?:this|the|my|current)\s+)*(?:page|canvas|workspace))?/gi,'$1 $2 components')
 }
 export function authorizesClear(goal:string){
  if(!destructiveGoal(goal))return false
@@ -45,7 +45,7 @@ export function localManagement(goal:string) {
  if(combined.length>1){
    for(const clause of combined){const result=localManagement(clause);if(result)operations.push(...result.operations);else if(/^(?:create|make)\b.*\b(?:resource|document|reference)\b/.test(clause)){operations.push({type:'add',widgets:['resource-create']})}else if(/^(?:add|show)\b/.test(clause)){const widgets=namedWidgets(clause);if(!widgets.length)return null;operations.push({type:'add',widgets})}else return null}
    const ordered=clearExistingBeforeAdding(goal)&&operations.some(op=>op.type==='clear')?[...operations.filter(op=>op.type==='clear'),...operations.filter(op=>op.type!=='clear')]:operations
-   return managementSchema.parse({action:'manage',operations:ordered,reply:'Workspace updated. Other components and their settings are kept.'})
+   return managementSchema.parse({action:'manage',operations:ordered,reply:'Workspace updated. Saved records and edits are kept.'})
  }
  const clear=text.match(/(?:remove|clear|delete|reset)\s+(?:all|everything|workspace)(?:\s+(?:components|cards|widgets))?(?:\s+(?:except|but)\s+(.+?))?(?=\s+and\s+(?:add|show)|$)/)
  if(clear){if(clear[1]){const widgets=namedWidgets(clear[1]);if(!widgets.length)return null;operations.push({type:'keep',widgets})}else operations.push({type:'clear'})
@@ -55,5 +55,5 @@ export function localManagement(goal:string) {
  else if(/^(?:please\s+)?(?:remove|hide|delete)\b/.test(text)){const widgets=namedWidgets(text);if(!widgets.length)return null;operations.push({type:'remove',widgets})}
  else if(/\b(move|put|reorder)\b/.test(text)){const parts=text.split(/\b(above|below|before|after)\b/);const widgets=namedWidgets(parts[0]);if(widgets.length!==1)return null;const relative=namedWidgets(parts[2]??'');const position=/top|first/.test(text)?'first':/bottom|last/.test(text)?'last':/above|before/.test(parts[1]??'')?'before':'after';if(!relative.length&&!['first','last'].includes(position))return null;operations.push({type:'move',widget:widgets[0],relativeTo:relative[0],position})}
  else if(/\b(wide|narrow|full width|resize)\b/.test(text)){const widgets=namedWidgets(text);if(widgets.length!==1)return null;operations.push({type:'resize',widget:widgets[0],span:/narrow/.test(text)?'narrow':/full/.test(text)?'full':'wide'})}
- return operations.length?managementSchema.parse({action:'manage',operations,reply:'Workspace updated. Other components and their settings are kept.'}):null
+ return operations.length?managementSchema.parse({action:'manage',operations,reply:'Workspace updated. Saved records and edits are kept.'}):null
 }
