@@ -19,6 +19,7 @@ export interface BrowserDatabase {
   replaceAll(snapshot: DomainSnapshot, collections: Record<string, unknown>): SaveResult
   getEpoch(): number
   getPersistenceResult(): SaveResult
+  hydrate(snapshot: DomainSnapshot, nextCollections: Record<string, unknown>, newSession?: boolean): void
 }
 
 // One in-memory state and one persistence writer for all task/event/draft services.
@@ -138,5 +139,14 @@ export function createBrowserDatabase(storage: StorageAdapter, seed: DomainSnaps
       return persistence
     },
     getPersistenceResult: () => persistence,
+    hydrate(snapshot, nextCollections, newSession = false) {
+      state = { ...structuredClone(snapshot), filters: newSession ? emptyFilters() : getState().filters, history: newSession ? [] : getState().history }
+      collections = structuredClone(nextCollections)
+      if (newSession) epoch++
+      revision++
+      persist(repository.save(state))
+      persist(storage.writeJson('orlo-browser-db-v2', { version: 2, collections }))
+      notifyListeners()
+    },
   }
 }

@@ -56,9 +56,9 @@ npm ci
 npm run dev
 ```
 
-Copy `client/.env.example` to `client/.env.local` and configure a model provider/key/model to enable AI generation. Supported transports include OpenAI, Groq, Ollama and a configured gateway. Credentials stay server-side; never use `VITE_*` for API keys. Dedicated local pages work without model credentials.
+Copy `server/.env.example` to `server/.env.local` and configure OPENAI_BASE_URL, OPENAI_API_KEY and OPENAI_MODEL to enable AI generation. All model endpoints use one OpenAI-compatible configuration path; Chat Completions is the default, with an optional Responses transport. Credentials stay server-side; never use `VITE_*` for API keys. Dedicated local pages work without model credentials.
 
-Production: `npm run build`, then `npm start`. The server serves the SPA and APIs together; `npm run preview` alone does not serve APIs.
+Run `npm --prefix server install` from the repository root, then start the backend with `npm --prefix server run dev` alongside Vite. Production: `npm --prefix client run build`, then `npm --prefix server start`. The server serves the SPA and APIs together; `npm run preview` alone does not serve APIs.
 
 ## Boundaries
 
@@ -90,3 +90,5 @@ See [PLAN.md](PLAN.md) and [services documentation](client/src/services/README.m
 Mail provides browser-only Gmail access: inbox/folders/search, message reading, plain-text compose, Gmail drafts, reply/forward, attachments and mailbox actions. Enable it in Plugins and use the Mail sidebar page or dashboard commands (“show my inbox”, “show sent mail”, “write an email”). Sending requires the composer’s Send button.
 
 Set the public `VITE_GOOGLE_CLIENT_ID` in `client/.env.local`; Mail adds no backend endpoints or server credentials. Google consent is required, and expired tokens require a user-triggered reconnect. See [Mail setup and verification](client/src/extensions/mail/README.md) for Google configuration, privacy/storage behavior and demo limitations.
+
+Docker deployment and Better Auth setup: [Docker setup](docs/DOCKER_SETUP.md).

@@ -1,3 +1,4 @@
+import { AccountButton } from './AccountButton'
 import { LocalDataSettings } from '@/components/records/LocalDataSettings'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
@@ -46,6 +47,7 @@ export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => v
           ))}
         </nav>
         <div className="workspace-sidebar-bottom">
+          <div className="flex items-center gap-3 px-3 py-2"><AccountButton/><span className="text-sm">Account</span></div>
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
@@ -72,7 +74,7 @@ export function WorkspaceSidebar({ onClose, mobile = false }: { onClose: () => v
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>
-              Manage local data and calendar connections.
+              Manage your account data and calendar connections.
             </DialogDescription>
           </DialogHeader>
           <GoogleCalendarConnection /><LocalDataSettings />

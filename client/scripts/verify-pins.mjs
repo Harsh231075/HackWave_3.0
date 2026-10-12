@@ -44,9 +44,9 @@ async function waitForPins(count) { await page.waitForFunction(n => document.que
 try {
   await page.goto(base)
 
-  const { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } = await server.ssrLoadModule('/server/fixtures/demo.ts')
-  const { ADAPTIVE_DEMO } = await server.ssrLoadModule('/server/fixtures/adaptiveDemo.ts')
-  const { USAGE_DEMO } = await server.ssrLoadModule('/server/fixtures/usageDemo.ts')
+  const { INITIAL_TASKS, INITIAL_EVENTS, RESOURCES } = await server.ssrLoadModule('/../server/fixtures/demo.ts')
+  const { ADAPTIVE_DEMO } = await server.ssrLoadModule('/../server/fixtures/adaptiveDemo.ts')
+  const { USAGE_DEMO } = await server.ssrLoadModule('/../server/fixtures/usageDemo.ts')
   await page.waitForSelector('[data-instance-id]')
   await page.evaluate(async data => { const s = await import('/src/services/index.ts'); s.browserDatabase.replaceAll(data.records, { notes: [], files: [], ...data.collections }) }, { records: { tasks: INITIAL_TASKS, events: INITIAL_EVENTS, drafts: {}, dismissed: [], activity: [] }, collections: { ...ADAPTIVE_DEMO, ...USAGE_DEMO, resources: RESOURCES } })
 

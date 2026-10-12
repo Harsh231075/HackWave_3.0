@@ -26,3 +26,15 @@ open-intelligent-ui
 research_notes
 # Private Google OAuth sessions and encryption keys
 .calendar-data/
+
+# Runtime authentication configuration and SQLite data
+.env.docker
+.auth-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Backend environment files
+server/.env
+server/.env.*
+!server/.env.example

@@ -7,10 +7,17 @@ export const importedPluginSchema = pluginManifestSchema.extend({ html: z.string
 export type ImportedPlugin = z.infer<typeof importedPluginSchema>
 export interface PluginFile { name: string; webkitRelativePath?: string; size: number; type: string; text():Promise<string>; arrayBuffer():Promise<ArrayBuffer> }
 const MAX_PACKAGE_BYTES = 2_000_000
-export function createPluginImportService(database: BrowserDatabase) {
+export function createPluginImportService(database: BrowserDatabase, persist?: (plugin: ImportedPlugin) => Promise<import('../../domain/commands.ts').ActionResult<ImportedPlugin>>) {
   const records = createCollection(database, 'importedPlugins', importedPluginSchema)
   return {
     list: records.list, getById: records.getById,
+    importRecord(input: unknown) {
+      const parsed = importedPluginSchema.safeParse(input)
+      if (!parsed.success || extensionIds.some(id => id === parsed.data.id)) return { ok: false as const, message: 'Invalid plugin package.' }
+      if (records.getById(parsed.data.id)) return { ok: false as const, message: 'This plugin is already imported.' }
+      if (records.list().length >= 10) return { ok: false as const, message: 'Remove a plugin before importing another (maximum 10).' }
+      return records.save({ ...parsed.data, enabled: false, importedAt: new Date().toISOString() })
+    },
     setEnabled: (id: string, enabled: boolean) => records.update(id, {enabled}),
     remove: records.delete,
     async importFolder(files: PluginFile[]) {
@@ -38,7 +45,8 @@ export function createPluginImportService(database: BrowserDatabase) {
         if(epoch!==database.getEpoch())throw new Error('Local data changed during import. Choose the folder again.')
         if(records.getById(manifest.id))throw new Error('This plugin ID is already imported. Remove it before importing a replacement.')
         if(records.list().length>=10)throw new Error('Remove an imported plugin before adding another (maximum 10).')
-        return records.save({...manifest,html,enabled:false,importedAt:new Date().toISOString()})
+        const plugin = {...manifest,html,enabled:false,importedAt:new Date().toISOString()}
+        return persist ? await persist(plugin) : records.save(plugin)
       } catch(error){return {ok:false as const,message:error instanceof z.ZodError?'Invalid manifest. Use version, id, name, description and entry as documented.':error instanceof Error?error.message:'Unable to import this folder.'}}
     },
   }

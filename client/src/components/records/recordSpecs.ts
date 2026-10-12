@@ -1,7 +1,7 @@
 import { issueService, communicationService, resourceService, usageObservationService, usageReleaseService, relationshipService, browserDatabase, meetingService } from '@/services'
 import type { RecordSpec, RecordField, ManagedRecord } from './RecordManager'
 import type { ActionResult } from '@/domain/commands'
-type Service<T extends {id:string}>={list:()=>T[];create:(input:Omit<T,'id'>)=>ActionResult<unknown>;update:(id:string,input:Partial<Omit<T,'id'>>)=>ActionResult<unknown>;delete:(id:string)=>ActionResult<void>}
+type Service<T extends {id:string}>={list:()=>T[];create:(input:Omit<T,'id'>)=>ActionResult<unknown> | Promise<ActionResult<unknown>>;update:(id:string,input:Partial<Omit<T,'id'>>)=>ActionResult<unknown> | Promise<ActionResult<unknown>>;delete:(id:string)=>ActionResult<void> | Promise<ActionResult<void>>}
 function spec<T extends {id:string}>(title:string,fields:RecordField[],service:Service<T>):RecordSpec {return {title,fields,list:()=>service.list() as ManagedRecord[],create:value=>service.create(value as Omit<T,'id'>),update:(id,value)=>service.update(id,value as Partial<Omit<T,'id'>>),delete:service.delete}}
 const field=(key:string,label:string,type:RecordField['type']='text',required=true):RecordField=>({key,label,type,required})
 const meeting:RecordField={...field('meetingId','Meeting (optional)','select',false),options:()=>meetingService.list().map(m=>({value:m.id,label:m.title}))}

@@ -47,22 +47,22 @@ function InstanceHost({ instance, update, children }: { instance: WidgetInstance
   return <UnscopedWidget><WorkspaceViewProvider overrides={{
     selectedDate: view.selectedDate ?? workspace.selectedDate, selectDate: selectedDate => update({ selectedDate, dateRange: undefined }),
     updateFilters: patch => filters({ ...view.taskFilters, ...patch }),
-    toggleTask: id => {
+    toggleTask: async id => {
       const expected = workspace.state.tasks.find(t => t.id === id)
       if (!expected || !workspaceActionService.checkTask(origin, expected).ok) return { ok: false, message: 'This task left the original view.' }
       return workspace.toggleTask(id)
     },
-    deleteTask: id => {
+    deleteTask: async id => {
       const expected=workspace.state.tasks.find(t=>t.id===id)
       if(!expected||!workspaceActionService.checkTask(origin,expected).ok)return {ok:false,message:'This task left the original view.'}
       return workspace.deleteTask(id)
     },
-    saveTask: input => {
+    saveTask: async input => {
       if (!input.id) return binding.kind === 'workspace' ? workspace.saveTask(input) : { ok: false, message: 'Create tasks in the unscoped Tasks view.' }
       const prepared = workspaceActionService.prepare({ type: 'task.edit', taskId: input.id }, origin)
       return prepared.ok && prepared.value.type === 'task.edit' ? workspaceActionService.saveTask(prepared.value, input) : { ok: false, message: 'This task left the original view.' }
     },
-    saveDraft: (key, value) => {
+    saveDraft: async (key, value) => {
       const prepared = workspaceActionService.prepare({ type: 'draft.edit' }, origin)
       if (!prepared.ok || prepared.value.type !== 'draft.edit' || prepared.value.key !== key) return { ok: false, message: 'This draft left the original view.' }
       return workspaceActionService.saveDraft(prepared.value, value)

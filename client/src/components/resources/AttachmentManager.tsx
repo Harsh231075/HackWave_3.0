@@ -1,6 +1,24 @@
-import { useState } from 'react'
-import { fileService, resourceService } from '@/services'
-import { useWorkspace } from '@/state/WorkspaceProvider'
+import { useRef, useState } from 'react'
+import toast from 'react-hot-toast'
+import { Paperclip } from 'lucide-react'
+import { fileService, resourceModuleService } from '@/services'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-export function AttachmentManager(){const {notify}=useWorkspace();const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[remove,setRemove]=useState('');return <><Button variant="outline" size="sm" onClick={()=>setOpen(true)}>Attachments</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Local attachments</DialogTitle><DialogDescription>Files below 2 MB are saved on this device. They are not uploaded to a cloud service.</DialogDescription></DialogHeader><input aria-label="Attach file" type="file" disabled={busy} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const result=await fileService.upload(file,file.name);if(result.ok){const linked=resourceService.create({title:file.name,kind:'attachment',context:'Local attachments',body:'file:'+result.value.id});notify(linked.ok?'Attachment and resource saved on this device.':linked.message,linked.ok?'success':'error')}else notify(result.message)}finally{setBusy(false);e.target.value=''}}}/>{fileService.list().map(file=><div key={file.id} className="flex items-center gap-2 rounded border p-2"><span className="flex-1 text-sm">{file.name} · {Math.ceil(file.size/1024)} KB</span><Button variant="outline" size="sm" onClick={()=>{const url=fileService.getDownloadUrl(file.id);if(!url){notify('Attachment is unavailable.');return}const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>fileService.revokeDownloadUrl(url),1000)}}>Download</Button><Button variant="ghost" size="sm" onClick={()=>setRemove(file.id)}>Delete</Button></div>)}{remove&&<div><p>Delete this local attachment?</p><Button variant="destructive" onClick={()=>{const result=fileService.delete(remove);notify(result.ok?'Attachment deleted.':result.message,result.ok?'success':'error');setRemove('')}}>Confirm delete attachment</Button><Button variant="outline" onClick={()=>setRemove('')}>Keep attachment</Button></div>}</DialogContent></Dialog></>}
+export function AttachmentManager() {
+  const input = useRef<HTMLInputElement>(null)
+  const [pending, setPending] = useState(false)
+  return <><input ref={input} type="file" className="sr-only" aria-label="Upload attachment" disabled={pending} onChange={async event => {
+    const file = event.target.files?.[0]; event.target.value = ''
+    if (!file || pending) return
+    setPending(true)
+    let fileId: string | undefined
+    try {
+      const uploaded = await fileService.upload(file, file.name)
+      if (!uploaded.ok) throw new Error(uploaded.message)
+      fileId = uploaded.value.id
+      const saved = await resourceModuleService.save({ title: file.name, kind: 'attachment', context: '', body: 'file:' + fileId, description: '', tags: [], links: [] })
+      if (!saved.ok) { await fileService.delete(fileId); throw new Error(saved.message) }
+      toast.success('Attachment saved')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Upload failed.') }
+    finally { setPending(false) }
+  }}/><Button size="sm" variant="outline" disabled={pending} onClick={() => input.current?.click()}><Paperclip size={14}/>{pending ? 'Uploading…' : 'Attach file'}</Button></>
+}

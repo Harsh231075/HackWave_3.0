@@ -46,10 +46,13 @@ export function MailConnection({ compact = false }: { compact?: boolean }) {
   </section>
 }
 export function MailRuntime() {
+  useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getRevision, browserDatabase.getRevision)
+  const enabled = extensionService.isEnabled('mail')
+  useEffect(() => { if (!enabled) mailService.disconnect(true) }, [enabled])
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => { if (mailService.hasUnsaved()) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', unload)
-    const unregister = extensionService.beforeDisable(id => { if (id === 'mail') mailService.disconnect() })
+    const unregister = extensionService.beforeDisable(id => { if (id === 'mail') { if (mailService.hasUnsaved()) throw new Error('Save or discard your draft before disabling Mail.'); void mailService.disconnect(true) } })
     return () => { window.removeEventListener('beforeunload', unload); unregister() }
   }, [])
   const epoch = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getEpoch, browserDatabase.getEpoch)

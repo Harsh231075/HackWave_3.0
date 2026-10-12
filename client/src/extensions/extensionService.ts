@@ -2,18 +2,20 @@ import { createPluginImportService } from './external/importService.ts'
 import type { BrowserDatabase } from '../services/browserDatabase.ts'
 import type { ActionResult } from '../domain/commands.ts'
 import { extensionSettingsSchema, type ExtensionId } from './contracts.ts'
-import { extensionCatalog, capabilityAllowed } from './catalog.ts'
+import { extensionCatalog, capabilityAllowed, extensionAvailable } from './catalog.ts'
 export function createExtensionService(database: BrowserDatabase) {
   const imported=createPluginImportService(database)
   const handlers = new Set<(id: ExtensionId) => void>()
-  const getSettings = () => { const raw = database.readCollection('extensionSettings'); const parsed = extensionSettingsSchema.safeParse(raw.status === 'found' ? raw.value : { version: 1, enabled: [] }); const settings=parsed.success && raw.status !== 'invalid' ? parsed.data : { version: 1 as const, enabled: [] };return {...settings,enabled:[...settings.enabled.filter(id=>id!=='external-plugin'),...(imported.list().some(p=>p.enabled)?['external-plugin' as const]:[])]} }
+  const getSettings = () => { const raw = database.readCollection('extensionSettings'); const parsed = extensionSettingsSchema.safeParse(raw.status === 'found' ? raw.value : { version: 1, enabled: [] }); const settings=parsed.success && raw.status !== 'invalid' ? parsed.data : { version: 1 as const, enabled: [] };return {...settings,enabled:[...settings.enabled.filter(id=>extensionAvailable(id)&&id!=='external-plugin'),...(imported.list().some(p=>p.enabled)?['external-plugin' as const]:[])]} }
   const isEnabled = (id: ExtensionId) => getSettings().enabled.includes(id)
   return {
     getSettings, isEnabled,
     isWidgetEnabled: (id: string) => capabilityAllowed(id, getSettings().enabled),
     getEnabledCapabilities: () => extensionCatalog.filter(item => isEnabled(item.id)),
+    checkDisable(id: ExtensionId) { for (const handler of handlers) handler(id) },
     beforeDisable(handler: (id: ExtensionId) => void) { handlers.add(handler); return () => { handlers.delete(handler) } },
     setEnabled(id: ExtensionId, enabled: boolean): ActionResult<void> {
+      if (!extensionAvailable(id)) return { ok: false, message: 'This extension requires file storage and is unavailable.' }
       if(id==='external-plugin')return {ok:false,message:'Enable individual imported plugins from Plugins.'}
       if (!extensionCatalog.some(item => item.id === id)) return { ok: false, message: 'Unknown extension.' }
       const raw = database.readCollection('extensionSettings')

@@ -1,0 +1,104 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "${ORLO_PORT:-5173}:5173"
+    environment:
+      API_PROXY_TARGET: http://server:3001
+      VITE_CACHE_DIR: /tmp/orlo-vite-cache
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    volumes:
+      - type: bind
+        source: ./client
+        target: /app/client
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./client/node_modules
+        target: /app/client/node_modules
+        bind:
+          create_host_path: false
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      AUTH_DB_PATH: /data/auth.sqlite
+      MONGODB_URI: mongodb://mongodb:27017/orlo?replicaSet=rs0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - default
+      - database
+    expose:
+      - "3001"
+    volumes:
+      - auth_data:/data
+      - type: bind
+        source: ./server
+        target: /app/server
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./server/node_modules
+        target: /app/server/node_modules
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./client/src
+        target: /app/client/src
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./client/package.json
+        target: /app/client/package.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./client/node_modules
+        target: /app/client/node_modules
+        read_only: true
+        bind:
+          create_host_path: false
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo-healthcheck.js:/opt/orlo/mongo-healthcheck.js:ro
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--file", "/opt/orlo/mongo-healthcheck.js"]
+      interval: 5s
+      timeout: 10s
+      start_period: 10s
+      retries: 20
+    restart: unless-stopped
+
+networks:
+  database:
+    internal: true
+
+volumes:
+  auth_data:
+  mongo_data:

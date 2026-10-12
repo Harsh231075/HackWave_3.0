@@ -16,13 +16,16 @@ const pageSchema = z.strictObject({
   nextPageToken: z.string().optional(),
 })
 const cacheSchema = z.strictObject({ version: z.literal(1), pages: pageSchema.array().max(20) })
-// Persist only list headers/previews, never message bodies, draft text, tokens or attachment bytes.
-export function createMailCache(storage: () => Storage = () => localStorage, now = Date.now) {
+// Cache only in memory by default; callers may inject a test adapter.
+export function createMailCache(storage?: () => Storage, now = Date.now) {
+  const entries = new Map<string, string>()
+  storage ??= () => ({ getItem: key => entries.get(key) ?? null, setItem: (key, value) => { entries.set(key, value) }, removeItem: key => { entries.delete(key) } })
+  const cacheStorage = storage
   let unavailable = false
   function read() {
     if (unavailable) return []
     try {
-      const raw = storage().getItem(mailCacheKey)
+      const raw = cacheStorage().getItem(mailCacheKey)
       if (!raw || raw.length > 250_000) return []
       const result = cacheSchema.safeParse(JSON.parse(raw))
       return result.success ? result.data.pages.filter(page => page.savedAt <= now() && now() - page.savedAt < MAIL_CACHE_TTL) : []
@@ -44,10 +47,10 @@ export function createMailCache(storage: () => Storage = () => localStorage, now
       try {
         let raw = JSON.stringify({ version: 1, pages })
         while (raw.length > 250_000 && pages.length) { pages.pop(); raw = JSON.stringify({ version: 1, pages }) }
-        storage().setItem(mailCacheKey, raw)
+        cacheStorage().setItem(mailCacheKey, raw)
         unavailable = false
       } catch { /* Reads still work from Gmail if quota/storage prevents caching. */ }
     },
-    clear() { unavailable = true; try { storage().removeItem(mailCacheKey); unavailable = false } catch { /* Unavailable storage is never used by reads. */ } },
+    clear() { unavailable = true; try { cacheStorage().removeItem(mailCacheKey); unavailable = false } catch { /* Unavailable storage is never used by reads. */ } },
   }
 }

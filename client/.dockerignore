@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+.git
+.env
+.env.*
+*.local
+*.log
+server/.auth-data
+server/.calendar-data
+*.sqlite
+*.sqlite-*

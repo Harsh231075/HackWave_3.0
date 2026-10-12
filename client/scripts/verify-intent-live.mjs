@@ -1,11 +1,11 @@
 // Opt-in live evaluation. Load provider credentials with Node's --env-file-if-exists flags.
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { componentIntentEndpoint } from '../server/components.ts'
+import { componentIntentEndpoint } from '../../server/components.ts'
 import { makeInstance } from '../src/domain/widgetInstances.ts'
 import { instancePlan } from '../src/domain/instanceViews.ts'
 import { calendarDate } from '../src/domain/calendar.ts'
-import { ADAPTIVE_DEMO } from '../server/fixtures/adaptiveDemo.ts'
+import { ADAPTIVE_DEMO } from '../../server/fixtures/adaptiveDemo.ts'
 const instance = makeInstance('tasks', { kind: 'workspace', }, {}, 'atlas-tasks')
 const server = createServer((req, res) => { void componentIntentEndpoint(req, res) })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))

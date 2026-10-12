@@ -45,9 +45,9 @@ export function WidgetFrame({ id, children, pageActions = false, instance, recor
   const captured = useWidgetInstance(id, span, usageQuery)
   const selected = instance && id === 'usage' && instance.binding.kind === 'workspace' ? usageQuery ? { ...instance, binding: { kind: 'usage-query' as const, query: usageQuery } } : null : instance ?? captured
   const savedPin = (instance && 'pinId' in instance ? instance : undefined) ?? (pins.status === 'found' && selected ? pins.value.find(p => instance ? p.instanceId === instance.instanceId : widgetSelectionKey(p) === widgetSelectionKey(selected!)) : undefined)
-  const toggle = () => {
+  const toggle = async () => {
     if (!selected) return
-    const result = savedPin ? pinService.unpinWidget(savedPin.pinId) : pinService.pinWidget(selected)
+    const result = await (savedPin ? pinService.unpinWidget(savedPin.pinId) : pinService.pinWidget(selected))
     if (result.ok && instance) requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-label="Generated productivity workspace"]')?.focus({ preventScroll: true }))
     notify(!result.ok ? result.message : result.persistence.status === 'saved' ? '' : 'Pins updated for this session. Device storage is unavailable.')
   }

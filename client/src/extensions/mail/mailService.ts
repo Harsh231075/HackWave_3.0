@@ -17,6 +17,7 @@ interface MailOptions {
   revoke: (token: string) => Promise<void>
   htmlToText?: (html: string) => string
   cache?: ReturnType<typeof createMailCache>
+  cacheMessages?: boolean
 }
 const listSchema = z.object({ messages: z.array(z.object({ id: z.string() })).default([]), nextPageToken: z.string().optional() })
 const draftListSchema = z.object({ drafts: z.array(z.object({ id: z.string() })).default([]), nextPageToken: z.string().optional() })
@@ -94,6 +95,12 @@ export function createMailService(options: MailOptions) {
     return saving
   }
   return {
+    restoreConnection(email: string, remainingSeconds: number) {
+      if (snapshot.status === 'connected' || snapshot.status === 'connecting' || snapshot.editor) return
+      token = 'backend-session'; expires = now() + remainingSeconds * 1000
+      publish({ status: 'connected', accountId: email.toLowerCase(), email, error: '' })
+      clearTimeout(timer); timer = setTimeout(expire, Math.max(0, expires - now() - 5000))
+    },
     prepare: async () => { await options.prepare?.() },
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     getSnapshot: () => snapshot,
@@ -173,7 +180,7 @@ export function createMailService(options: MailOptions) {
     async listDrafts(query = '', pageToken = '', signal?: AbortSignal) { return this.listMessages('Drafts', query, pageToken, signal) },
     async getMessage(id: string, signal?: AbortSignal) {
       authorized(); signal?.throwIfAborted()
-      const cached = messages.get(id)
+      const cached = options.cacheMessages === false ? undefined : messages.get(id)
       if (cached && now() - cached.savedAt < MAIL_CACHE_TTL) return structuredClone(cached.message)
       messages.delete(id)
       const requestEpoch = epoch, revision = cacheRevision
@@ -189,7 +196,7 @@ export function createMailService(options: MailOptions) {
       if (raw.payload) await hydrate(raw.payload)
       const message = normalizeMail(raw)
       if (requestEpoch !== epoch || revision !== cacheRevision) throw new MailError(409, 'Mail changed while loading. Refresh this view.')
-      messages.set(id, { message, savedAt: now() }); if (messages.size > 50) messages.delete(messages.keys().next().value!); return structuredClone(message)
+      if (options.cacheMessages !== false) messages.set(id, { message, savedAt: now() }); if (messages.size > 50) messages.delete(messages.keys().next().value!); return structuredClone(message)
     },
     async attachmentBytes(messageId: string, attachment: MailAttachment) {
       authorized()

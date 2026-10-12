@@ -6,7 +6,6 @@ import { ActionToaster } from './components/feedback/ActionToaster'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
-    <ActionToaster />
+    <App /><ActionToaster />
   </StrictMode>,
 )

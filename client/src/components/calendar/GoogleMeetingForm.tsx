@@ -12,9 +12,11 @@ import type { ReactNode } from 'react'
 import { GoogleEventDetails } from './GoogleCalendarWidgets'
 
 function MeetingActions({ children }: { children: ReactNode }) { return <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">{children}</div> }
+const previews = new Map<string, string>()
+const previewStorage = { getItem: (key: string) => previews.get(key) ?? null, setItem: (key: string, value: string) => { previews.set(key, value) }, removeItem: (key: string) => { previews.delete(key) } }
 type Preview = { id: string; draft: EventDraft; accountId: string }
 function restoredPreview(accountId?: string): Preview | null {
-  try { const parsed = JSON.parse(sessionStorage.getItem('orlo-event-preview') ?? 'null') as Preview | null; return parsed && parsed.accountId === accountId && eventDraftSchema.safeParse(parsed.draft).success ? parsed : null } catch { return null }
+  try { const parsed = JSON.parse(previewStorage.getItem('orlo-event-preview') ?? 'null') as Preview | null; return parsed && parsed.accountId === accountId && eventDraftSchema.safeParse(parsed.draft).success ? parsed : null } catch { return null }
 }
 export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initialDate }: { initialDate?: string; initialSlot?: {start:string;end:string}; goal: string; onClose: () => void; onCreated: (event: CalendarEvent) => void }) {
   const calendar = useGoogleCalendar()
@@ -40,7 +42,7 @@ export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initi
     let active = true
     void googleCalendarService.operation(initial.id).then(result => {
       if (!active) return
-      if (result.state === 'created' && result.event) { setCreated(result.event); sessionStorage.removeItem('orlo-event-preview') }
+      if (result.state === 'created' && result.event) { setCreated(result.event); previewStorage.removeItem('orlo-event-preview') }
       setUncertain(result.state === 'pending')
     }).catch(failure => { if (active) { setUncertain(true); setError(failure instanceof Error ? failure.message : 'Check the existing preview before arranging another meeting.') } })
     return () => { active = false }
@@ -62,7 +64,7 @@ export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initi
       const result = await googleCalendarService.preview(draft)
       const saved = { id: result.id, draft, accountId: calendar.connection!.accountId! }
       setPreview(saved)
-      sessionStorage.setItem('orlo-event-preview', JSON.stringify(saved))
+      previewStorage.setItem('orlo-event-preview', JSON.stringify(saved))
     } catch (failure) { setError(failure instanceof Error ? (/ZodError/.test(failure.name) ? 'Check the title, date, time, timezone and participant email addresses.' : failure.message) : 'Unable to prepare your preview.') }
     finally { setBusy(false) }
   }
@@ -72,7 +74,7 @@ export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initi
     try {
       const result = await googleCalendarService.confirm(preview.id)
       if (result.state !== 'created' || !result.event) { setUncertain(true); setError('The meeting is still being created. Check again; another event will not be added.'); toast('Meeting creation is still pending. Check status before retrying.'); return }
-      toast.success('Meeting created in Google Calendar.');setCreated(result.event); setUncertain(false); sessionStorage.removeItem('orlo-event-preview'); calendar.refreshEvents(); onCreated(result.event)
+      toast.success('Meeting created in Google Calendar.');setCreated(result.event); setUncertain(false); previewStorage.removeItem('orlo-event-preview'); calendar.refreshEvents(); onCreated(result.event)
     } catch (failure) { setUncertain(!isServiceError(failure) || ![400, 403, 404, 409].includes(failure.status ?? 0)); const message=failure instanceof Error ? failure.message : 'Creation status is uncertain. Check again before creating another meeting.';setError(message);toast.error(message) }
     finally { setBusy(false) }
   }
@@ -80,9 +82,9 @@ export function GoogleMeetingForm({ goal, onClose, onCreated, initialSlot, initi
     {created ? <div className="space-y-4"><p className="flex items-center gap-2 text-sm text-primary"><CheckCircle2 size={18} /> Your meeting is confirmed.</p><GoogleEventDetails event={created} /><MeetingActions><Button onClick={onClose}>Done</Button></MeetingActions></div> : preview ? <div className="space-y-4">
       <div className="rounded-xl border border-border bg-muted p-4 text-sm"><h3 className="font-semibold">{preview.draft.title}</h3><p className="mt-2">{new Date(preview.draft.start).toLocaleString('en-IN', { timeZone: preview.draft.timezone })} – {new Date(preview.draft.end).toLocaleString('en-IN', { timeZone: preview.draft.timezone })}</p><p className="text-xs text-muted-foreground">{preview.draft.timezone}</p><p className="mt-2 break-words">{preview.draft.attendees.join(', ') || 'Personal meeting · no guests'}</p><p className="mt-2 whitespace-pre-wrap">{preview.draft.description}</p></div>
       <p className="text-xs text-muted-foreground">Confirming creates a real Google Calendar event and sends invitations to the listed guests. Other attendees’ availability has not been verified.</p>
-      {!calendar.connection?.canWrite && <Button type="button" variant="outline" onClick={() => { sessionStorage.setItem('orlo-calendar-resume', goal); calendar.connect(true) }}>Allow event creation</Button>}
+      {!calendar.connection?.canWrite && <Button type="button" variant="outline" onClick={() => { previewStorage.setItem('orlo-calendar-resume', goal); calendar.connect(true) }}>Allow event creation</Button>}
       {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-      <MeetingActions><Button variant="outline" disabled={busy || uncertain} onClick={() => { setPreview(null); sessionStorage.removeItem('orlo-event-preview') }}>Edit details</Button><Button disabled={busy || !calendar.connection?.canWrite} onClick={() => void confirm()}>{busy ? 'Checking…' : uncertain ? 'Check / retry confirmation' : 'Confirm and create'}</Button></MeetingActions>
+      <MeetingActions><Button variant="outline" disabled={busy || uncertain} onClick={() => { setPreview(null); previewStorage.removeItem('orlo-event-preview') }}>Edit details</Button><Button disabled={busy || !calendar.connection?.canWrite} onClick={() => void confirm()}>{busy ? 'Checking…' : uncertain ? 'Check / retry confirmation' : 'Confirm and create'}</Button></MeetingActions>
     </div> : <form className="space-y-4 [&_label]:block [&_label]:text-sm [&_label]:font-medium" onSubmit={e => { e.preventDefault(); void review() }}>
       <label>Meeting title<Input value={title} onChange={e => setTitle(e.target.value)} maxLength={200} required disabled={busy} /></label>
       <label>Participant emails<Input value={emails} onChange={e => setEmails(e.target.value)} placeholder="alex@example.com, teammate@example.com" disabled={busy} required={/\bwith\b/i.test(goal)} /><span className="text-xs font-normal text-muted-foreground">Enter email addresses; we won’t guess who a name refers to.</span></label>

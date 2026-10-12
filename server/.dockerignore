@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+*.local
+*.log
+.auth-data
+.calendar-data
+*.sqlite
+*.sqlite-*

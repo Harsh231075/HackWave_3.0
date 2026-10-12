@@ -7,13 +7,13 @@ interface WorkspaceContextValue {
   state: WorkspaceState; notify: (message: string, tone?: 'success' | 'error' | 'info') => void; notice: string; noticeVersion: number; noticeTone: 'success' | 'error' | 'info'
   draftBuffers: Record<string, string>; editDraft: (key: string, value: string) => void
   selectedDate: string; selectDate: (date: string) => void; resetDemo: () => void
-  saveTask: (input: TaskInput) => ActionResult<Task>
-  deleteTask: (id: string) => ActionResult<void>
-  toggleTask: (id: string) => ActionResult<Task>
-  saveEvent: (input: EventInput) => ActionResult<Event>
-  addFocusTime: (taskId: string) => ActionResult<Event>
-  deleteEvent: (id: string) => ActionResult<void>
-  saveDraft: (key: string, value: string) => ActionResult<void>
+  saveTask: (input: TaskInput) => Promise<ActionResult<Task>>
+  deleteTask: (id: string) => Promise<ActionResult<void>>
+  toggleTask: (id: string) => Promise<ActionResult<Task>>
+  saveEvent: (input: EventInput) => Promise<ActionResult<Event>>
+  addFocusTime: (taskId: string) => Promise<ActionResult<Event>>
+  deleteEvent: (id: string) => Promise<ActionResult<void>>
+  saveDraft: (key: string, value: string) => Promise<ActionResult<void>>
   restoreRecommendation: (id: string) => void
   dismissRecommendation: (id: string) => void
   updateFilters: (patch: Partial<Filters>) => void
@@ -35,9 +35,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [draftBuffers, setDraftBuffers] = useState<Record<string, string>>({})
   const [selectedDate, selectDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const editDraft = (key: string, value: string) => setDraftBuffers(current => ({ ...current, [key]: value }))
-  const resetDemo = () => { void localDataService.reset().then(result=>{setDraftBuffers({});selectDate(format(new Date(),'yyyy-MM-dd'));notify(result.ok?'Local data cleared.':result.message??'Reset failed. Retry.')}) }
+  const resetDemo = () => { void localDataService.reset().then(result=>{setDraftBuffers({});selectDate(format(new Date(),'yyyy-MM-dd'));notify(result.ok?'Account data cleared.':result.message??'Reset failed. Retry.')}) }
   return <WorkspaceContext.Provider value={{ state, notice, noticeVersion, noticeTone, notify, draftBuffers, editDraft, selectedDate, selectDate, resetDemo,
-    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask:id=>{const result=run(()=>taskService.toggle(id));notify(result.ok ? result.value.status==='completed'?'Task completed.':'Task reopened.' : result.message,result.ok?'success':'error');return result},
+    saveTask: input => run(() => taskService.save(input)), deleteTask:id=>run(()=>taskService.delete(id)), toggleTask:async id=>{const result=await run(()=>taskService.toggle(id));notify(result.ok ? result.value.status==='completed'?'Task completed.':'Task reopened.' : result.message,result.ok?'success':'error');return result},
     saveEvent: input => run(() => eventService.save(input)),deleteEvent:id=>run(()=>eventService.delete(id)),
     saveDraft: (key, value) => run(() => draftService.save(key, value)), addFocusTime: id => run(() => recommendationService.accept(id)),
     restoreRecommendation:id=>run(()=>browserDatabase.dispatch({type:'restore-dismiss',id})),

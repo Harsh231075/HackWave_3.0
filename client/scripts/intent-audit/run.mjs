@@ -7,7 +7,7 @@ import {fallbackComponentIntent,validateComponentResolution} from '../../src/dom
 import {makeInstance} from '../../src/domain/widgetInstances.ts'
 import {instancePlan,applyComponentView} from '../../src/domain/instanceViews.ts'
 import {emptyWorkspace,applyInstanceOperations} from '../../src/domain/workspaceDocument.ts'
-import {componentIntentEndpoint} from '../../server/components.ts'
+import {componentIntentEndpoint} from '../../../server/components.ts'
 const baseTypes=['tasks','meetings','outline','resources','recommendation','calendar','timeline','availability','context','metrics','chart','activity','usage','communications','issues']
 const active=baseTypes.map(type=>makeInstance(type,{kind:'workspace'},{referenceDate:'2026-10-11'},`audit:${type}`))
 // The production canvas supports 14 instances. Use 8 for standalone-add scenarios; management uses the named target plus unrelated cards.

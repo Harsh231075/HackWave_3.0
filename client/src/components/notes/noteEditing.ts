@@ -1,7 +1,7 @@
 import toast from 'react-hot-toast'
 import { browserDatabase, noteService } from '@/services'
 import type { Note, NoteSnapshot } from '@/services/noteService'
-interface Buffer { value: NoteSnapshot; baseline: NoteSnapshot; error: string; dirty: boolean; timer?: ReturnType<typeof setTimeout>; epoch: number }
+interface Buffer { value: NoteSnapshot; baseline: NoteSnapshot; error: string; dirty: boolean; timer?: ReturnType<typeof setTimeout>; epoch: number; saving?: boolean }
 const buffers = new Map<string, Buffer>()
 const listeners = new Set<() => void>()
 let revision = 0
@@ -9,14 +9,21 @@ const emit = () => { revision++; listeners.forEach(listener => listener()) }
 export const subscribeEdits = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 export const editsRevision = () => revision
 export function noteBuffer(note: Note) { const buffer = buffers.get(note.id); return buffer?.epoch === browserDatabase.getEpoch() ? buffer : undefined }
-export function flushNote(id: string) {
+export async function flushNote(id: string) {
   const buffer = buffers.get(id)
   if (!buffer) return
   clearTimeout(buffer.timer)
   if (buffer.epoch !== browserDatabase.getEpoch()) { buffers.delete(id); emit(); return }
-  if (!buffer.dirty || buffer.error) return
-  const result = noteService.update(id, { ...buffer.value, title: buffer.value.title.trim() || 'Untitled note' }, buffer.baseline)
-  if (result.ok) { buffers.delete(id); toast.success('Note updated.', { id: 'note-save', duration: 2500 }) }
+  if (!buffer.dirty || buffer.error || buffer.saving) return
+  const value = { ...buffer.value }, epoch = buffer.epoch
+  buffer.saving = true
+  const result = await noteService.update(id, { ...value, title: value.title.trim() || 'Untitled note' }, buffer.baseline)
+  if (epoch !== browserDatabase.getEpoch() || buffers.get(id) !== buffer) return
+  buffer.saving = false
+  if (result.ok) {
+    if (JSON.stringify(value) === JSON.stringify(buffer.value)) { buffers.delete(id); toast.success('Note updated.', { id: 'note-save', duration: 2500 }) }
+    else { buffer.baseline = { title: result.value.title, body: result.value.body }; buffer.timer = setTimeout(() => void flushNote(id), 600) }
+  }
   else { buffer.error = result.message; toast.error(result.message, { id: 'note-save' }) }
   emit()
 }

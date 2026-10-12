@@ -60,8 +60,8 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
   const create = (date:string,start='09:00') => setCreation({source:source !== 'local' && google.connection?.connected?'google':'local',date,start})
   const currentRemote = selected?.source==='google' && selected.account===google.connection?.accountId ? remoteEvents.find(e=>e.id===selected.id) : undefined
 
-  function confirmCancelLocal(event: Event) {
-    const result = workspace.deleteEvent(event.id)
+  async function confirmCancelLocal(event: Event) {
+    const result = await workspace.deleteEvent(event.id)
     if (!result.ok) {
       workspace.notify('message' in result && result.message ? result.message : 'Unable to cancel meeting.')
       return
@@ -221,7 +221,7 @@ export function MeetingsHub({ compact = false }: { compact?: boolean }) {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
-                        onClick={() => {
+                        onClick={async () => {
                           if (isLocal) setSelected({ source:'local', id:item.id })
                           else setSelected({ source:'google', id:item.id, account:google.connection?.accountId })
                         }}

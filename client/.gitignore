@@ -30,3 +30,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.auth-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

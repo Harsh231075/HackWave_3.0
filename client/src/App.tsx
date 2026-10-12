@@ -1,5 +1,6 @@
 import { MailRuntime } from '@/extensions/mail/MailWidgets'
-import { LocalDataGate } from '@/components/feedback/LocalDataGate'
+import { BackendGate } from '@/components/feedback/BackendGate'
+import { AuthPage } from '@/pages/AuthPage'
 import { useSyncExternalStore } from 'react'
 import { browserDatabase } from '@/services'
 import { GoogleCalendarProvider } from '@/state/GoogleCalendarProvider'
@@ -21,11 +22,15 @@ function App() {
   const epoch = useSyncExternalStore(browserDatabase.subscribe, browserDatabase.getEpoch, browserDatabase.getEpoch)
   return (
     <BrowserRouter>
-      <MailRuntime/>
-      <LocalDataGate>
+      <Routes>
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage key="login"/>} />
+        <Route path="/signup" element={<AuthPage key="signup" signUp/>} />
+        <Route path="/sign-in/*" element={<AuthPage key="sign-in"/>} />
+        <Route path="/sign-up/*" element={<AuthPage key="sign-up" signUp/>} />
+        <Route path="/*" element={<BackendGate><MailRuntime/>
       <WorkspaceProvider key={epoch}><GoogleCalendarProvider><DisplayPreferencesProvider>
         <Routes>
-          <Route path="/landing" element={<LandingPage />} />
           <Route element={<WorkspaceLayout />}>
             <Route path="/" element={<DynamicWorkspace />} />
             <Route path="/insights" element={<Navigate to="/" replace />} />
@@ -42,7 +47,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DisplayPreferencesProvider></GoogleCalendarProvider></WorkspaceProvider>
-    </LocalDataGate></BrowserRouter>
+    </BackendGate>} /></Routes></BrowserRouter>
   )
 }
 
