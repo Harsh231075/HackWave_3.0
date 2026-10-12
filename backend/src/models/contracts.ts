@@ -12,7 +12,7 @@ export const entityContracts = {
   notes: z.strictObject({ title, body: text.default(''), kind: z.enum(['general','agenda','investigation']).default('general'), meetingId: id.optional(), pinned: z.boolean().default(false) }),
   resources: z.strictObject({ title, kind: z.enum(['document','link','text','attachment','reference']).default('document'), context: z.string().max(200).default(''), body: text.default(''), description: z.string().max(2000).default(''), tags: z.string().trim().min(1).max(40).array().max(20).default([]) }),
   attachments: z.strictObject({ name: title, mimeType: id, size: z.number().int().nonnegative().max(2 * 1024 * 1024), storageKey: id }),
-  links: z.strictObject({ sourceType: z.enum(['tasks','events','notes','resources','issues','communications']), sourceId: id, targetType: z.enum(['tasks','events','notes','resources','issues','communications']), targetId: id }),
+  links: z.strictObject({ sourceType: z.enum(['tasks','events','notes','resources','issues','communications','usage-releases','usage-observations']), sourceId: id, targetType: z.enum(['tasks','events','notes','resources','issues','communications','usage-releases','usage-observations']), targetId: id, relationType: z.enum(['related','previous_meeting']).default('related') }),
   issues: z.strictObject({ title, description: text.default(''), owner: id, status: z.enum(['open','closed']).default('open'), meetingId: id.optional() }),
   communications: z.strictObject({ subject: title, sender: id, body: text.default(''), date, meetingId: id.optional() }),
   'usage-observations': z.strictObject({ date, segment: id, sessions: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), source: z.enum(['synthetic','manual']).default('manual') }),
@@ -33,6 +33,7 @@ export function parseEntity(entity: EntityType, input: unknown): RecordData {
   if (entity === 'resources' && value.kind === 'link') {
     try { const url=new URL(String(value.body));if(!['http:','https:'].includes(url.protocol))throw new Error() } catch { throw new Error('A link resource needs a valid HTTP or HTTPS URL.') }
   }
+  if (entity === 'links' && value.relationType === 'previous_meeting' && (value.sourceType !== 'events' || value.targetType !== 'events')) throw new Error('Previous meeting links must connect two events.')
   if (entity === 'workspaces') {
     const components=value.components as Array<{instanceId:string}>, ids=new Set(components.map(c=>c.instanceId))
     if(ids.size!==components.length)throw new Error('Component instance IDs must be unique.')

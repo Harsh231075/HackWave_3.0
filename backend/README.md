@@ -121,3 +121,30 @@ npm run test:integration
 `npm test` validates all 14 models without opening a MongoDB connection. The opt-in integration suite tests real HTTP CRUD against local MongoDB, validates persistence through a fresh repository, checks concurrent edits, duplicates, relationships and malformed requests. It creates a uniquely named `orlo_backend_test_*` database and drops only that database in cleanup. It never touches `orlo_demo` or other existing databases.
 
 Judge explanation: "The frontend demonstrates intent-to-interface. Separately, we have implemented MongoDB models and validated CRUD APIs. Connecting the frontend to these APIs is a future integration step."
+
+## Seed the frontend's demo dataset into MongoDB
+
+```sh
+cd backend
+npm run seed
+```
+
+The seed invokes the existing `client/src/services/demoSeedService.ts` generator offline, validates the result, and inserts it into MongoDB. Both package dependencies must be installed. This does not connect the running frontend to the backend and does not read or alter browser storage or personal Google data.
+
+It installs the same **sample** content: 12 tasks, 12 events (including 5 meetings), 8 notes with their actual draft bodies, 6 resources, 4 issues, 4 communications, 56 usage observations, 2 usage releases, and 24 relationships. Frontend meeting IDs are mapped to their canonical backend Event IDs. Previous-meeting and release evidence links are preserved. Empty attachments/voice notes/plugin settings/workspaces are not fabricated.
+
+Dates use Asia/Calcutta today on the first run. To choose the same date as a previously seeded frontend demo:
+
+```sh
+SEED_DATE=2026-10-12 npm run seed
+```
+
+Stable seed IDs and `$setOnInsert` preserve existing records and edits. The original reference date is saved in `_seed_runs`, so later reruns skip the same records rather than shifting dates or making duplicates. Existing observations with the same date/segment are also preserved. It never resets the database. A seed failure can be retried to complete missing rows.
+
+This reproduces the frontend's default sample data, not manually edited records currently stored in a particular browser. Those would require a separate browser-data export/import.
+
+```sh
+npm run test:seed
+```
+
+The seed integration test uses and cleans only a new `orlo_seed_test_*` database; it checks exact record counts, relationships, repeated runs, and preservation of edited/manual records.

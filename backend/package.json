@@ -11,7 +11,9 @@
     "dev": "node --watch --experimental-strip-types --env-file-if-exists=.env src/index.ts",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "test:integration": "RUN_MONGO_TESTS=1 node --experimental-strip-types --test test/mongo.integration.test.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "seed": "node --experimental-strip-types --env-file-if-exists=.env scripts/seed.ts",
+    "test:seed": "RUN_MONGO_TESTS=1 node --experimental-strip-types --test test/seed.integration.test.ts"
   },
   "dependencies": {
     "mongoose": "^9.11.1",
