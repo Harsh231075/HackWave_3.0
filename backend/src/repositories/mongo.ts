@@ -24,7 +24,7 @@ export function createMongoRepository():RecordRepository {
     async create(entity,data){const now=new Date();const record=await model(entity).create({...data,id:randomUUID(),revision:1,createdAt:now,updatedAt:now});return serialize(record.toObject())},
     async update(entity,id,data,revision){
       // A compare-and-swap query prevents two requests from overwriting each other.
-      const record=await model(entity).findOneAndUpdate({id,revision},{$set:{...data,updatedAt:new Date()},$inc:{revision:1}},{new:true,runValidators:true}).lean()
+      const record=await model(entity).findOneAndUpdate({id,revision},{$set:{...data,updatedAt:new Date()},$inc:{revision:1}},{returnDocument:'after',runValidators:true}).lean()
       if(!record)return conflict(entity,id)
       return serialize(record)
     },

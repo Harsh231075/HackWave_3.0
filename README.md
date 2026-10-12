@@ -90,3 +90,7 @@ See [PLAN.md](PLAN.md) and [services documentation](client/src/services/README.m
 Mail provides browser-only Gmail access: inbox/folders/search, message reading, plain-text compose, Gmail drafts, reply/forward, attachments and mailbox actions. Enable it in Plugins and use the Mail sidebar page or dashboard commands (“show my inbox”, “show sent mail”, “write an email”). Sending requires the composer’s Send button.
 
 Set the public `VITE_GOOGLE_CLIENT_ID` in `client/.env.local`; Mail adds no backend endpoints or server credentials. Google consent is required, and expired tokens require a user-triggered reconnect. See [Mail setup and verification](client/src/extensions/mail/README.md) for Google configuration, privacy/storage behavior and demo limitations.
+
+## Standalone backend scaffold
+
+The separate [backend](backend/README.md) defines 14 MongoDB models and runnable local CRUD APIs. It uses local MongoDB and has its own package, validation, controllers, repository and tests. It has no users/login and is **not connected to the frontend**; existing browser storage and AI/Calendar integration remain in place. See its README for startup, curl examples and verification.

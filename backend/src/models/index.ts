@@ -1,4 +1,4 @@
-import { Mongoose, Schema, type SchemaDefinition } from 'mongoose'
+import { Mongoose, Schema, type SchemaDefinition, type SchemaDefinitionProperty } from 'mongoose'
 import { z } from 'zod'
 import { entityContracts, parseEntity, type EntityType } from './contracts.ts'
 
@@ -8,10 +8,10 @@ const names = {tasks:'Task',events:'Event',notes:'Note',resources:'Resource',att
 
 // API and model field definitions share the Zod contract; nested JSON is checked by the validation hook.
 export const modelSchemas = Object.fromEntries(Object.entries(entityContracts).map(([entity, contract]) => {
-  const json=z.toJSONSchema(contract) as {properties:Record<string,{type?:string;enum?:unknown[];minimum?:number;maximum?:number;maxLength?:number;default?:unknown}>;required?:string[]}
+  const json=z.toJSONSchema(contract) as {properties:Record<string,{type?:string;enum?:unknown[];minimum?:number;maximum?:number;maxLength?:number;minLength?:number;default?:unknown}>;required?:string[]}
   const fields:SchemaDefinition={id:{type:String,required:true,unique:true},revision:{type:Number,required:true,min:1,validate:Number.isInteger},createdAt:{type:Date,required:true},updatedAt:{type:Date,required:true}}
   for(const [key, property] of Object.entries(json.properties)) {
-    fields[key]={type:property.type==='string'?String:property.type==='number'||property.type==='integer'?Number:property.type==='boolean'?Boolean:Schema.Types.Mixed,required:json.required?.includes(key)??false,...(property.enum?{enum:property.enum}:{}),...(property.minimum!==undefined?{min:property.minimum}:{}),...(property.maximum!==undefined?{max:property.maximum}:{}),...(property.maxLength!==undefined?{maxlength:property.maxLength}:{}),...(property.default!==undefined?{default:()=>structuredClone(property.default)}:{})}
+    fields[key]={type:property.type==='string'?String:property.type==='number'||property.type==='integer'?Number:property.type==='boolean'?Boolean:Schema.Types.Mixed,required:(json.required?.includes(key)??false)&&(property.type!=='string'||(property.minLength??0)>0),...(property.enum?{enum:property.enum}:{}),...(property.minimum!==undefined?{min:property.minimum}:{}),...(property.maximum!==undefined?{max:property.maximum}:{}),...(property.maxLength!==undefined?{maxlength:property.maxLength}:{}),...(property.default!==undefined?{default:()=>structuredClone(property.default)}:{})} as SchemaDefinitionProperty
   }
   const schema=new Schema(fields,{collection:entity,strict:'throw',bufferCommands:false,autoCreate:false,autoIndex:false,versionKey:false})
   schema.pre('validate',function(){
