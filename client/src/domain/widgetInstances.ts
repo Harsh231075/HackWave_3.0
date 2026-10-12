@@ -1,3 +1,4 @@
+import { widgetLayoutCatalog, layoutVariantSchema } from './widgetLayout.ts'
 import { isMailWidget, mailFolders, mailWidgetIds } from './mail.ts'
 import { compositionActionsSchema } from './workspaceActions.ts'
 import { meetingWidgetTypes } from './adaptiveData.ts'
@@ -44,11 +45,13 @@ export const widgetExplanationSchema = z.strictObject({ type: z.enum(widgetTypes
 export type WidgetExplanation = z.infer<typeof widgetExplanationSchema>
 const instanceShape = {
   actions: compositionActionsSchema,
+  externalLayoutVariants: z.array(layoutVariantSchema).min(1).max(8).optional(), layoutSide: z.enum(['left','right']).optional(), layoutWidth: z.enum(['full','wide','narrow']).optional(),
+  layoutVersion: z.number().int().positive().optional(),
   instanceId: z.string().min(1), widgetType: z.enum(widgetTypes), span: z.enum(['full', 'wide', 'narrow']),
   binding: widgetBindingSchema, viewState: widgetViewStateSchema,
   explanation: widgetExplanationSchema, fingerprint: z.string(), label: z.string().min(1),
 }
-const validInstance = (i: { explanation: WidgetExplanation; widgetType: WidgetType; binding: WidgetBinding }) => i.explanation.type === i.widgetType && supportsBinding(i.widgetType, i.binding.kind)
+const validInstance = (i: { explanation: WidgetExplanation; widgetType: WidgetType; binding: WidgetBinding; layoutVersion?: number; externalLayoutVariants?: z.infer<typeof layoutVariantSchema>[] }) => (i.widgetType === 'external-plugin' && i.externalLayoutVariants?.length ? i.externalLayoutVariants : widgetLayoutCatalog[i.widgetType]).some(v => v.version === (i.layoutVersion ?? 1)) && i.explanation.type === i.widgetType && supportsBinding(i.widgetType, i.binding.kind)
 export const widgetInstanceSchema = z.strictObject(instanceShape).refine(validInstance, 'Widget does not support this binding.')
 export const pinnedWidgetSchema = z.strictObject({ ...instanceShape, pinId: z.string().min(1), createdAt: z.iso.datetime() }).refine(validInstance, 'Widget does not support this binding.')
 export type WidgetBinding = z.infer<typeof widgetBindingSchema>
@@ -96,5 +99,5 @@ export function planWidgetCanvas(active: WidgetInstance[], pins: PinnedWidget[],
 
 export function makeInstance(widgetType: WidgetType, binding: WidgetBinding = { kind: 'workspace' }, viewState: Partial<WidgetViewState> = {}, id: string = crypto.randomUUID()): WidgetInstance {
   if (isMailWidget(widgetType) && binding.kind === 'workspace') binding = { kind: 'gmail' }
-  return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? widgetType : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
+  return widgetInstanceSchema.parse(JSON.parse(JSON.stringify({ instanceId: id, widgetType, layoutVersion: 1, span: 'full', binding, viewState: { taskFilters: emptyFilters(), ...viewState }, explanation: { type: widgetType, reason: 'Selected for your workspace.', evidence: [] }, fingerprint: '', label: binding.kind === 'workspace' ? widgetType : binding.kind === 'google-calendar' ? 'Google Calendar' : binding.kind === 'meeting' ? binding.meetingId : binding.kind })))
 }

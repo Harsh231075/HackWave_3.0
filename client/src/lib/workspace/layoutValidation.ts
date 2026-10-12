@@ -1,3 +1,4 @@
+import { widgetLayoutCatalog } from '@/domain/widgetLayout'
 import { generatedActionsValid } from './actionValidation'
 import type { Task } from '@/domain/types'
 import { extractActiveWidgets } from './workspaceNodes'
@@ -20,7 +21,7 @@ export function validLayout(response: string): boolean {
     const parsed = parser.parse(response)
     const widgets = extractActiveWidgets(response, productivityLibrary.toJSONSchema(), productivityLibrary.root)
     const unique = new Set(widgets.map(w => w.id)).size === widgets.length && widgets.length <= 14
-    return unique && !!parsed.root && !parsed.meta.errors.length && !parsed.meta.incomplete && !parsed.meta.unresolved.length && !parsed.queryStatements.length && !parsed.mutationStatements.length
+    return unique && widgets.every(w => widgetLayoutCatalog[w.id].some(v => v.version === (w.layoutVersion ?? 1))) && !!parsed.root && !parsed.meta.errors.length && !parsed.meta.incomplete && !parsed.meta.unresolved.length && !parsed.queryStatements.length && !parsed.mutationStatements.length
   } catch { return false }
 }
 

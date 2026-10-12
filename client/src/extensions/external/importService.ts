@@ -1,8 +1,9 @@
+import { layoutVariantSchema } from '../../domain/widgetLayout.ts'
 import { extensionIds } from '../contracts.ts'
 import { z } from 'zod'
 import type { BrowserDatabase } from '../../services/browserDatabase.ts'
 import { createCollection } from '../../services/local/collection.ts'
-export const pluginManifestSchema = z.strictObject({ version: z.literal(1), id: z.string().regex(/^[a-z][a-z0-9-]{2,63}$/), name: z.string().trim().min(1).max(80), description: z.string().trim().min(1).max(400), entry: z.string().regex(/^[a-zA-Z0-9_./-]+\.html$/).refine(value=>!value.startsWith('/')&&!value.split('/').includes('..'), 'Use an entry within the plugin folder.') })
+export const pluginManifestSchema = z.strictObject({ layoutVariants: z.array(layoutVariantSchema).min(1).max(8).refine(variants=>variants.some(v=>v.version===1)&&new Set(variants.map(v=>v.version)).size===variants.length,'Provide unique layout versions including version 1.').optional(), version: z.literal(1), id: z.string().regex(/^[a-z][a-z0-9-]{2,63}$/), name: z.string().trim().min(1).max(80), description: z.string().trim().min(1).max(400), entry: z.string().regex(/^[a-zA-Z0-9_./-]+\.html$/).refine(value=>!value.startsWith('/')&&!value.split('/').includes('..'), 'Use an entry within the plugin folder.') })
 export const importedPluginSchema = pluginManifestSchema.extend({ html: z.string().min(1).max(3_000_000), enabled: z.boolean(), importedAt: z.iso.datetime() })
 export type ImportedPlugin = z.infer<typeof importedPluginSchema>
 export interface PluginFile { name: string; webkitRelativePath?: string; size: number; type: string; text():Promise<string>; arrayBuffer():Promise<ArrayBuffer> }

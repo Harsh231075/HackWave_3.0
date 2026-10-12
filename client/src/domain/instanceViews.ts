@@ -1,3 +1,4 @@
+import { composeNewLayoutRows, normalizeLayoutRows, widgetLayoutCatalog, type CanvasMetrics, type LayoutVariant } from './widgetLayout.ts'
 import { isMailWidget } from './mail.ts'
 import { calendarDate } from './calendar.ts'
 import { mergeComponentBindings } from './componentContinuation.ts'
@@ -12,7 +13,7 @@ export function instancePlan(instance: WidgetInstance): ComponentView {
   const { referenceDate: _referenceDate, timezone: _timezone, calendarCategory: _category, goal: _goal, ...bindings } = view
   return componentViewSchema.parse({ action: 'view', widgets: [instance.widgetType], bindings: { ...bindings, category: view.calendarCategory, ...(binding.kind === 'workspace' ? {   draftKey: binding.draftKey } : {}) }, reply: 'Saved view', referenceDate: view.referenceDate ?? (binding.kind === 'overdue' ? binding.referenceDate : calendarDate()), timezone: view.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone })
 }
-export function applyComponentView(document: WorkspaceDocument, view: ComponentView, goal: string, bindingOverride?: WidgetBinding, exactTarget?: string): WorkspaceDocument {
+export function applyComponentView(document: WorkspaceDocument, view: ComponentView, goal: string, bindingOverride?: WidgetBinding, exactTarget?: string, canvas?: CanvasMetrics, externalVariants?: LayoutVariant[]): WorkspaceDocument {
   let active = [...document.active], pins = [...document.pins]
   const targets: string[] = []
   const explicitIds = exactTarget ? [exactTarget] : view.continuation?.targetInstanceIds ?? []
@@ -54,7 +55,7 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     if (!refined && (changedFilters.status || /all statuses/i.test(goal)) && !state.taskStatuses) delete viewState.taskStatuses
     if (!refined && /\b(all owners|everyone)\b/i.test(goal)) delete viewState.owner
     if (!refined && /\b(all priorities|any priority)\b/i.test(goal)) viewState.taskFilters.priority = 'all'
-    const instance = { ...makeInstance(type, binding, viewState, existing?.instanceId), span: existing?.span ?? 'full', ...(sameScope && existing?.actions ? { actions: existing.actions } : {}), explanation: { type, reason: view.reply, evidence: [] }, label: binding.kind === 'workspace' ? type : existing?.label ?? 'Google Calendar' } satisfies WidgetInstance
+    const instance = { ...makeInstance(type, binding, viewState, existing?.instanceId), span: existing?.span ?? 'full', layoutVersion: existing?.layoutVersion ?? view.layoutVersions?.[type] ?? (canvas && type===view.widgets[0] && widgetLayoutCatalog[type][1]?.preferredWidth<=canvas.width ? 2 : 1), externalLayoutVariants: existing?.externalLayoutVariants ?? (type==='external-plugin'?externalVariants:undefined), layoutWidth: existing?.layoutWidth, layoutSide: existing?.layoutSide, ...(sameScope && existing?.actions ? { actions: existing.actions } : {}), explanation: { type, reason: view.reply, evidence: [] }, label: binding.kind === 'workspace' ? type : existing?.label ?? 'Google Calendar' } satisfies WidgetInstance
     const duplicate = type !== 'resource-create' && !existing && [...active, ...pins].find(w => widgetSelectionKey(w) === widgetSelectionKey(instance))
     if (duplicate && !another) { targets.push(duplicate.instanceId); continue }
     const pin = pins.find(w => w.instanceId === existing?.instanceId)
@@ -63,5 +64,8 @@ export function applyComponentView(document: WorkspaceDocument, view: ComponentV
     else active.push(instance)
     targets.push(instance.instanceId)
   }
-  return commitWorkspace(document, { active, pins, targets })
+  const previousIds = new Set([...document.active,...document.pins].map(w=>w.instanceId))
+  const newInstances = active.filter(w=>!previousIds.has(w.instanceId))
+  const rows = canvas ? [...normalizeLayoutRows([...document.active,...document.pins], document.rows), ...composeNewLayoutRows(newInstances,canvas.width,canvas.gap)] : document.rows
+  return commitWorkspace(document, { active, pins, targets, ...(rows?{rows}:{}) })
 }

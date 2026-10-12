@@ -1,3 +1,6 @@
+import { useDisplayPreferences } from '@/hooks/useDisplayPreferences'
+import { widgetLayoutCatalog, composeNewLayoutRows, normalizeLayoutRows } from '@/domain/widgetLayout'
+import { measureCanvas } from '@/lib/workspace/canvasMetrics'
 import { isMailWidget } from '@/domain/mail'
 import { mailService } from '@/extensions/mail/mailRuntime'
 import { pluginImportService } from '@/services'
@@ -51,6 +54,7 @@ function ClarificationForm({ question, pending, onAnswer, onCancel }: { question
   }}><p className="text-sm font-medium" role="status">{question.question}</p>{question.field === 'dateRange' ? <div className="flex gap-3"><label className="text-sm">From<input aria-label="Clarification from date" className="mt-1 block rounded border p-2" type="date" value={from} onChange={event => setFrom(event.target.value)} required disabled={pending} /></label><label className="text-sm">Through<input aria-label="Clarification through date" className="mt-1 block rounded border p-2" type="date" min={from} value={to} onChange={event => setTo(event.target.value)} required disabled={pending} /></label></div> : <Select items={question.choices.map(choice => ({ value: choice.id, label: choice.label }))} value={selection} onValueChange={setSelection} disabled={pending}><SelectTrigger aria-label="Clarification choice" className="h-auto w-full min-w-0 whitespace-normal"><SelectValue placeholder="Choose an option" /></SelectTrigger><SelectContent>{question.choices.map(choice => <SelectItem key={choice.id} value={choice.id}>{choice.label}</SelectItem>)}</SelectContent></Select>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={pending || (question.field === 'dateRange' ? !from || !to || from > to : !selection)}>Continue</Button></div></form>
 }
 export function DynamicWorkspace() {
+  const displayPreferences = useDisplayPreferences()
   const workspace = useWorkspaceDocument()
   const { document, current, save, setNotice, interrupt } = workspace
   const { state, draftBuffers } = useWorkspace()
@@ -116,11 +120,12 @@ export function DynamicWorkspace() {
     save({ ...current.current, continuation: { lastSuccess: current.current.continuation?.lastSuccess }, turns: [...current.current.turns, { id, prompt: submitted, reply: 'Preparing your workspace…', status: 'pending' as const }].slice(-60) }, false)
     setCommandOpen(false); setGoal(''); setQuestion(null); speech.cancel()
     const epoch = browserDatabase.getEpoch()
-    const baseline = JSON.stringify({ active: current.current.active, pins: current.current.pins })
+    const baseline = JSON.stringify({ active: current.current.active, pins: current.current.pins, rows: current.current.rows })
     let proposed: ComponentView | undefined
     const install = (next: WorkspaceDocument, context?: SuccessfulContinuation) => {
       if (epoch !== browserDatabase.getEpoch() || controller.signal.aborted) return
-      if (baseline !== JSON.stringify({ active: current.current.active, pins: current.current.pins })) throw new Error('The workspace changed while resolving this request. Try again.')
+      if (baseline !== JSON.stringify({ active: current.current.active, pins: current.current.pins, rows: current.current.rows })) throw new Error('The workspace changed while resolving this request. Try again.')
+      next = { ...next, active: next.active.map(w => w.widgetType === 'external-plugin' ? {...w,externalLayoutVariants:pluginImportService.getById(w.viewState.externalPluginId??'')?.layoutVariants??w.externalLayoutVariants} : w), pins: next.pins.map(w=>w.widgetType==='external-plugin'?{...w,externalLayoutVariants:pluginImportService.getById(w.viewState.externalPluginId??'')?.layoutVariants??w.externalLayoutVariants}:w) }
       if (!save({ ...next, continuation: context ? { lastSuccess: context } : undefined })) throw new Error('Workspace could not be saved.')
     }
     const ask = (pendingQuestion: Extract<PendingClarification, { kind: 'component' }>) => {
@@ -137,7 +142,8 @@ export function DynamicWorkspace() {
       const types = namedWidgets(submitted)
       const previousForType = () => { try { return types.length === 1 ? resolveTarget(current.current, types[0], false) : current.current.active.find(w => current.current.targets.includes(w.instanceId)) } catch (error) { if (error instanceof TargetError) return undefined; throw error } }
       const previous = /\b(another|second|additional|separate)\b/i.test(submitted) ? undefined : exactTarget ? all.find(w => w.instanceId === exactTarget) : previousForType()
-      const input = { enabledExtensions:extensionService.getSettings().enabled,  goal: submitted, referenceDate: offered && (answer || exactTarget) ? offered.referenceDate : calendarDate(undefined, calendar.timezone), timezone: offered && (answer || exactTarget) ? offered.timezone : calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all.map(w => ({ ...w, pinned: 'pinId' in w })), componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { externalPlugins:pluginImportService.list().filter(p=>p.enabled).map(p=>({id:p.id,name:p.name,description:p.description})), tasks:state.tasks.map(t=>({id:t.id,title:t.title})), owners: [...new Set(state.tasks.map(t => t.owner))], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
+      const renderedLayout = [...(canvas.current?.querySelectorAll<HTMLElement>('[data-instance-id]')??[])].map(element=>{const rect=element.getBoundingClientRect();return {instanceId:element.dataset.instanceId!,width:rect.width,height:rect.height,row:parseInt(element.style.gridRow)||1,column:parseInt(element.style.gridColumn)||1}})
+      const input = { renderedLayout, canvas: measureCanvas(canvas.current), rows: current.current.rows, revision: current.current.revision, enabledExtensions:extensionService.getSettings().enabled,  goal: submitted, referenceDate: offered && (answer || exactTarget) ? offered.referenceDate : calendarDate(undefined, calendar.timezone), timezone: offered && (answer || exactTarget) ? offered.timezone : calendar.timezone, workspaceWidgets: current.current.active.map(w => w.widgetType), instances: all.map(w => ({ ...w, viewState:{...w.viewState, taskView:w.viewState.taskView??displayPreferences.taskView, calendarView:w.viewState.calendarView??displayPreferences.calendarView}, pinned: 'pinId' in w })), componentPlans: all.map(instancePlan), previous: previous ? instancePlan(previous) : undefined, catalog: { externalPlugins:pluginImportService.list().filter(p=>p.enabled).map(p=>({id:p.id,name:p.name,description:p.description,layoutVariants:p.layoutVariants})), tasks:state.tasks.map(t=>({id:t.id,title:t.title})), owners: [...new Set(state.tasks.map(t => t.owner))], draftKeys: Object.keys({ ...state.drafts, ...draftBuffers }).filter(key => !key.startsWith('google-preparation:') || !!calendar.connection?.accountId && key.startsWith('google-preparation:' + calendar.connection.accountId + ':')), topics: [...new Set(resourceService.list().map(r => r.context))] } }
       let resolved = answer ? null : exactTarget && offered?.kind === 'component' && offered.proposed ? { ...offered.proposed, continuation: offered.proposed.continuation ? { ...offered.proposed.continuation, targetInstanceIds: [exactTarget] } : undefined } : await resolveComponentIntent({ ...input, lastTargetIds: restored.lastSuccess?.targetInstanceIds }, controller.signal)
       proposed = resolved?.action === 'view' ? resolved : undefined
       if (resolved?.action === 'view' && resolved.continuation?.relationship === 'refinement') {
@@ -167,7 +173,7 @@ export function DynamicWorkspace() {
       if(resolved?.action==='view' && resolved.widgets.some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')
       if(resolved?.action==='manage' && resolved.operations.flatMap(op=>op.type==='add'?op.widgets:op.type==='replace'?op.with:[]).some(id=>!extensionService.isWidgetEnabled(id)))throw new Error('This extension was disabled. Enable it in Plugins first.')
       if (resolved?.action === 'manage') {
-        const operations = exactTarget ? resolved.operations.map(op => op.type === 'remove' || op.type === 'keep' || op.type === 'replace' ? { ...op, widgets: op.widgets.map(type => previous?.widgetType === type ? exactTarget : type) } : op.type === 'move' || op.type === 'resize' ? { ...op, widget: previous?.widgetType === op.widget ? exactTarget : op.widget } : op) : resolved.operations
+        const operations = exactTarget ? resolved.operations.map(op => op.type === 'remove' || op.type === 'keep' || op.type === 'replace' ? { ...op, widgets: op.widgets.map(type => previous?.widgetType === type ? exactTarget : type) } : op.type === 'move' || op.type === 'resize' ? { ...op, widget: previous?.widgetType === op.widget || op.widget === '@last' ? exactTarget : op.widget, ...(op.type === 'move' && op.relativeTo === previous?.widgetType ? {relativeTo:exactTarget} : {}) } : op) : resolved.operations
         const includePins = /\b(including pins|pinned|all pins)\b/i.test(submitted)
         const next = applyInstanceOperations(current.current, operations, type => { if(type==='external-plugin' && input.catalog.externalPlugins.length!==1)throw new Error('Choose an enabled imported plugin by name.'); return makeInstance(type, isMailWidget(type) ? { kind: 'gmail', accountId: mailService.getSnapshot().accountId } : { kind: 'workspace' }, { referenceDate: input.referenceDate, timezone: input.timezone,...(type==='external-plugin'?{externalPluginId:input.catalog.externalPlugins[0].id}:{}) }) }, includePins)
         install(next, next.continuation?.lastSuccess)
@@ -178,7 +184,7 @@ export function DynamicWorkspace() {
         if (resolved.continuation?.relationship !== 'refinement' && !useDemo && calendar.connection?.connected && calendar.connection.accountId && resolved.widgets.some(type => ['calendar', 'meetings', 'availability'].includes(type))) binding = { kind: 'google-calendar', accountId: calendar.connection.accountId, calendarId: 'primary', mode: 'browse' }
         if (resolved.widgets.some(isMailWidget)) binding = previous?.binding.kind === 'gmail' && resolved.continuation?.relationship === 'refinement' ? previous.binding : { kind: 'gmail', accountId: mailService.getSnapshot().accountId }
         if (!binding && previous?.binding.kind === 'google-calendar' && previous.binding.mode === 'prepare' && resolved.widgets.some(type => ['context', 'outline'].includes(type))) binding = previous.binding
-        const next = applyComponentView(current.current, resolved, submitted, binding, exactTarget)
+        const next = applyComponentView(current.current, resolved, submitted, binding, exactTarget, input.canvas, pluginImportService.getById(resolved.bindings.externalPluginId??'')?.layoutVariants)
         const target = [...next.active, ...next.pins].find(w => next.targets.includes(w.instanceId))
         if (target?.binding.kind === 'google-calendar' && target.binding.accountId !== calendar.connection?.accountId) throw new Error('Reconnect this view’s original Google account.')
         install(next, { requestId: id, goal: submitted, targetInstanceIds: next.targets, referenceDate: input.referenceDate, timezone: input.timezone, provider: target?.binding.kind === 'google-calendar' ? 'google-calendar' : 'components', accountId: target?.binding.kind === 'google-calendar' ? target.binding.accountId : undefined })
@@ -195,7 +201,7 @@ export function DynamicWorkspace() {
         install(next, { requestId: id, goal: submitted, targetInstanceIds: next.targets, referenceDate: input.referenceDate, timezone: input.timezone, provider: 'google-calendar', accountId: binding.accountId })
         finish(id, 'ready', plan.reply); return
       }
-      const result = await workflow.run({ goal: submitted, previousUI: '', context: { demoDate: input.referenceDate, timezone:input.timezone, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: current.current.pins.map(p => p.widgetType), componentState: {} } }, answer, resolved && 'continuation' in resolved ? resolved.continuation : offered?.kind === 'adaptive' ? offered.continuation : undefined)
+      const result = await workflow.run({ goal: submitted, previousUI: '', context: { canvas: input.canvas, layoutCatalog: widgetLayoutCatalog, demoDate: input.referenceDate, timezone:input.timezone, tasks: state.tasks, events: state.events, drafts: { ...state.drafts, ...draftBuffers }, pins: current.current.pins.map(p => p.widgetType), componentState: {} } }, answer, resolved && 'continuation' in resolved ? resolved.continuation : offered?.kind === 'adaptive' ? offered.continuation : undefined)
       if (!valid()) return
       if (!result) {
         const clarification = workflow.getOutcome().clarification
@@ -203,15 +209,19 @@ export function DynamicWorkspace() {
         finish(id, workflow.getOutcome().clarification ? 'clarification' : 'error', workflow.getOutcome().error || 'Choose the details needed to continue.'); setCommandOpen(true); return }
       if(result.kind==='general' && extractActiveWidgets(result.response,productivityLibrary.toJSONSchema(),productivityLibrary.root).some(w=>!extensionService.isWidgetEnabled(w.id)))throw new Error('The generated layout includes a disabled extension.')
       if(result.kind==='general' && extractActiveWidgets(result.response,productivityLibrary.toJSONSchema(),productivityLibrary.root).some(w=>w.id==='external-plugin') && input.catalog.externalPlugins.length!==1)throw new Error('Choose an enabled imported plugin by name.')
-      const instances = result.kind === 'general' ? extractActiveWidgets(result.response, productivityLibrary.toJSONSchema(), productivityLibrary.root).map(w => ({ ...makeInstance(w.id,{kind:'workspace',...(isExtension(w.id)?{}:{})},w.id==='external-plugin'?{externalPluginId:input.catalog.externalPlugins[0].id}:{}), span: w.span })) : instancesFromLayout(result.session)
+      const instances = result.kind === 'general' ? extractActiveWidgets(result.response, productivityLibrary.toJSONSchema(), productivityLibrary.root).map(w => ({ ...makeInstance(w.id,{kind:'workspace',...(isExtension(w.id)?{}:{})},w.id==='external-plugin'?{externalPluginId:input.catalog.externalPlugins[0].id}:{}), span: w.span, layoutVersion: w.layoutVersion ?? 1 })) : instancesFromLayout(result.session)
+      const requestedVersions = result.kind === 'general' ? new Map(extractActiveWidgets(result.response,productivityLibrary.toJSONSchema(),productivityLibrary.root).map(w=>[w.id,w.layoutVersion])) : new Map()
+      const primarySized = instances.find(i=>widgetLayoutCatalog[i.widgetType][1]?.preferredWidth<=input.canvas.width)
+      const originalIds = new Set([...current.current.active,...current.current.pins].map(w=>w.instanceId))
       let next = current.current
       const installedTargets: string[] = []
       for (const instance of instances) {
         const plan = instancePlan(instance)
         next = applyComponentView(next, plan, submitted, instance.binding, exactTarget && instance.widgetType === previous?.widgetType ? exactTarget : undefined)
         installedTargets.push(...next.targets)
-        next.active = next.active.map(w => next.targets.includes(w.instanceId) ? { ...w, span: instance.span, explanation: instance.explanation, fingerprint: instance.fingerprint } : w)
+        next.active = next.active.map(w => next.targets.includes(w.instanceId) ? { ...w, span: instance.span, layoutVersion: requestedVersions.get(w.widgetType) ?? (originalIds.has(w.instanceId) ? w.layoutVersion ?? 1 : w.widgetType === primarySized?.widgetType ? 2 : instance.layoutVersion ?? 1), explanation: instance.explanation, fingerprint: instance.fingerprint } : w)
       }
+      next = {...next,rows:[...normalizeLayoutRows([...current.current.active,...current.current.pins],current.current.rows),...composeNewLayoutRows(next.active.filter(w=>!originalIds.has(w.instanceId)),input.canvas.width,input.canvas.gap)]}
       const response = result.kind === 'general' ? result.response : result.session.response
       const buttons = extractGeneratedActions(response, productivityLibrary.toJSONSchema(), productivityLibrary.root)
       const origin = instances[0] && [...next.active, ...next.pins].find(w => w.widgetType === instances[0].widgetType && JSON.stringify(w.binding) === JSON.stringify(instances[0].binding))
@@ -260,7 +270,7 @@ export function DynamicWorkspace() {
       <main className={`generated-canvas${latest ? ' workspace-has-status' : ''}`} aria-label="Context-aware workspace" inert={organizing}>
         {workspace.notice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground"><span>{workspace.notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss layout message" onClick={() => setNotice('')}><X size={14} /></Button></div>}
         {latest && <div className="mb-4 flex items-start gap-3" aria-label="Workspace status"><OrloLogo size={22} /><p role={organizing ? undefined : latest.status === 'error' ? 'alert' : 'status'} className={`min-w-0 flex-1 text-sm leading-6 ${latest.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{latest.reply}</p>{!pending&&latest.source&&<span className="shrink-0 text-xs leading-6 text-muted-foreground" aria-label="Intent routing source">{latest.source==='ai'?'AI':'Keyword'}</span>}{pending && <Button size="sm" variant="ghost" onClick={stop}>Stop</Button>}</div>}
-        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace" aria-busy={organizing}><AnimatePresence initial={false}>{organizing && <WorkspaceOrganizingLoader key="organizing" onStop={previewOrganizing ? () => setPreviewOrganizing(false) : stop} />}</AnimatePresence><InstanceCanvas instances={[...document.active, ...document.pins]} update={update} remove={id=>save({...current.current,active:current.current.active.filter(w=>w.instanceId!==id),pins:current.current.pins.filter(w=>w.instanceId!==id),targets:current.current.targets.filter(target=>target!==id)})} />
+        <section ref={canvas} tabIndex={-1} aria-label="Generated productivity workspace" aria-busy={organizing}><AnimatePresence initial={false}>{organizing && <WorkspaceOrganizingLoader key="organizing" onStop={previewOrganizing ? () => setPreviewOrganizing(false) : stop} />}</AnimatePresence><InstanceCanvas instances={[...document.active, ...document.pins]} rows={document.rows} adaptive update={update} remove={id=>save({...current.current,active:current.current.active.filter(w=>w.instanceId!==id),pins:current.current.pins.filter(w=>w.instanceId!==id),targets:current.current.targets.filter(target=>target!==id)})} />
           {!hasComponents && !pending && <div className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"><p>Your workspace is empty.</p><Button className="mt-4" variant="outline" onClick={() => close(true)}>Press Ctrl / Cmd + K to add components</Button></div>}
         </section>
 

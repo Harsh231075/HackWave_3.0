@@ -1471,3 +1471,32 @@
 .generated-canvas.workspace-has-status {
   padding-top: 16px;
 }
+/* Adaptive instances keep their own height and remain mounted while rows change. */
+.adaptive-workspace-grid {
+  align-items: start;
+}
+.adaptive-workspace-grid > .adaptive-widget-cell > section {
+  height: auto;
+  flex: none;
+}
+.adaptive-widget-cell[data-layout-version="1"] .shared-task-row {
+  padding: 0.5rem 0.65rem;
+  gap: 0.5rem;
+}
+.adaptive-widget-cell[data-layout-version="2"] .shared-task-row {
+  padding: 0.85rem 1rem;
+}
+.widget-presentation-body {
+  scrollbar-gutter: stable;
+}
+@container (max-width: 420px) {
+  .adaptive-widget-cell .shared-task-row {
+    flex-wrap: wrap;
+  }
+  .adaptive-widget-cell .shared-task-row .task-name {
+    flex-basis: calc(100% - 5rem);
+  }
+  .adaptive-widget-cell .widget-presentation-body .grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,3 +1,4 @@
+import { widgetLayoutCatalog } from '@/domain/widgetLayout'
 import { useWorkspaceActions } from './WorkspaceActionContext'
 import { workspaceActionSchema } from '@/domain/workspaceActions'
 import { Button } from '@/components/ui/button'
@@ -11,8 +12,8 @@ import { WorkspaceRenderer as StaticWorkspaceRenderer } from './WorkspaceRendere
 
 const WorkspaceWidget = defineComponent({
   name: 'WorkspaceWidget',
-  props: z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']) }),
-  description: 'An existing productivity widget. Use unique IDs; metrics and tasks normally span full. Widgets read and edit shared workspace records.',
+  props: z.object({ id: z.enum(widgetTypes), span: z.enum(['wide', 'narrow', 'full']), version: z.number().int().positive().optional() }),
+  description: 'An existing productivity widget. Use unique IDs and a supported numbered presentation version; the application calculates dimensions. Widgets read and edit shared workspace records.',
   component: () => null,
 })
 const Workspace = defineComponent({
@@ -45,7 +46,7 @@ export const productivityLibrary = createLibrary({
   components: [...Object.values(openuiChatLibrary.components).filter(component => component.name !== 'Card'), ProductivityCard, WorkspaceWidget, Workspace, WorkspaceAction],
   componentGroups: [
     ...(openuiChatLibrary.componentGroups ?? []),
-    { name: 'Productivity', components: ['Workspace', 'WorkspaceWidget', 'WorkspaceAction'], notes: widgetTypes.map(id => `${id}: ${registry[id].reason}`) },
+    { name: 'Productivity', components: ['Workspace', 'WorkspaceWidget', 'WorkspaceAction'], notes: widgetTypes.map(id => `${id}: ${registry[id].reason} Layout versions: ${JSON.stringify(widgetLayoutCatalog[id])}`) },
   ],
 })
 
